@@ -1,8 +1,11 @@
 import { Text, View } from "react-native";
+import "./global.css";
+import Login from "./pages/login";
+import Dashboard from "./pages/dashboard";
 export default function Index() {
   return (
-    <View className="flex-1 items-center justify-center bg-white">
-      <Text className="text-8xl text-blue-700 font-bold">hello </Text>
+    <View>
+      <Login/>
     </View>
   );
 }
