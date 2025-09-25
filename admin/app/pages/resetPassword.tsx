@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { Text, View, Image, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { Stack, router } from "expo-router";
 import mainLogo from "../utils/MainLogo.png";
 import ResetPassword_icon from "../utils/Resetpassword.png";
+
 // import { useAuth } from "../../src/context/AuthContext";
 
 const ResetPassword: React.FC = () => {
-  const router = useRouter();
   //   const { sendPasswordResetEmail } = useAuth();
   const [email, setEmail] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -92,7 +92,7 @@ const ResetPassword: React.FC = () => {
                 <Text className="text-sm text-[#333]">
                   Remember your password?{" "}
                   <Text
-                    // onPress={() => navigation.navigate("Login")}
+                    onPress={() => router.push("/pages/login")}
                     className="text-[#27AE60] underline"
                   >
                     Login

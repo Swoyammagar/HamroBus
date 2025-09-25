@@ -7,7 +7,7 @@ import VerifyOTP from "./pages/otp";
 export default function Index() {
   return (
     <View>
-      <VerifyOTP/>
+      <Login/>
     </View>
   );
 }

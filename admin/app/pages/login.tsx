@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Text, View, Image, TouchableOpacity, TextInput, ScrollView } from "react-native";
 import LoginImage from "../utils/Login.png";
 import MainLogo from "../utils/MainLogo.png";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 
 const Login = () => {
   const [email, setEmail] = useState<string>("");
@@ -60,7 +60,7 @@ const Login = () => {
 
               <View className="flex-row justify-between items-center mb-1">
                 <Text className="text-gray-700">Password</Text>
-                <Text className="text-gray-400 text-xs">Forgot Password?</Text>
+                <Text onPress={()=>router.push("/pages/resetPassword")} className="text-gray-400 text-xs">Forgot Password?</Text>
               </View>
               <TextInput
                 className="rounded-lg shadow p-3 mb-4 border border-gray-300 w-full"
@@ -72,16 +72,6 @@ const Login = () => {
 
               <TouchableOpacity onPress={handleLogin} className="bg-green-500 rounded-lg p-3 items-center mb-4">
                 <Text className="text-white font-medium text-lg">Login</Text>
-              </TouchableOpacity>
-
-              <View className="flex-row items-center my-4">
-                <View className="flex-1 h-[1px] bg-gray-300" />
-                <Text className="px-2 text-gray-400">or</Text>
-                <View className="flex-1 h-[1px] bg-gray-300" />
-              </View>
-
-              <TouchableOpacity className="bg-green-100 rounded-lg p-3 items-center">
-                <Text className="text-green-700 font-medium text-lg">Create New Account</Text>
               </TouchableOpacity>
             </View>
           </View>
