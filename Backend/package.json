@@ -1,0 +1,26 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon index.js",
+    "dev": "nodemon index.js",
+    "build": "npm install && if not exist dist mkdir dist && xcopy /E /I /Y *.js dist\\ && xcopy /E /I /Y routes dist\\routes\\ && xcopy /E /I /Y models dist\\models\\ && xcopy /E /I /Y controllers dist\\controllers\\ && xcopy /E /I /Y middleware dist\\middleware\\ && xcopy /E /I /Y config dist\\config\\ && xcopy /E /I /Y utils dist\\utils\\ && copy package.json dist\\"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "mongoose": "^8.17.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
