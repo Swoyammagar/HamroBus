@@ -21,6 +21,10 @@ const adminSchema = new mongoose.Schema({
         type: String,
         default: 'admin'
     },
+    isVerified:{
+        type: Boolean,
+        default: false
+    },
     default:{}
 });
 module.exports = mongoose.models.Admin || mongoose.model("Admin", adminSchema);

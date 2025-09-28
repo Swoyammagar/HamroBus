@@ -1,6 +1,10 @@
 const Admin = require('../models/admin.model');
 const bcrypt = require('bcrypt');
 const { generateToken } = require('../utils/authutils');
+const { generateOTP } = require('../utils/OTPutils');
+const { sendPasswordResetEmail } = require('../utils/OTPutils');
+const { hashPassword } = require('../utils/authutils');
+
 
 const Login = async (req, res) =>{
     const { email, password } = req.body;
@@ -13,7 +17,6 @@ const Login = async (req, res) =>{
         if(!isPasswordValid){
             return res.status(401).json({ message: "Invalid password" });
         }
-        res.status(200).json({ message: "Login successful", admin: { email: existing.email, id: existing._id } });
         const token = generateToken(existing);
         res.status(200).json({ 
             admin: { email: existing.email, id: existing._id },
@@ -32,7 +35,7 @@ const requestPasswordReset = async (req, res) => {
     const user = await Admin.findOne({ email });
 
     if (!user) {
-      return res.status(StatusCodes.NOT_FOUND).json({
+      return res.status(400).json({
         success: false,
         message: "User not found",
       });
@@ -42,16 +45,16 @@ const requestPasswordReset = async (req, res) => {
     user.otp = otp;
     await user.save();
 
-    await sendVerificationEmail(email, user.fullname, otp);
+    await sendPasswordResetEmail(email, user.fullname, otp);
 
-    res.status(StatusCodes.OK).json({
+    res.status(200).json({
       success: true,
       message: "OTP sent to your email for password reset",
     });
 
   } catch (error) {
     console.error("Error requesting password reset:", error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+    res.status(500).json({
       success: false,
       message: "Server error",
     });
@@ -68,7 +71,7 @@ const resetPassword = async (req, res) => {
     const user = await Admin.findOne({ email });
 
     if (!user) {
-      return res.status(StatusCodes.NOT_FOUND).json({
+      return res.status(400).json({
         success: false,
         message: "User not found",
       });
@@ -77,16 +80,55 @@ const resetPassword = async (req, res) => {
     user.password = await hashPassword(newPassword);
     await user.save();
 
-    res.status(StatusCodes.OK).json({
+    res.status(200).json({
       success: true,
       message: "Password reset successfully. You can now log in.",
     });
   } catch (error) {
     console.error("Error resetting password:", error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+    res.status(500).json({
       success: false,
       message: "Server error",
     });
   }
 };
-module.exports = { Login, requestPasswordReset, resetPassword };
+
+const verifyOTPUser = async (req, res) => {
+  const { email, otp } = req.body;
+  try {
+    const user = await Admin.findOne({ email });
+    if (!user) {
+      return res.status(400).json({
+        status: 'error',
+        message: "User not found",
+        error: 'USER_NOT_FOUND'
+      });
+    }
+
+    if (user.otp !== otp) {
+      return res.status(400).json({
+        status: 'error',
+        message: "Invalid OTP",
+        error: 'INVALID_OTP'
+      });
+    }
+
+    user.isVerified = true;
+    user.otp = null;
+    await user.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: "Account verified successfully. Please log in.",
+      email: user.email
+    });
+  } catch (error) {
+    console.error("Error verifying OTP:", error);
+    res.status(500).json({
+      status: 'error',
+      message: "Server error",
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+module.exports = { Login, requestPasswordReset, resetPassword, verifyOTPUser };
