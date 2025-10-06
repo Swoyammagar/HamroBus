@@ -5,6 +5,7 @@ import MainLogo from "../utils/MainLogo.png";
 import { router, Stack } from "expo-router";
 import { useAuth } from "../src/context/AuthContext";
 import type { ApiResponse } from "../src/types/auth";
+import { Eye, EyeOff } from "lucide-react-native";
 
 const Login = () => {
   const [email, setEmail] = useState<string>("");
@@ -12,6 +13,7 @@ const Login = () => {
   const [error, setError] = useState<string>("");
   const { login, loading } = useAuth();
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
     // const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -76,18 +78,26 @@ const Login = () => {
                 value={email}
                 onChangeText={(text) => setEmail(text)}
               />
-
+            
               <View className="flex-row justify-between items-center mb-1">
                 <Text className="text-gray-700">Password</Text>
                 <Text onPress={()=>router.push("/pages/resetPassword")} className="text-gray-400 text-xs">Forgot Password?</Text>
               </View>
-              <TextInput
-                className="rounded-lg shadow p-3 mb-4 border border-gray-300 w-full"
-                placeholder="Enter your password"
-                secureTextEntry
-                value={password}
-                onChangeText={(text) => setPassword(text)}
-              />
+              <View className="relative">
+                <TextInput
+                  secureTextEntry={!showPassword}
+                  className="rounded-lg shadow p-3 mb-4 border border-gray-300 w-full"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChangeText={(text) => setPassword(text)}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={{ position: "absolute", right: 10, top: 15 }}
+                >
+                  {showPassword ? <EyeOff size={20} color="gray" /> : <Eye size={20} color="gray" />}
+                </TouchableOpacity>
+              </View>
 
               <TouchableOpacity
                 onPress={handleLogin}
