@@ -1,14 +1,32 @@
-import { Text, View } from "react-native";
-import "./global.css";
-import Login from "./pages/login";
-import Dashboard from "./pages/dashboard";
-import ResetPassword from "./pages/resetPassword";
-import VerifyOTP from "./pages/otp";
-import NewPassword from "./pages/newPassword";
+import React, { useEffect, useState } from "react";
+import { View, ActivityIndicator } from "react-native";
+import { useRouter } from "expo-router";
+import { useAuth } from "./src/context/AuthContext";
+
 export default function Index() {
+  const { validateToken } = useAuth();
+  const router = useRouter();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const valid = await validateToken();
+        if (valid) {
+          router.replace("/pages/dashboard");
+        } else {
+          router.replace("/pages/login");
+        }
+      } finally {
+        setChecking(false);
+      }
+    })();
+  }, []);
+
+  // simple loading UI while decision is made
   return (
-    <View>
-      <ResetPassword/>
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <ActivityIndicator size="large" />
     </View>
   );
 }

@@ -1,27 +1,30 @@
 import React, { useState } from "react";
-import { Text, View, Image, TouchableOpacity, TextInput, ScrollView } from "react-native";
+import { Text, View, Image, TouchableOpacity, TextInput, ScrollView, ActivityIndicator } from "react-native";
 import LoginImage from "../utils/Login.png";
 import MainLogo from "../utils/MainLogo.png";
 import { router, Stack } from "expo-router";
+import { useAuth } from "../src/context/AuthContext";
+import type { ApiResponse } from "../src/types/auth";
 
 const Login = () => {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const { login, loading } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleLogin = () => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const passwordRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*]).{6,}$/;
+  const handleLogin = async () => {
+    // const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // const passwordRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*]).{6,}$/;
 
-    if (!emailRegex.test(email)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-    if (!passwordRegex.test(password)) {
-      setError("Password must be at least 6 characters long, contain a number and a special character.");
-      return;
-    }
-    setError("");
+    // if (!emailRegex.test(email)) {
+    //   setError("Please enter a valid email address.");
+    //   return;
+    // }
+    // if (!passwordRegex.test(password)) {
+    //   setError("Password must be at least 6 characters long, contain a number and a special character.");
+    //   return;
+    // }
   };
 
   return (
@@ -70,8 +73,17 @@ const Login = () => {
                 onChangeText={(text) => setPassword(text)}
               />
 
-              <TouchableOpacity onPress={handleLogin} className="bg-green-500 rounded-lg p-3 items-center mb-4">
-                <Text className="text-white font-medium text-lg">Login</Text>
+              <TouchableOpacity
+                onPress={handleLogin}
+                disabled={submitting || loading}
+                className="bg-green-500 rounded-lg p-3 items-center mb-4"
+                style={{ opacity: submitting || loading ? 0.6 : 1 }}
+              >
+                {submitting || loading ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text className="text-white font-medium text-lg">Login</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
