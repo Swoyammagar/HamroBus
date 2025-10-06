@@ -25,6 +25,22 @@ const Login = () => {
     //   setError("Password must be at least 6 characters long, contain a number and a special character.");
     //   return;
     // }
+
+    setError("");
+    try {
+      setSubmitting(true);
+      const res: ApiResponse = await login(email, password);
+      if (res.success) {
+        // navigate to dashboard on successful login
+        router.push("/pages/dashboard");
+      } else {
+        setError(res.message || 'Login failed');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Login error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
