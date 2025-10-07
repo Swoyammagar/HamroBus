@@ -3,38 +3,64 @@ import { Text, View, Image, TextInput, TouchableOpacity, ScrollView, ActivityInd
 import { Stack, useRouter } from "expo-router";
 import mainLogo from "../utils/MainLogo.png";
 import ResetPassword_icon from "../utils/Resetpassword.png";
-// import { useAuth } from "../../src/context/AuthContext";
+import { useAuth } from "../src/context/AuthContext";
+import { useSearchParams } from "expo-router/build/hooks";
 
 const VerifyOTP: React.FC = () => {
   const router = useRouter();
-//   const { resetVerify } = useAuth();
-//   const searchParams = useSearchParams();
-//   const email = searchParams.get("email") || "";
+  const { verifyOTP, passwordResetEmail } = useAuth();
+  const searchParams = useSearchParams();
+  const email = searchParams.get("email") || "";
 
   const [otp, setOtp] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [success, setSuccess] = useState<String>("");
 
   const handleVerifyOTP = async () => {
     setError("");
+    setSuccess("");
     if (!otp) {
       setError("Please enter the OTP");
       return;
     }
-
     setIsLoading(true);
-    // try {
-    //   const result = await resetVerify(otp, email);
-    //   if (result.success) {
-    //     router.push(`/newPassword?email=${encodeURIComponent(email)}`);
-    //   } else {
-    //     setError(result.message || "Invalid OTP. Please try again.");
-    //   }
-    // } catch (err: any) {
-    //   setError(err.message || "Invalid OTP. Please try again.");
-    // } finally {
-    //   setIsLoading(false);
-    // }
+    try {
+      const result = await verifyOTP(email, otp);
+      if (result.success) {
+        router.push(`/pages/newPassword?email=${encodeURIComponent(email)}`);
+      } else {
+        setError(result.message || "Invalid OTP. Please try again.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Invalid OTP. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    // Logic to resend OTP 
+    setError("");
+    setSuccess("");
+    if (!email){
+      setError("No email provided");
+      return;
+    }
+    setIsResending(true);
+    try {
+      const res = await passwordResetEmail(email);
+      if (res.success) {
+        setSuccess(res.message || "OTP resent successfully");
+      } else {
+        setError(res.message || "Failed to resend OTP. Please try again.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to resend OTP. Please try again.");
+    } finally {
+      setIsResending(false);
+    }
   };
 
   return (
@@ -61,7 +87,7 @@ const VerifyOTP: React.FC = () => {
               </View>
 
               {error ? <Text className="text-red-500 text-sm mb-4">{error}</Text> : null}
-
+              {success ? <Text className="text-green-500 text-sm mb-4">{success}</Text> : null}
               <Text className="text-lg font-medium text-[#333] mt-3 mb-1">Enter OTP</Text>
               <TextInput
                 value={otp}
@@ -87,11 +113,16 @@ const VerifyOTP: React.FC = () => {
 
                 <Text className="text-sm text-[#333]">
                   Didn't receive OTP?{" "}
-                  <Text
-                    // onPress={() => router.push("/login")}
-                    className="text-[#27AE60] underline"
-                  >
-                    Resend
+                  <Text>
+                    <TouchableOpacity 
+                      onPress={handleResendOTP} 
+                      disabled={isResending}>
+                        {isResending ? (
+                          <ActivityIndicator color="#27AE60" />
+                        ) : (
+                          <Text className="text-[#27AE60] underline">Resend OTP</Text>
+                        )}
+                    </TouchableOpacity>
                   </Text>
                 </Text>
               </View>
