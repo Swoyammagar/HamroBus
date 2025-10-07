@@ -3,11 +3,10 @@ import { Text, View, Image, TextInput, TouchableOpacity, ScrollView, ActivityInd
 import { Stack, router } from "expo-router";
 import mainLogo from "../utils/MainLogo.png";
 import ResetPassword_icon from "../utils/Resetpassword.png";
-
-// import { useAuth } from "../../src/context/AuthContext";
+import { useAuth } from "../src/context/AuthContext";
 
 const ResetPassword: React.FC = () => {
-  //   const { sendPasswordResetEmail } = useAuth();
+  const { passwordResetEmail } = useAuth();
   const [email, setEmail] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
@@ -22,19 +21,19 @@ const ResetPassword: React.FC = () => {
     }
 
     setIsLoading(true);
-    // try {
-    //   const result = await sendPasswordResetEmail(email);
-    //   if (result.success) {
-    //     setSuccess("Password reset email sent. Please check your inbox.");
-    //     router.push(`/resetVerify?email=${encodeURIComponent(email)}`);
-    //   } else {
-    //     setError(result.message || "Failed to send reset email. Please try again.");
-    //   }
-    // } catch (err: any) {
-    //   setError(err.message || "Failed to send reset email. Please try again.");
-    // } finally {
-    //   setIsLoading(false);
-    // }
+    try {
+      const result = await passwordResetEmail(email);
+      if (result.success) {
+        setSuccess("Password reset email sent. Please check your inbox.");
+        router.push(`/pages/otp?email=${encodeURIComponent(email)}`);
+      } else {
+        setError(result.message || "Failed to send reset email. Please try again.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to send reset email. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

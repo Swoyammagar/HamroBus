@@ -10,7 +10,7 @@ type AuthContextValue = {
   logout: () => void;
   validateToken: (tokenArg?: string | null) => Promise<boolean>;
   getCurrentUser: () => Promise<AdminUser | null>;
-  requestPasswordReset: (email: string) => Promise<ApiResponse>;
+  passwordResetEmail: (email: string) => Promise<ApiResponse>;
   resetPassword: (email: string, newPassword: string) => Promise<ApiResponse>;
   verifyOTP: (email: string, otp: string) => Promise<ApiResponse>;
 };
@@ -201,7 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return ok ? user : null;
   };
 
-  const requestPasswordReset = async (email: string) => {
+  const passwordResetEmail = async (email: string) => {
     try {
       const { data } = await axios.post<ApiResponse>(`${API_BASE}/admin/request-password-reset`, { email });
       return { success: !!data.success, message: data.message || '' };
@@ -239,7 +239,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
     validateToken,
     getCurrentUser,
-    requestPasswordReset,
+    passwordResetEmail,
     resetPassword,
     verifyOTP,
   };
