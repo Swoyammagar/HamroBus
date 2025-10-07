@@ -8,15 +8,19 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
-import { Stack, router } from "expo-router";
-import { Eye, EyeOff } from "lucide-react-native";
-// import { useAuth } from "../context/AuthContext"; // adjust path
-
+import { Stack, useRouter } from "expo-router";
+import { Eye, EyeOff, SearchCheck } from "lucide-react-native";
+import { useAuth } from "../src/context/AuthContext";
 import mainLogo from "../utils/MainLogo.png";
 import NewPassword_icon from "../utils/Newpassword.png";
+import { useSearchParams } from "expo-router/build/hooks";
 
 const NewPassword: React.FC = () => {
-//   const { resetPassword } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams()
+  const email = searchParams.get("email") || "";
+
+  const { resetPassword } = useAuth();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -59,18 +63,18 @@ const NewPassword: React.FC = () => {
     }
 
     setIsLoading(true);
-    // try {
-    //   const result = await resetPassword(password, ""); // supply email if needed
-    //   if (result.success) {
-    //     router.push("/pages/login");
-    //   } else {
-    //     setError(result.message || "Failed to reset password. Please try again.");
-    //   }
-    // } catch (err: any) {
-    //   setError(err.message || "Failed to reset password. Please try again.");
-    // } finally {
-    //   setIsLoading(false);
-    // }
+    try {
+      const result = await resetPassword(email, password);
+      if (result.success) {
+        router.push("/pages/login");
+      } else {
+        setError(result.message || "Failed to reset password. Please try again.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to reset password. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

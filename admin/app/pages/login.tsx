@@ -16,17 +16,6 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
-    // const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    // const passwordRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*]).{6,}$/;
-
-    // if (!emailRegex.test(email)) {
-    //   setError("Please enter a valid email address.");
-    //   return;
-    // }
-    // if (!passwordRegex.test(password)) {
-    //   setError("Password must be at least 6 characters long, contain a number and a special character.");
-    //   return;
-    // }
 
     setError("");
     try {
