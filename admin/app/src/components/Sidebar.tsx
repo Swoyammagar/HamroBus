@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   logoCollapsed: {
     width: 0,
     height: 0,
-    marginHorizontal: -15,
+    marginHorizontal: -18,
   },
   collapseBtn: {
     padding: 8,
