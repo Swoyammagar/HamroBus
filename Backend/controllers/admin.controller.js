@@ -19,7 +19,7 @@ const Login = async (req, res) =>{
         }
         const token = generateToken(existing);
         res.status(200).json({ 
-            admin: { email: existing.email, id: existing._id },
+            admin: { email: existing.email, id: existing._id, fullname: existing.fullname },
             token,
             message: "Login successful"});
     }   
