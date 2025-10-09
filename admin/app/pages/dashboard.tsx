@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import Header from '../src/components/Header';
 import Sidebar, { MenuKey } from '../src/components/Sidebar';
-import Buses from '../src/components/pages/Buses';
+import { Buses } from '../src/components/pages/Buses';
 import Drivers from '../src/components/pages/Drivers';
 import Routes from '../src/components/pages/Routes';
 import Schedules from '../src/components/pages/Schedules';

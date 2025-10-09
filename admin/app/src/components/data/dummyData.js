@@ -43,6 +43,7 @@ export const buses = [
     _id: 'bus_1',
     busNumber: 'BA 3 KHA 1234',
     capacity: 40,
+    model: 'Volvo B9R',
     status: 'active', // active | maintenance | inactive
     crowdLevel: 'medium', // low | medium | high | full
     assignedDriverId: 'drv_1',
@@ -55,6 +56,7 @@ export const buses = [
     _id: 'bus_2',
     busNumber: 'BA 2 KHA 5678',
     capacity: 32,
+    model: 'Tata Marcopolo',
     status: 'maintenance',
     crowdLevel: 'low',
     assignedDriverId: 'drv_2',
@@ -67,6 +69,7 @@ export const buses = [
     _id: 'bus_3',
     busNumber: 'BA 1 PA 4321',
     capacity: 28,
+    model: 'Ashok Leyland',
     status: 'inactive',
     crowdLevel: 'low',
     assignedDriverId: null,
