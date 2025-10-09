@@ -7,6 +7,7 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
+  Image,
 } from "react-native";
 import { findDriverById, findRouteById, drivers as allDrivers, routes as allRoutes, buses as allBuses, findBusById } from "../data/dummyData";
 import { Modal } from 'react-native';
@@ -125,7 +126,74 @@ const Drivers: React.FC = () => {
               />
               {/* Edit / View Modal */}
                   <Modal visible={modalVisible} animationType="slide" transparent>
-                    
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 }}>
+                      <View style={styles.modalCard}>
+                        <View style={styles.modalHeader}>
+                          <View style={styles.avatarWrap}>
+                            <Image source={require('../../../utils/MainLogo.png')} style={styles.avatarLarge} />
+                          </View>
+                          <View style={{ marginLeft: 12, flex: 1 }}>
+                            <Text style={styles.detailName}>{editingDriver?.name ?? ''}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                              <View style={[styles.statusBadge, editingDriver?.status === 'Active' ? styles.statusActiveBadge : styles.statusNeutralBadge]}>
+                                <Text style={styles.statusBadgeText}>{editingDriver?.status ?? 'Unknown'}</Text>
+                              </View>
+                              <Text style={{ marginLeft: 10, color: '#6b7280' }}>{editingDriver?.rating ? `⭐ ${editingDriver.rating}` : ''}</Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 520 }}>
+                          <View style={styles.detailGrid}>
+                            <View style={styles.gridCol}>
+                              <Text style={styles.detailLabel}>Phone</Text>
+                              <Text style={styles.detailValue}>{editingDriver?.phone ?? '-'}</Text>
+
+                              <Text style={[styles.detailLabel, { marginTop: 12 }]}>Email</Text>
+                              <Text style={styles.detailValue}>{editingDriver?.email ?? '-'}</Text>
+
+                              <Text style={[styles.detailLabel, { marginTop: 12 }]}>Address</Text>
+                              <Text style={styles.detailValue}>{editingDriver?.address ?? '-'}</Text>
+
+                              <Text style={[styles.detailLabel, { marginTop: 12 }]}>License</Text>
+                              <Text style={styles.detailValue}>{editingDriver?.licenseNumber ? `${editingDriver?.licenseNumber} (${editingDriver?.licenseType ?? ''})` : '-'}</Text>
+                            </View>
+
+                            <View style={styles.gridCol}>
+                              <Text style={styles.detailLabel}>License Expiry</Text>
+                              <Text style={styles.detailValue}>{editingDriver?.licenseExpiry ?? '-'}</Text>
+
+                              <Text style={[styles.detailLabel, { marginTop: 12 }]}>Assigned Vehicle</Text>
+                              <Text style={styles.detailValue}>{findBusById(editingDriver?.assignedVehicle ?? '')?.busNumber ?? (editingDriver?.assignedVehicle ?? '-')}</Text>
+
+                              <Text style={[styles.detailLabel, { marginTop: 12 }]}>Assigned Route</Text>
+                              <Text style={styles.detailValue}>{findRouteById(editingDriver?.assignedRouteId ?? '')?.name ?? '-'}</Text>
+
+                              <Text style={[styles.detailLabel, { marginTop: 12 }]}>Hire Date</Text>
+                              <Text style={styles.detailValue}>{editingDriver?.hireDate ?? '-'}</Text>
+                            </View>
+                          </View>
+
+                          {editingDriver?.emergencyContact ? (
+                            <View style={{ marginTop: 14 }}>
+                              <Text style={[styles.detailLabel, { marginBottom: 6 }]}>Emergency Contact</Text>
+                              <View style={styles.detailRow}>
+                                <Text style={styles.detailValue}>{editingDriver.emergencyContact.name ?? '-'}</Text>
+                                <Text style={styles.detailValue}>{editingDriver.emergencyContact.phone ?? '-'}</Text>
+                              </View>
+                            </View>
+                          ) : null}
+                        </ScrollView>
+
+                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 }}>
+                          <TouchableOpacity onPress={() => { setModalVisible(false); setEditingDriver(null); }} style={styles.closeBtn}>
+                            <Text style={{ color: '#374151' }}>Close</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
                   </Modal>
             </View>
           </ScrollView>
@@ -219,6 +287,34 @@ const styles = StyleSheet.create({
 
     elevation: 3,               // Android shadow (important!)
   },
+  modalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    maxHeight: 520,
+  },
+  avatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+  },
+  detailName: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 8, color: '#111827' },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
+  detailLabel: { color: '#6b7280', fontSize: 13 },
+  detailValue: { color: '#111827', fontSize: 14, maxWidth: '65%', textAlign: 'right' },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', paddingBottom: 8 },
+  avatarWrap: { width: 96, alignItems: 'center', justifyContent: 'center' },
+  avatarLarge: { width: 96, height: 96, borderRadius: 48, borderWidth: 2, borderColor: '#e5e7eb' },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  statusActiveBadge: { backgroundColor: '#ECFDF5' },
+  statusNeutralBadge: { backgroundColor: '#F3F4F6' },
+  statusBadgeText: { color: '#065f46', fontWeight: '600' },
+  divider: { height: 1, backgroundColor: '#eef2f7', marginVertical: 10 },
+  detailGrid: { flexDirection: 'row', gap: 16 },
+  gridCol: { flex: 1 },
+  closeBtn: { paddingHorizontal: 14, paddingVertical: 8 },
 });
 
 export { Drivers };
