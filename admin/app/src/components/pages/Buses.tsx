@@ -130,7 +130,8 @@ const Buses: React.FC = () => {
           </View>
 
           {/* Table header + rows in a horizontal ScrollView for small screens */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false}>
+
             <View style={styles.table}>
               <View style={[styles.row, styles.headerRow]}>
                 <View style={[styles.cell, styles.colBus]}><Text style={[styles.headerText]}>Bus Number</Text></View>
