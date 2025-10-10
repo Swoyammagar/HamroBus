@@ -49,7 +49,7 @@ const Drivers: React.FC = () => {
       <View style={styles.row}>
         <View style={[styles.cell, styles.colBus]}><Text style={styles.cellText}>{item.name}</Text></View>
         <View style={[styles.cell, styles.colModel]}><Text style={styles.cellText}>{item.phone}</Text></View>
-        <View style={[styles.cell, styles.colNum]}><Text style={styles.cellText}>{assignedBus ? assignedBus.busNumber : (item.assignedVehicle || '-')}</Text></View>
+        <View style={[styles.cell, styles.colNum]}><Text   style={styles.cellText}>{assignedBus ? assignedBus.busNumber : (item.assignedVehicle || '-')}</Text></View>
         <View style={[styles.cell, styles.colStatus]}><Text style={styles.ratingText}>{item.rating}</Text></View>
         <View style={[styles.cell, styles.colRoute]}><Text style={styles.routeText}>{route ? route.name : '-'}</Text></View>
                 <View style={[styles.cell, styles.colModel]}><Text style={styles.cellText}>{item.hireDate}</Text></View>
