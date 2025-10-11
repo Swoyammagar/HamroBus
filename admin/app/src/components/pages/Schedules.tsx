@@ -9,11 +9,75 @@ import {
   Modal,
   StyleSheet,
 } from "react-native";
+import { schedules as allSchedules, findBusById, findDriverById, findRouteById } from "../data/dummyData";
+import type { Schedule } from "../../types/schedules";
 
 const BusesDesignOnly: React.FC = () => {
 const [activeTab, setActiveTab] = useState<"all" | "add">("all");
 const [query, setQuery] = useState<string>("");
+const [schedules, setSchedules] = useState<Schedule[]>(allSchedules as Schedule[]);
 
+const filteredSchedules = useMemo(() => {
+  const q = query.trim().toLowerCase();
+  if (!q) return schedules;
+  return schedules.filter((s) => {
+    const bus = findBusById(s.busId);
+    const driver = findDriverById(s.driverId);
+    const route = findRouteById(s.routeId);
+    return (
+      (bus?.busNumber || '').toLowerCase().includes(q) ||
+      (driver?.name || '').toLowerCase().includes(q) ||
+      (route?.name || '').toLowerCase().includes(q) ||
+      (s.date || '').toLowerCase().includes(q)
+    );
+  });
+}, [query, schedules]);
+
+const renderRow = ({ item }: { item: Schedule }) => {
+  const route = findRouteById(item.routeId);
+  const bus = findBusById(item.busId);
+  const driver = findDriverById(item.driverId);
+
+  const dep = item.departureTime ? new Date(item.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
+  const arr = item.arrivalTime ? new Date(item.arrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-';
+
+  return (
+    <View style={styles.row}>
+      <View style={[styles.cell, styles.colBus]}>
+        <Text style={styles.cellText}>{route?.name ?? '-'}</Text>
+      </View>
+      <View style={[styles.cell, styles.colModel]}>
+        <Text style={styles.cellText}>{bus?.busNumber ?? '-'}</Text>
+      </View>
+      <View style={[styles.cell, styles.colNum]}>
+        <Text style={styles.cellText}>{driver?.name ?? '-'}</Text>
+      </View>
+      <View style={[styles.cell, styles.colStatus]}>
+        <Text style={styles.cellText}>{item.date ?? '-'}</Text>
+      </View>
+      <View style={[styles.cell, styles.colDriver]}>
+        <Text style={styles.cellText}>{dep}</Text>
+      </View>
+      <View style={[styles.cell, styles.colRoute]}>
+        <Text style={styles.cellText}>{arr}</Text>
+      </View>
+      <View style={[styles.cell, { minWidth: 140, flex: 1 }]}>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity
+            style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#dbeafe", borderRadius: 6 }}
+          >
+            <Text style={{ color: "#1d4ed8" }}>View</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#fee2e2", borderRadius: 6 }}
+          >
+            <Text style={{ color: "#b91c1c" }}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+};
   return (
     <View style={styles.container}>
       {/* Tabs */}
@@ -52,22 +116,22 @@ const [query, setQuery] = useState<string>("");
             {/* Header Row */}
             <View style={[styles.row, styles.headerRow]}>
               <View style={[styles.cell, styles.colBus]}>
-                <Text style={styles.headerText}>Bus Number</Text>
+                <Text style={styles.headerText}>Route</Text>
               </View>
               <View style={[styles.cell, styles.colModel]}>
-                <Text style={styles.headerText}>Model</Text>
+                <Text style={styles.headerText}>Bus Number</Text>
               </View>
               <View style={[styles.cell, styles.colNum]}>
-                <Text style={styles.headerText}>Capacity</Text>
+                <Text style={styles.headerText}>Driver</Text>
               </View>
               <View style={[styles.cell, styles.colStatus]}>
-                <Text style={styles.headerText}>Status</Text>
+                <Text style={styles.headerText}>Date</Text>
               </View>
               <View style={[styles.cell, styles.colDriver]}>
-                <Text style={styles.headerText}>Assigned Driver</Text>
+                <Text style={styles.headerText}>Departure</Text>
               </View>
               <View style={[styles.cell, styles.colRoute]}>
-                <Text style={styles.headerText}>Assigned Route</Text>
+                <Text style={styles.headerText}>Arrival</Text>
               </View>
               <View style={[styles.cell, { minWidth: 140, flex: 1 }]}>
                 <Text style={styles.headerText}>Actions</Text>
@@ -76,57 +140,9 @@ const [query, setQuery] = useState<string>("");
 
             {/* Example Row */}
             <FlatList
-              data={[{ id: 1 }, { id: 2 }, { id: 3 }]}
-              renderItem={() => (
-                <View style={styles.row}>
-                  <View style={[styles.cell, styles.colBus]}>
-                    <Text style={styles.cellText}>BA 2 KHA 1234</Text>
-                  </View>
-                  <View style={[styles.cell, styles.colModel]}>
-                    <Text style={styles.cellText}>Tata Marcopolo</Text>
-                  </View>
-                  <View style={[styles.cell, styles.colNum]}>
-                    <Text style={styles.cellText}>40</Text>
-                  </View>
-                  <View style={[styles.cell, styles.colStatus]}>
-                    <View
-                      style={[styles.statusPill, styles.statusActive]}
-                    >
-                      <Text style={styles.statusText}>active</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.cell, styles.colDriver]}>
-                    <Text style={styles.cellText}>Ramesh Thapa</Text>
-                  </View>
-                  <View style={[styles.cell, styles.colRoute]}>
-                    <Text style={styles.cellText}>Lagankhel - Ratnapark</Text>
-                  </View>
-                  <View style={[styles.cell, { minWidth: 140, flex: 1 }]}>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      <TouchableOpacity
-                        style={{
-                          paddingHorizontal: 12,
-                          paddingVertical: 6,
-                          backgroundColor: "#dbeafe",
-                          borderRadius: 6,
-                        }}
-                      >
-                        <Text style={{ color: "#1d4ed8" }}>View</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={{
-                          paddingHorizontal: 12,
-                          paddingVertical: 6,
-                          backgroundColor: "#fee2e2",
-                          borderRadius: 6,
-                        }}
-                      >
-                        <Text style={{ color: "#b91c1c" }}>Delete</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              )}
+              data={filteredSchedules}
+              renderItem={renderRow}
+              keyExtractor={(item) => item._id}
               ItemSeparatorComponent={() => (
                 <View style={styles.separator} />
               )}

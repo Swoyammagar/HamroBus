@@ -418,7 +418,7 @@ export const schedules = [
     driverId: 'drv_1',
     departureTime: new Date().toISOString(),
     arrivalTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-    status: 'scheduled', // scheduled | enroute | completed | cancelled
+    date: new Date().toISOString().split('T')[0],
   },
 ];
 

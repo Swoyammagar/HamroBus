@@ -12,8 +12,7 @@ import {
 import { findDriverById, findRouteById, drivers as allDrivers, routes as allRoutes, buses as allBuses, findBusById } from "../data/dummyData";
 import { Modal } from 'react-native';
 import type { Driver, Review , EmergencyContact, Location } from "../../types/driver";
-const Drivers: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"all" | "add">("all");
+const Drivers: React.FC = () => { 
   const [query, setQuery] = useState<string>("");
   const [drivers, setDrivers] = useState<Driver[]>(allDrivers as Driver[]);
 
