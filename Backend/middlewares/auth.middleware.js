@@ -8,7 +8,7 @@ async function authenticateUser(req, res, next) {
   if (!token) {
     return res
       .status(401) // Unauthorized
-      .json({ error: "Token not provided" });
+      .json({ error: "Token not provided", message: "Login failed." });
   }
 
   token = token.substring(7); // Remove 'Bearer ' prefix
