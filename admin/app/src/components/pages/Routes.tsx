@@ -38,7 +38,117 @@ const RoutesPage: React.FC = () => {
   const selectedRoute = useMemo(() => routes.find(r => r._id === selectedRouteId) ?? null, [routes, selectedRouteId]);
 
   // Web map component using react-leaflet (dynamically imported to reduce native bundling issues)
-const WebMap = null ;
+  const WebMap: React.FC<{ route: any | null }> = ({ route }) => {
+    const [leaflet, setLeaflet] = useState<any>(null);
+    const mapRef = React.useRef<any>(null);
+    const [tilesLoaded, setTilesLoaded] = useState(false);
+
+    useEffect(() => {
+      let mounted = true;
+      (async () => {
+        try {
+          // dynamic import so native builds don't fail
+          const rl = await import('react-leaflet');
+          const L = await import('leaflet');
+          // fix default icon paths for leaflet in some setups
+          try {
+            L.Icon.Default.mergeOptions({
+              iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+              iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+              shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            });
+          } catch (e) {
+            // ignore
+          }
+          if (mounted) setLeaflet({ ...rl, L });
+        } catch (e) {
+          // import failed
+          // console.warn('react-leaflet import failed', e);
+        }
+      })();
+      return () => { mounted = false; };
+    }, []);
+    // add a single resize listener and ensure the map invalidates size when needed
+    useEffect(() => {
+      const onResize = () => {
+        const m = mapRef.current;
+        if (m && typeof m.invalidateSize === 'function') {
+          m.invalidateSize();
+        }
+      };
+      window.addEventListener('resize', onResize);
+      return () => window.removeEventListener('resize', onResize);
+    }, []);
+
+    // when the route prop changes, re-center and invalidate size so tiles render fully
+    useEffect(() => {
+      const m = mapRef.current;
+      if (!m) return;
+      // compute center for the new route
+      const c = route && route.stops && route.stops.length ? [route.stops[0].lat, route.stops[0].lng] : [27.7172, 85.3240];
+      // small delay to allow layout to settle
+      const id = setTimeout(() => {
+        if (typeof m.invalidateSize === 'function') m.invalidateSize();
+        try {
+          if (typeof m.setView === 'function') m.setView(c, m.getZoom ? m.getZoom() : 12);
+        } catch (e) {
+          // ignore
+        }
+      }, 150);
+      return () => clearTimeout(id);
+    }, [route]);
+
+  if (!leaflet) return <View style={styles.mapPlaceholder}><Text style={{ color: '#6b7280' }}>Loading map...</Text></View>;
+
+    const { MapContainer, TileLayer, Marker, Popup, Polyline } = leaflet;
+
+    const center = route && route.stops && route.stops.length ? [route.stops[0].lat, route.stops[0].lng] : [27.7172, 85.3240];
+    const positions = route?.stops?.map((s: any) => [s.lat, s.lng]) ?? [];
+
+    return (
+      <View style={{ height: '100%', width: '100%' }}>
+        {/* @ts-ignore */}
+        <MapContainer
+          key={route?._id ?? 'map'}
+          center={center}
+          zoom={12}
+          style={{ height: '100%', width: '100%' }}
+          whenCreated={(mapInstance: any) => {
+            mapRef.current = mapInstance;
+            // ensure correct sizing after creation
+            setTimeout(() => mapInstance.invalidateSize && mapInstance.invalidateSize(), 200);
+          }}
+        >
+          {/* @ts-ignore */}
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            eventHandlers={{
+              tileload: () => {},
+              load: () => setTilesLoaded(true),
+              tileerror: () => setTilesLoaded(true),
+            }}
+          />
+          {positions.map((pos: any, idx: number) => (
+            // @ts-ignore
+            <Marker key={idx} position={pos}>
+              {/* @ts-ignore */}
+              <Popup>{route.stops[idx].name}</Popup>
+            </Marker>
+          ))}
+          {positions.length > 1 && (
+            // @ts-ignore
+            <Polyline positions={positions} color={route.color ?? '#1890ff'} />
+          )}
+        </MapContainer>
+
+        {!tilesLoaded && (
+          <View style={styles.mapLoadingOverlay}>
+            <Text style={{ color: '#fff' }}>Loading tiles...</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -81,7 +191,12 @@ const WebMap = null ;
               </View>
             </View>
             <View style={styles.mapArea}>
-              
+              {Platform.OS === 'web' ? (
+                // @ts-ignore
+                <WebMap route={selectedRoute} />
+              ) : (
+                <View style={styles.mapPlaceholder}><Text style={{ color: '#6b7280' }}>Map is available on web only.</Text></View>
+              )}
             </View>
           </View>
         </View>
