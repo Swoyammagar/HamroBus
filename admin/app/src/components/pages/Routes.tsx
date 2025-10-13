@@ -13,6 +13,7 @@ const RoutesPage: React.FC = () => {
   // Simple add form state (minimal scaffold; you can provide more fields later)
   const [newName, setNewName] = useState('');
   const [newNumber, setNewNumber] = useState('');
+  const [newStops, setNewStops] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
 
   // Inject leaflet CSS for web at runtime (avoids bundling CSS import issues)
   useEffect(() => {
@@ -151,6 +152,87 @@ const RoutesPage: React.FC = () => {
     );
   };
 
+  // AddMap: used in Add Route tab to capture click coordinates and show markers for stops
+  const AddMap: React.FC<{ stops: any[]; onMapClick: (lat: number, lng: number) => void }> = ({ stops, onMapClick }) => {
+    const [leaflet, setLeaflet] = useState<any>(null);
+    const mapRef = React.useRef<any>(null);
+    const [tilesLoaded, setTilesLoaded] = useState(false);
+
+    useEffect(() => {
+      let mounted = true;
+      (async () => {
+        try {
+          const rl = await import('react-leaflet');
+          const L = await import('leaflet');
+          try {
+            L.Icon.Default.mergeOptions({
+              iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+              iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+              shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            });
+          } catch (e) {}
+          if (mounted) setLeaflet({ ...rl, L });
+        } catch (e) {
+          // ignore
+        }
+      })();
+      return () => { mounted = false; };
+    }, []);
+
+    useEffect(() => {
+      const onResize = () => {
+        const m = mapRef.current;
+        if (m && typeof m.invalidateSize === 'function') m.invalidateSize();
+      };
+      window.addEventListener('resize', onResize);
+      return () => window.removeEventListener('resize', onResize);
+    }, []);
+
+    if (!leaflet) return <View style={styles.mapPlaceholder}><Text style={{ color: '#6b7280' }}>Loading map...</Text></View>;
+
+    const { MapContainer, TileLayer, Marker, Popup } = leaflet;
+    const center = stops && stops.length ? [stops[0].lat, stops[0].lng] : [27.7172, 85.3240];
+
+    return (
+      <View style={{ height: '100%', width: '100%' }}>
+        {/* @ts-ignore */}
+        <MapContainer
+          key={`addmap`}
+          center={center}
+          zoom={12}
+          style={{ height: '100%', width: '100%' }}
+          whenCreated={(mapInstance: any) => {
+            mapRef.current = mapInstance;
+            // listen for clicks
+            try {
+              mapInstance.on('click', (e: any) => {
+                const { lat, lng } = e.latlng || {};
+                if (lat && lng) onMapClick(lat, lng);
+              });
+            } catch (e) {}
+            setTimeout(() => mapInstance.invalidateSize && mapInstance.invalidateSize(), 200);
+          }}
+        >
+          {/* @ts-ignore */}
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            eventHandlers={{ load: () => setTilesLoaded(true), tileerror: () => setTilesLoaded(true) }}
+          />
+          {stops.map((s, i) => (
+            // @ts-ignore
+            <Marker key={`${s.lat}_${s.lng}_${i}`} position={[s.lat, s.lng]}>
+              {/* @ts-ignore */}
+              <Popup>{s.name || `${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`}</Popup>
+            </Marker>
+          ))}
+        </MapContainer>
+        {!tilesLoaded && (
+          <View style={styles.mapLoadingOverlay}><Text style={{ color: '#fff' }}>Loading tiles...</Text></View>
+        )}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.tabRow}>
@@ -201,47 +283,64 @@ const RoutesPage: React.FC = () => {
             </View>
           </View>
         </View>
-      ) : (
-          <View style={[styles.addContainer, { marginTop: 12 }]}>
-            <View style= {styles.leftPane}>
-              <Text style={{ fontSize: 14, color: '#374151', marginBottom: 6 }}>Route Name</Text>
-              <TextInput style={styles.searchInput} placeholder="Enter route name" value={newName} onChangeText={setNewName} />
+  ) : (
+        <View style={[styles.addContainer, { marginTop: 12 }]}>
+          <View style={styles.leftPane}>
+            <Text style={{ fontSize: 14, color: '#374151', marginBottom: 6 }}>Route Name</Text>
+            <TextInput style={styles.searchInput} placeholder="Enter route name" value={newName} onChangeText={setNewName} />
 
-              <Text style={{ fontSize: 14, color: '#374151', marginTop: 12, marginBottom: 6 }}>Route Number</Text>
-              <TextInput style={styles.searchInput} placeholder="e.g. R3" value={newNumber} onChangeText={setNewNumber} />
+            <Text style={{ fontSize: 14, color: '#374151', marginTop: 12, marginBottom: 6 }}>Route Number</Text>
+            <TextInput style={styles.searchInput} placeholder="e.g. R3" value={newNumber} onChangeText={setNewNumber} />
 
-              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
-                <TouchableOpacity style={{ padding: 8 }} onPress={() => { setNewName(''); setNewNumber(''); }}>
-                  <Text style={{ color: '#374151' }}>Reset</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ padding: 8, backgroundColor: '#059669', borderRadius: 6, marginLeft: 8 }} onPress={() => {
-                  if (!newName || !newNumber) {
-                    // @ts-ignore
-                    alert('Please fill route name and number');
-                    return;
-                  }
-                  const nr = { _id: 'rte_' + Math.random().toString(36).slice(2, 9), name: newName, routeNumber: newNumber, stops: [], assignedBusIds: [], assignedDriverIds: [], color: '#1890ff' };
-                  setRoutes(r => [nr, ...r]);
-                  setNewName(''); setNewNumber(''); setActiveTab('all'); setSelectedRouteId(nr._id);
-                }}>
-                  <Text style={{ color: '#fff' }}>Add Route</Text>
-                </TouchableOpacity>
-              </View>
-            </View> 
-            <View style={styles.rightPane}>
+            <Text style={{ fontSize: 14, color: '#374151', marginTop: 12, marginBottom: 6 }}>Stops (click on the map to add a stop at the clicked location)</Text>
+            <ScrollView style={{ maxHeight: 180 }} contentContainerStyle={{ paddingBottom: 8 }}>
+              {newStops.map((st, idx) => (
+                <View key={`${st.lat}_${st.lng}_${idx}`} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <TextInput
+                    style={[styles.searchInput, { flex: 1 }]}
+                    value={st.name}
+                    onChangeText={(t) => setNewStops(s => s.map((x, i) => i === idx ? { ...x, name: t } : x))}
+                    placeholder={`Stop ${idx + 1} name`} />
+                  <TouchableOpacity style={{ marginLeft: 8, padding: 8, backgroundColor: '#fee2e2', borderRadius: 8 }} onPress={() => setNewStops(s => s.filter((_, i) => i !== idx))}>
+                    <Text style={{ color: '#b91c1c' }}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 }}>
+              <TouchableOpacity style={{ padding: 8 }} onPress={() => { setNewName(''); setNewNumber(''); setNewStops([]); }}>
+                <Text style={{ color: '#374151' }}>Reset</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ padding: 8, backgroundColor: '#059669', borderRadius: 6, marginLeft: 8 }} onPress={() => {
+                if (!newName || !newNumber) {
+                  // @ts-ignore
+                  alert('Please fill route name and number');
+                  return;
+                }
+                const nr = { _id: 'rte_' + Math.random().toString(36).slice(2, 9), name: newName, routeNumber: newNumber, stops: newStops.map(s => ({ name: s.name, lat: s.lat, lng: s.lng })), assignedBusIds: [], assignedDriverIds: [], color: '#1890ff' };
+                setRoutes(r => [nr, ...r]);
+                setNewName(''); setNewNumber(''); setNewStops([]); setActiveTab('all'); setSelectedRouteId(nr._id);
+              }}>
+                <Text style={{ color: '#fff' }}>Add Route</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.rightPane}>
             <View style={styles.mapHeaderRow}>
-              <Text style={{ fontWeight: '700' }}>Route selector</Text>
+              <Text style={{ fontWeight: '700' }}>Pick stop location</Text>
             </View>
             <View style={styles.mapArea}>
               {Platform.OS === 'web' ? (
                 // @ts-ignore
-                <WebMap route={selectedRoute} />
+                <AddMap stops={newStops} onMapClick={(lat, lng) => setNewStops(s => [...s, { name: `Stop ${s.length + 1}`, lat, lng }])} />
               ) : (
                 <View style={styles.mapPlaceholder}><Text style={{ color: '#6b7280' }}>Map is available on web only.</Text></View>
               )}
             </View>
           </View>
-          </View>
+        </View>
       )}
     </View>
   );
