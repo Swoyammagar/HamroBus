@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, Platform } from 'react-native';
 import { routes as initialRoutes, buses as allBuses } from '../data/dummyData';
+import { Vault } from 'lucide-react-native';
 
 // NOTE: react-leaflet is web-only. We guard rendering so native apps won't try to use it.
 const RoutesPage: React.FC = () => {
@@ -201,31 +202,46 @@ const RoutesPage: React.FC = () => {
           </View>
         </View>
       ) : (
-        <View style={[styles.addContainer, { marginTop: 12 }]}>
-          <Text style={{ fontSize: 14, color: '#374151', marginBottom: 6 }}>Route Name</Text>
-          <TextInput style={styles.searchInput} placeholder="Enter route name" value={newName} onChangeText={setNewName} />
+          <View style={[styles.addContainer, { marginTop: 12 }]}>
+            <View style= {styles.leftPane}>
+              <Text style={{ fontSize: 14, color: '#374151', marginBottom: 6 }}>Route Name</Text>
+              <TextInput style={styles.searchInput} placeholder="Enter route name" value={newName} onChangeText={setNewName} />
 
-          <Text style={{ fontSize: 14, color: '#374151', marginTop: 12, marginBottom: 6 }}>Route Number</Text>
-          <TextInput style={styles.searchInput} placeholder="e.g. R3" value={newNumber} onChangeText={setNewNumber} />
+              <Text style={{ fontSize: 14, color: '#374151', marginTop: 12, marginBottom: 6 }}>Route Number</Text>
+              <TextInput style={styles.searchInput} placeholder="e.g. R3" value={newNumber} onChangeText={setNewNumber} />
 
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
-            <TouchableOpacity style={{ padding: 8 }} onPress={() => { setNewName(''); setNewNumber(''); }}>
-              <Text style={{ color: '#374151' }}>Reset</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ padding: 8, backgroundColor: '#059669', borderRadius: 6, marginLeft: 8 }} onPress={() => {
-              if (!newName || !newNumber) {
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
+                <TouchableOpacity style={{ padding: 8 }} onPress={() => { setNewName(''); setNewNumber(''); }}>
+                  <Text style={{ color: '#374151' }}>Reset</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ padding: 8, backgroundColor: '#059669', borderRadius: 6, marginLeft: 8 }} onPress={() => {
+                  if (!newName || !newNumber) {
+                    // @ts-ignore
+                    alert('Please fill route name and number');
+                    return;
+                  }
+                  const nr = { _id: 'rte_' + Math.random().toString(36).slice(2, 9), name: newName, routeNumber: newNumber, stops: [], assignedBusIds: [], assignedDriverIds: [], color: '#1890ff' };
+                  setRoutes(r => [nr, ...r]);
+                  setNewName(''); setNewNumber(''); setActiveTab('all'); setSelectedRouteId(nr._id);
+                }}>
+                  <Text style={{ color: '#fff' }}>Add Route</Text>
+                </TouchableOpacity>
+              </View>
+            </View> 
+            <View style={styles.rightPane}>
+            <View style={styles.mapHeaderRow}>
+              <Text style={{ fontWeight: '700' }}>Route selector</Text>
+            </View>
+            <View style={styles.mapArea}>
+              {Platform.OS === 'web' ? (
                 // @ts-ignore
-                alert('Please fill route name and number');
-                return;
-              }
-              const nr = { _id: 'rte_' + Math.random().toString(36).slice(2, 9), name: newName, routeNumber: newNumber, stops: [], assignedBusIds: [], assignedDriverIds: [], color: '#1890ff' };
-              setRoutes(r => [nr, ...r]);
-              setNewName(''); setNewNumber(''); setActiveTab('all'); setSelectedRouteId(nr._id);
-            }}>
-              <Text style={{ color: '#fff' }}>Add Route</Text>
-            </TouchableOpacity>
+                <WebMap route={selectedRoute} />
+              ) : (
+                <View style={styles.mapPlaceholder}><Text style={{ color: '#6b7280' }}>Map is available on web only.</Text></View>
+              )}
+            </View>
           </View>
-        </View>
+          </View>
       )}
     </View>
   );
@@ -251,7 +267,7 @@ const styles = StyleSheet.create({
   mapArea: { flex: 1, borderRadius: 8, overflow: 'hidden', height: '100%' },
   mapPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', borderRadius: 8, height: '100%' },
   mapLoadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
-  addContainer: { padding: 12, backgroundColor: '#f8fafc', borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb' },
+  addContainer: { flexDirection: 'row', gap: 8, marginBottom: 12},
 });
 
 export default RoutesPage;
