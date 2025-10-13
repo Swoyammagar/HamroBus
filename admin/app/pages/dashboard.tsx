@@ -7,6 +7,7 @@ import { Drivers } from '../src/components/pages/Drivers';
 import Routes from '../src/components/pages/Routes';
 import Schedules from '../src/components/pages/Schedules';
 import Settings from '../src/components/pages/Settings';
+import Analytics from '../src/components/pages/Analytics';
 import { Stack } from 'expo-router';
 
 export default function Dashboard() {
@@ -18,7 +19,8 @@ export default function Dashboard() {
     drivers: 'Drivers',
     routes: 'Routes',
     schedules: 'Schedules',
-    settings: 'Settings'
+    settings: 'Settings',
+    analytics: 'Analytics'
   };
 
   const renderContent = () => {
@@ -31,6 +33,8 @@ export default function Dashboard() {
         return <Routes />;
       case 'schedules':
         return <Schedules />;
+      case 'analytics':
+        return <Analytics />;
       case 'settings':
         return <Settings />;
       default:
