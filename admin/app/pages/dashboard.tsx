@@ -53,7 +53,7 @@ export default function Dashboard() {
       <View style={styles.body}>
         <Sidebar onSelect={(k) => setSelected(k)} />
         <View style={styles.content}>
-          <Header title={pageTitleMap[selected] ?? 'Dashboard'} />
+          <Header title={pageTitleMap[selected] ?? 'Dashboard'} onSelect={(k) => setSelected(k)} />
           <View style={styles.innerContent}>{renderContent()}</View>
         </View>
       </View>

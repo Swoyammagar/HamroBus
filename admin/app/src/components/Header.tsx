@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import type { MenuKey } from './Sidebar';
 
-const Header: React.FC<{ title?: string }> = ({ title = 'Dashboard' }) => {
+const Header: React.FC<{ title?: string; onSelect?: (key: MenuKey) => void }> = ({ title = 'Dashboard', onSelect }) => {
   const { user } = useAuth();
 
 
@@ -13,7 +14,15 @@ const Header: React.FC<{ title?: string }> = ({ title = 'Dashboard' }) => {
       </View>
 
       <View style={styles.right}>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => { /* show notifications */ }}>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => {
+            // If parent passed an onSelect handler (Dashboard), use it to show notifications in the content area.
+            if (onSelect) {
+              onSelect('notifications');
+            }
+          }}
+        >
           <Text style={styles.icon}>🔔</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.profileBtn} onPress={() => { /* open profile menu */ }}>
