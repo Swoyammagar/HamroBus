@@ -19,6 +19,7 @@ const Notifications = () => {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [sentBy, setSentBy] = useState("admin");
+  const [target, setTarget] = useState<'drivers'|'passengers'|'all'>('all');
 
   type Notification = {
     id: string;
@@ -26,6 +27,7 @@ const Notifications = () => {
     message: string;
     date: string;
     sentby: string;
+    target?: 'drivers' | 'passengers' | 'all';
   };
 
   // initial mapped notifications with consistent shape
@@ -35,6 +37,7 @@ const Notifications = () => {
     message: it.message,
     date: it.createdAt,
     sentby: it.sentby,
+    target: it.target ?? 'all',
   })) as Notification[];
 
   const [items, setItems] = useState<Notification[]>(mapped);
@@ -108,9 +111,10 @@ const Notifications = () => {
 
             <Text style={styles.inputLabel}>Send To</Text>
             <View style={styles.pickerWrap}>
-              <Picker selectedValue={sentBy} onValueChange={(v) => setSentBy(v)}>
-                <Picker.Item label="Admin (Sent)" value="admin" />
-                <Picker.Item label="Driver (Received)" value="driver" />
+              <Picker selectedValue={target} onValueChange={(v) => setTarget(v as any)}>
+                <Picker.Item label="To All" value="all" />
+                <Picker.Item label="Drivers" value="drivers" />
+                <Picker.Item label="Passengers" value="passengers" />
               </Picker>
             </View>
 
@@ -128,11 +132,13 @@ const Notifications = () => {
                     message: message.trim(),
                     date: new Date().toISOString(),
                     sentby: sentBy,
+                    target: target,
                   };
                   setItems((s) => [newItem, ...s]);
                   setTitle('');
                   setMessage('');
                   setSentBy('admin');
+                  setTarget('all');
                   setModalVisible(false);
                 }}
               >
