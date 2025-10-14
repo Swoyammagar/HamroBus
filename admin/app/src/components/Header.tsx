@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 const Header: React.FC<{ title?: string }> = ({ title = 'Dashboard' }) => {
   const { user } = useAuth();
 
+
   return (
     <View style={styles.container}>
       <View style={styles.left}>

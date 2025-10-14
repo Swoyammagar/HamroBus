@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { Feather } from '@expo/vector-icons';
 
-export type MenuKey = 'dashboard' | 'buses' | 'drivers' | 'routes' | 'schedules' | 'settings' | 'analytics';
+export type MenuKey = 'dashboard' | 'buses' | 'drivers' | 'routes' | 'schedules' | 'notifications' | 'settings' | 'analytics';
 
 // Use keyof typeof Feather.glyphMap as the Feather icon name type
 type FeatherIconName = keyof typeof Feather.glyphMap;
@@ -17,6 +17,7 @@ const ICON_MAP: Record<MenuKey, FeatherIconName> = {
   schedules: 'calendar',
   settings: 'settings',
   analytics: 'bar-chart-2',
+  notifications: 'bell',
 };
 
 const Sidebar: React.FC<{ onSelect: (key: MenuKey) => void }> = ({ onSelect }) => {
@@ -33,6 +34,7 @@ const Sidebar: React.FC<{ onSelect: (key: MenuKey) => void }> = ({ onSelect }) =
     { key: 'routes', label: 'Routes' },
     { key: 'schedules', label: 'Schedules' },
     { key: 'analytics', label: 'Analytics' },
+    { key: 'notifications', label: 'Notifications' },
     { key: 'settings', label: 'Settings' }
   ];
 
