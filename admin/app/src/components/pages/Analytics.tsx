@@ -102,6 +102,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     backgroundColor: '#f3f4f6',
+    borderRadius: 12,
   },
   splitRow: {
     flexDirection: 'row',
