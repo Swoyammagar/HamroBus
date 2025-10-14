@@ -43,8 +43,9 @@ const Notifications = () => {
   const [items, setItems] = useState<Notification[]>(mapped);
 
   const filteredNotifications = useMemo(() => {
-    if (filter === "All") return items;
-    return items.filter((n) => n.sentby === (filter === 'Sent' ? 'admin' : 'driver'));
+    // filter then sort by date ascending (earliest first)
+    const filtered = filter === "All" ? items : items.filter((n) => n.sentby === (filter === 'Sent' ? 'admin' : 'driver'));
+    return [...filtered].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [filter, items]);
 
   const renderItem = ({ item }: { item: Notification }) => (
@@ -52,8 +53,8 @@ const Notifications = () => {
       <View style={styles.avatar}>{item.sentby === 'admin' ? <Text style={styles.avatarText}>A</Text> : <Text style={styles.avatarText}>D</Text>}</View>
       <View style={styles.notificationBody}>
         <View style={styles.rowTop}>
-          <Text style={styles.title}>{item.title}</Text>
-          <Text style={styles.date}>{new Date(item.date).toLocaleString()}</Text>
+          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">{item.title}</Text>
+          <Text style={styles.date} numberOfLines={1}>{new Date(item.date).toLocaleString()}</Text>
         </View>
         <Text style={styles.message} numberOfLines={3}>{item.message}</Text>
       </View>
@@ -207,8 +208,8 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: '#374151', fontWeight: '700' },
   notificationBody: { flex: 1, marginLeft: 12 },
-  rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 16, fontWeight: '600', color: '#111827' },
+  rowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  title: { fontSize: 16, fontWeight: '600', color: '#111827', flex: 1 },
   message: { fontSize: 14, color: '#374151', marginTop: 6 },
   date: { fontSize: 12, color: '#6b7280' },
 

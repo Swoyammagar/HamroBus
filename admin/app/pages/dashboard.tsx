@@ -9,9 +9,10 @@ import Schedules from '../src/components/pages/Schedules';
 import Settings from '../src/components/pages/Settings';
 import Analytics from '../src/components/pages/Analytics';
 import Notifications from '../src/components/pages/Notifications';
+import Dashboard from '../src/components/pages/Dashboard';
 import { Stack } from 'expo-router';
 
-export default function Dashboard() {
+export default function DashboardPage() {
   const [selected, setSelected] = useState<MenuKey>('buses');
 
   const pageTitleMap: Record<MenuKey, string> = {
@@ -27,6 +28,8 @@ export default function Dashboard() {
 
   const renderContent = () => {
     switch (selected) {
+      case 'dashboard':
+        return <Dashboard />;
       case 'buses':
         return <Buses />;
       case 'drivers':
