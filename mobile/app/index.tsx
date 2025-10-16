@@ -1,11 +1,9 @@
 import { Text, View } from "react-native";
-
+import Login from "./pages/mobilelogin";
 export default function Index() {
   return (
-    <View
-      className="text-2xl justify-center flex-1 items-center"
-    >
-      <Text>welcome</Text>
+    <View>
+      <Login />
     </View>
   );
 }
