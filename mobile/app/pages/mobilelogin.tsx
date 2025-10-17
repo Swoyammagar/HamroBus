@@ -1,7 +1,9 @@
 import React, { useState } from "react";
-import { Text, View, Image, TouchableOpacity, TextInput, ScrollView } from "react-native";
+import { Text, View, Image, TouchableOpacity, TextInput, ScrollView, Dimensions } from "react-native";
 import MainLogo from "../utils/MainLogo.png";
 import { Stack } from "expo-router";
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 const Login = () => {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
@@ -25,7 +27,7 @@ const Login = () => {
   return (
     <>
     <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={{ flexGrow: 1, backgroundColor: "white" }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, backgroundColor: "white", minHeight: SCREEN_HEIGHT }}>
         <View className="flex-1 min-h-screen justify-center items-center p-5" style={{ backgroundColor: "white" }}>
           
           {/* Mobile Column Layout */}

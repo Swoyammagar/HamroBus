@@ -4,8 +4,8 @@ import VerifyOTP from "./pages/otpPassword";
 export default function Index() {
   return (
     <View>
-      {/* <Login /> */}
-      <VerifyOTP />
+      <Login />
+      {/* <VerifyOTP /> */}
     </View>
   );
 }

@@ -141,6 +141,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 25,
     paddingVertical: 50,
     backgroundColor: "#f9f9f9",
+    marginBottom: 90,
   },
   logo: {
     width: 160,
