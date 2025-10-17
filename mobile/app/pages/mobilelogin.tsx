@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Text, View, Image, TouchableOpacity, TextInput, ScrollView, Dimensions } from "react-native";
 import MainLogo from "../utils/MainLogo.png";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const Login = () => {
@@ -53,7 +53,7 @@ const Login = () => {
 
             <View className="flex-row justify-between items-center mb-1">
               <Text className="text-gray-700">Password</Text>
-              <Text className="text-gray-400 text-xs">Forgot Password?</Text>
+              <Text onPress={()=> router.push("/pages/resetPassword")} className="text-gray-400 text-xs">Forgot Password?</Text>
             </View>
             <TextInput
               className="rounded-lg shadow p-3 mb-4 border border-gray-300 w-full"
