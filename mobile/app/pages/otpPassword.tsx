@@ -26,6 +26,7 @@ const VerifyOTP: React.FC = () => {
   const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [isOtpFocused, setIsOtpFocused] = useState(false);
 
   const handleVerifyOTP = async () => {
     setError("");
@@ -92,8 +93,11 @@ const VerifyOTP: React.FC = () => {
             placeholder="Enter 6-digit OTP"
             keyboardType="number-pad"
             editable={!isLoading}
-            style={styles.input}
+            style={[styles.input , isOtpFocused && { borderColor: "#3b82f6", shadowColor: "#27AE60", shadowOpacity: 0.3, shadowRadius: 5 }]}
             maxLength={6}
+            onFocus={() => setIsOtpFocused(true)}
+            onBlur={() => setIsOtpFocused(false)}
+
           />
 
           {/* Verify Button */}

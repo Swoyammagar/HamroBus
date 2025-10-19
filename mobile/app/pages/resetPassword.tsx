@@ -11,7 +11,9 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import mainLogo from "../utils/MainLogo.png";
+
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 const ResetPassword: React.FC = () => {
   const router = useRouter();
 
@@ -19,6 +21,7 @@ const ResetPassword: React.FC = () => {
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isEmailFocused, setIsEmailFocused] = useState(false);
 
   const handleResetPassword = async () => {
     setError("");
@@ -34,7 +37,8 @@ const ResetPassword: React.FC = () => {
     setTimeout(() => {
       setIsLoading(false);
       setSuccess("Password reset email sent. Please check your inbox.");
-    //   router.push(`/pages/otp?email=${encodeURIComponent(email)}`);
+      router.push(`/pages/otpPassword`);
+      // router.push(`/pages/otp?email=${encodeURIComponent(email)}`);
     }, 1200);
   };
 
@@ -43,17 +47,22 @@ const ResetPassword: React.FC = () => {
       <Stack.Screen options={{ headerShown: false }} />
 
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, minHeight: SCREEN_HEIGHT}}
+        contentContainerStyle={{ flexGrow: 1, minHeight: SCREEN_HEIGHT }}
         keyboardShouldPersistTaps="handled"
         className="bg-[#f9f9f9]"
       >
         <View className="flex-1 min-h-screen bg-[#f9f9f9] px-6 py-10 items-center justify-center">
-            <View className="items-center mb-6">
-            <Image source={mainLogo} resizeMode="contain" style={{ width: 150, height: 70 }} />
-            </View>
+          {/* Logo */}
+          <View className="items-center mb-6">
+            <Image
+              source={mainLogo}
+              resizeMode="contain"
+              style={{ width: 150, height: 70 }}
+            />
+          </View>
 
           {/* Heading */}
-          <View className="flex-row mb-4">
+          <View className="flex-row mb-8 w-full justify-center">
             <Text className="text-3xl font-semibold text-black">Forgot Your</Text>
             <Text className="text-3xl font-semibold text-[#27AE60] ml-2">
               Password?
@@ -62,35 +71,46 @@ const ResetPassword: React.FC = () => {
 
           {/* Error & Success messages */}
           {error ? <Text className="text-red-500 text-sm mb-2">{error}</Text> : null}
-          {success ? <Text className="text-green-500 text-sm mb-2">{success}</Text> : null}
+          {success ? (
+            <Text className="text-green-500 text-sm mb-2">{success}</Text>
+          ) : null}
 
           {/* Email Field */}
-          <Text className="text-base font-medium text-[#333] mb-2 self-start">
-            Email Address
-          </Text>
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Enter your email address"
-            keyboardType="email-address"
-            editable={!isLoading}
-            className="w-full border border-gray-400 rounded-md p-3 bg-white text-black mb-5"
-          />
+          <View className="w-80">
+            <Text className="text-base font-medium text-[#333] mb-2 self-start">
+              Email Address
+            </Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Enter your email address"
+              keyboardType="email-address"
+              editable={!isLoading}
+              onFocus={() => setIsEmailFocused(true)}
+              onBlur={() => setIsEmailFocused(false)}
+              className={`border rounded-md p-3 bg-white text-black mb-5 shadow ${
+                isEmailFocused
+                  ? "border-blue-500" : "border-gray-300"
+              }`}
+            />
 
-          {/* Send Reset Button */}
-          <TouchableOpacity
-            onPress={handleResetPassword}
-            disabled={isLoading}
-            className={`w-full h-12 rounded-lg justify-center items-center ${
-              isLoading ? "bg-[#27AE60]/70" : "bg-[#27AE60]"
-            }`}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-white font-medium text-lg">Send Reset Link</Text>
-            )}
-          </TouchableOpacity>
+            {/* Send Reset Button */}
+            <TouchableOpacity
+              onPress={handleResetPassword}
+              disabled={isLoading}
+              className={`h-12 rounded-lg justify-center items-center w-full ${
+                isLoading ? "bg-[#27AE60]/70" : "bg-[#27AE60]"
+              }`}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-white font-medium text-lg">
+                  Send Reset Link
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
 
           {/* Login link */}
           <View className="mt-5 flex-row items-center">

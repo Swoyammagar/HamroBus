@@ -8,7 +8,9 @@ const Login = () => {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [error, setError] = useState<string>("");
-
+  const [isEmailFocused, setIsEmailFocused] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  
   const handleLogin = () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const passwordRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*]).{6,}$/;
@@ -44,11 +46,14 @@ const Login = () => {
 
             <Text className="text-gray-700 mb-1">Email</Text>
             <TextInput
-              className="rounded-lg shadow p-3 mb-4 border border-gray-300 w-full"
+              className={`rounded-lg shadow p-3 mb-4 border w-full ${
+              isEmailFocused ? "border-blue-500" : "border-gray-300"}`}
               placeholder="Enter your email"
               keyboardType="email-address"
               value={email}
               onChangeText={(text) => setEmail(text)}
+              onFocus={() => setIsEmailFocused(true)}
+              onBlur={() => setIsEmailFocused(false)}
             />
 
             <View className="flex-row justify-between items-center mb-1">
@@ -56,11 +61,14 @@ const Login = () => {
               <Text onPress={()=> router.push("/pages/resetPassword")} className="text-gray-400 text-xs">Forgot Password?</Text>
             </View>
             <TextInput
-              className="rounded-lg shadow p-3 mb-4 border border-gray-300 w-full"
+              className={`rounded-lg shadow p-3 mb-4 border w-full ${
+              isPasswordFocused ? "border-blue-500" : "border-gray-300"}`}
               placeholder="Enter your password"
               secureTextEntry
               value={password}
               onChangeText={(text) => setPassword(text)}
+              onFocus={() => setIsPasswordFocused(true)}
+              onBlur={() => setIsPasswordFocused(false)}
             />
 
             <TouchableOpacity onPress={handleLogin} className="bg-green-500 rounded-lg p-3 items-center mb-4">
