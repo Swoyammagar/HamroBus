@@ -42,6 +42,7 @@ const VerifyOTP: React.FC = () => {
     setTimeout(() => {
       setIsLoading(false);
       if (otp === "123456") {
+        router.push(`/pages/newPassword`);
         // router.push(`/pages/newPassword?email=${encodeURIComponent(email)}`);
       } else {
         setError("Invalid OTP. Please try again.");
@@ -148,7 +149,7 @@ const styles = StyleSheet.create({
     marginBottom: 90,
   },
   logo: {
-    width: 160,
+    width: 150,
     height: 70,
     resizeMode: "contain",
     marginBottom: 30,
