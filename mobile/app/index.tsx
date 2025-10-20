@@ -6,7 +6,7 @@ import PersonalInfo from "./driver/signupInfo";
 export default function Index() {
   return (
     <View>
-      <PersonalInfo />
+      <Preference />
     </View>
   );
 }

@@ -87,23 +87,25 @@ const PersonalInfo = () => {
           )}
         </TouchableOpacity>
 
+        <Text className="text-gray-700 mb-1 ml-1">Your Name: </Text>
+
         {/* Name */}
         <TextInput
           style={styles.input}
-          placeholder="Your Name"
+          placeholder="Enter your name"
           value={name}
           onChangeText={setName}
         />
-
+        <Text className="text-gray-700 mb-1 ml-1">Email Address: </Text>
         {/* Email */}
         <TextInput
           style={styles.input}
-          placeholder="Your Email"
+          placeholder="Enter your email"
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
         />
-
+        <Text className="text-gray-700 mb-1 ml-1">Gender: </Text>
         {/* Gender Dropdown */}
         <View style={{ marginBottom: 20 }}>
           <TouchableOpacity
@@ -123,7 +125,7 @@ const PersonalInfo = () => {
               setShowGenderDropdown(false);
             })}
         </View>
-
+        <Text className="text-gray-700 mb-1 ml-1">Date of Birth: </Text>
         {/* DOB */}
         <TextInput
           style={styles.input}
@@ -131,7 +133,7 @@ const PersonalInfo = () => {
           value={dob}
           onChangeText={setDob}
         />
-
+        <Text className="text-gray-700 mb-1 ml-1">City: </Text>
         {/* City Dropdown */}
         <View style={{ marginBottom: 20 }}>
           <TouchableOpacity
@@ -175,7 +177,7 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#2e7d32",
+    color: "#27AE60",
     marginBottom: 30,
     textAlign: "center",
   },
@@ -188,7 +190,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1.5,
-    borderColor: "#2e7d32",
+    borderColor: "#27AE60",
     marginBottom: 30,
     overflow: "hidden",
   },
@@ -204,16 +206,16 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#2e7d32",
+    borderColor: "#000",
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    marginBottom: 20,
+    marginBottom: 14,
   },
   dropdown: {
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#2e7d32",
+    borderColor: "#000",
     borderRadius: 8,
     padding: 12,
   },
@@ -228,7 +230,7 @@ const styles = StyleSheet.create({
   dropdownList: {
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#2e7d32",
+    borderColor: "#000",
     borderRadius: 8,
     marginTop: 5,
     overflow: "hidden",
@@ -250,7 +252,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   submitButton: {
-    backgroundColor: "#2e7d32",
+    backgroundColor: "#27AE60",
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: "center",

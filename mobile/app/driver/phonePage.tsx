@@ -1,9 +1,20 @@
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 
 const DriverPhone = () => {
   const [isFocused, setIsFocused] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [error, setError] = useState<string>("");
+
+  const handleSubmit = () => {
+    if (!phoneNumber) {
+      setError("Please enter your phone number");
+      return;
+    }
+    setError("");
+    router.push('/driver/signupInfo');
+  }
 
   return (
     <>
@@ -19,6 +30,8 @@ const DriverPhone = () => {
           </View>
           <TextInput
             style={[styles.input, isFocused && styles.inputFocused]}
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
             placeholder="+977 XXXXXXXXXX"
             placeholderTextColor="#666"
             keyboardType="phone-pad"
@@ -26,9 +39,9 @@ const DriverPhone = () => {
             onBlur={() => setIsFocused(false)}
           />
         </View>
-
+        {error ? <Text style={{ color: 'red', marginBottom: 20 }}>{error}</Text> : null}
         {/* Next Button */}
-        <TouchableOpacity style={styles.nextButton}>
+        <TouchableOpacity style={styles.nextButton} onPress={handleSubmit}>
           <Text style={styles.nextButtonText}>NEXT</Text>
         </TouchableOpacity>
 
