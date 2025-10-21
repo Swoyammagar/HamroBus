@@ -10,7 +10,7 @@ import {
   Alert,
   Dimensions,
 } from "react-native";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 
 const screenWidth = Dimensions.get("window").width;
@@ -49,6 +49,7 @@ const PersonalInfo = () => {
     }
     setError("");
     Alert.alert("Success", "Your personal info has been submitted!");
+    router.push('/driver/license');
   };
 
   const renderDropdown = (
@@ -76,9 +77,9 @@ const PersonalInfo = () => {
         contentContainerStyle={{ paddingBottom: 120 }}
         keyboardShouldPersistTaps="handled"
       >
-        <View className="flex-row mb-4 justify-center">
-          <Text className="text-3xl font-medium text-black">Personal</Text>
-          <Text className="text-3xl font-medium text-[#27AE60] ml-2">Information</Text>
+        <View className="flex-row mb-6 mt-6 justify-center">
+          <Text className="text-2xl font-medium text-black">Personal</Text>
+          <Text className="text-2xl font-medium text-[#27AE60] ml-2">Information</Text>
         </View>
 
         {/* Photo */}
@@ -90,7 +91,7 @@ const PersonalInfo = () => {
           )}
         </TouchableOpacity>
 
-        <Text className="text-gray-700 mb-1 ml-1">Your Name: </Text>
+        <Text className="font-medium text-[#333]  mb-1">Your Name: </Text>
 
         {/* Name */}
         <TextInput
@@ -99,7 +100,7 @@ const PersonalInfo = () => {
           value={name}
           onChangeText={setName}
         />
-        <Text className="text-gray-700 mb-1 ml-1">Email Address: </Text>
+        <Text className="font-medium text-[#333]  mb-1">Email Address: </Text>
         {/* Email */}
         <TextInput
           style={styles.input}
@@ -108,7 +109,7 @@ const PersonalInfo = () => {
           onChangeText={setEmail}
           keyboardType="email-address"
         />
-        <Text className="text-gray-700 mb-1 ml-1">Gender: </Text>
+        <Text className="font-medium text-[#333]  mb-1">Gender: </Text>
         {/* Gender Dropdown */}
         <View style={{ marginBottom: 20 }}>
           <TouchableOpacity
@@ -128,7 +129,7 @@ const PersonalInfo = () => {
               setShowGenderDropdown(false);
             })}
         </View>
-        <Text className="text-gray-700 mb-1 ml-1">Date of Birth: </Text>
+        <Text className="font-medium text-[#333]  mb-1">Date of Birth: </Text>
         {/* DOB */}
         <TextInput
           style={styles.input}
@@ -136,7 +137,7 @@ const PersonalInfo = () => {
           value={dob}
           onChangeText={setDob}
         />
-        <Text className="text-gray-700 mb-1 ml-1">City: </Text>
+        <Text className="font-medium text-[#333]  mb-1">City: </Text>
         {/* City Dropdown */}
         <View style={{ marginBottom: 20 }}>
           <TouchableOpacity

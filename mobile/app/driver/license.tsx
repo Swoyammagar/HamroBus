@@ -61,7 +61,7 @@ const License = () => {
       return;
     }
     setError("");
-    router.push("/driver/signupInfo");
+    router.push("/driver/password");
   };
 
   return (
@@ -76,10 +76,13 @@ const License = () => {
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.title}>Driver License Information</Text>
+          <View className="flex-row mb-6 mt-6 justify-center">
+            <Text className="text-2xl font-medium text-black">License</Text>
+            <Text className="text-2xl font-medium text-[#27AE60] ml-2">Information</Text>
+          </View>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <Text className="text-gray-700 mb-1 ml-1">License Number:</Text>
+          <Text className="font-medium text-[#333] mt-3 mb-1">License Number:</Text>
 
           <TextInput
             style={[
@@ -93,7 +96,7 @@ const License = () => {
             onFocus={() => setFocusedField("licenseNumber")}
             onBlur={() => setFocusedField(null)}
           />
-          <Text className="text-gray-700 mb-1 ml-1">License Type:</Text>
+          <Text className="font-medium text-[#333] mb-1">License Type:</Text>
           <View style={{ marginBottom: 20 }}>
                     <TouchableOpacity
                       style={styles.dropdown}

@@ -21,7 +21,10 @@ const DriverPhone = () => {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.container}>
         {/* Header */}
-        <Text style={styles.title}>Create New Account</Text>
+        <View className="flex-row mb-6 mt-6 justify-center">
+          <Text className="text-2xl font-medium text-black">Create New</Text>
+          <Text className="text-2xl font-medium text-[#27AE60] ml-2">Account</Text>
+        </View>
 
         {/* Mobile Number Input */}
         <View style={styles.inputContainer}>
