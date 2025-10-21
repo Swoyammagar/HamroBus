@@ -76,7 +76,10 @@ const PersonalInfo = () => {
         contentContainerStyle={{ paddingBottom: 120 }}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.header}>Personal Info</Text>
+        <View className="flex-row mb-4 justify-center">
+          <Text className="text-3xl font-medium text-black">Personal</Text>
+          <Text className="text-3xl font-medium text-[#27AE60] ml-2">Information</Text>
+        </View>
 
         {/* Photo */}
         <TouchableOpacity style={styles.photoContainer} onPress={handlePickImage}>
