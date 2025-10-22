@@ -13,7 +13,7 @@ const DriverPhone = () => {
       return;
     }
     setError("");
-    router.push('/driver/signupInfo');
+    router.push('/passenger/signup');
   }
 
   return (
@@ -47,38 +47,19 @@ const DriverPhone = () => {
         <TouchableOpacity style={styles.nextButton} onPress={handleSubmit}>
           <Text style={styles.nextButtonText}>NEXT</Text>
         </TouchableOpacity>
-
-        {/* Info Sections */}
-        <View style={styles.infoContainer}>
-          <View style={styles.infoBox}>
-            <Text style={styles.icon}>🛡️</Text>
-            <View style={styles.infoText}>
-              <Text style={styles.infoTitle}>Safety Coverage</Text>
-              <Text style={styles.infoDescription}>
-                We offer full insurance coverage for all vehicle with accidental coverage ensuring every driver's safety.
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.infoBox}>
-            <Text style={styles.icon}>📞</Text>
-            <View style={styles.infoText}>
-              <Text style={styles.infoTitle}>24/7 Support</Text>
-              <Text style={styles.infoDescription}>
-                Our support team is available 24/7 to help drivers.
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.infoBox}>
-            <Text style={styles.icon}>📍</Text>
-            <View style={styles.infoText}>
-              <Text style={styles.infoTitle}>Preferred Destination</Text>
-              <Text style={styles.infoDescription}>
-                Now you can choose your destinations and take trips to three places in one day.
-              </Text>
-            </View>
-          </View>
+        <View className="flex-row flex-wrap justify-center ">
+            <Text className="text-sm text-[#333] font-light">
+                By clicking Next, you agree to the{" "}
+            </Text>
+            <Text className="text-sm text-[#27AE60] font-medium underline">
+                Terms of Service
+            </Text>
+            <Text className="text-sm text-[#333] font-light">
+                {" "}and{" "}
+            </Text>
+            <Text className="text-sm text-[#27AE60] font-medium underline">
+                Privacy Policy
+            </Text>
         </View>
       </View>
     </>
@@ -133,7 +114,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 20,
     elevation: 2,
   },
   nextButtonText: {
@@ -153,19 +134,5 @@ const styles = StyleSheet.create({
     fontSize: 26,
     color: '#2e7d32',
     marginRight: 12,
-  },
-  infoText: {
-    flex: 1,
-  },
-  infoTitle: {
-    color: '#2e7d32',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  infoDescription: {
-    color: '#444',
-    fontSize: 14,
-    lineHeight: 20,
   },
 });
