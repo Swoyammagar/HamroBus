@@ -56,6 +56,34 @@ function loadTokenSecure(): string | null {
     return null;
   }
 }
+
+function storeRefreshSecure(token: string | null) {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      if (token) {
+        window.localStorage.setItem(refreshKey, token);
+        console.log('[Auth] refresh token stored (localStorage)');
+      } else {
+        window.localStorage.removeItem(refreshKey);
+        console.log('[Auth] refresh token cleared (localStorage)');
+      }
+    }
+  } catch (e) {
+    console.error('[Auth] storeRefresh error', e);
+  }
+}
+
+function loadRefreshSecure(): string | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage.getItem(refreshKey);
+    }
+    return null;
+  } catch (e) {
+    console.error('[Auth] loadRefresh error', e);
+    return null;
+  }
+}
 // ...existing code...
 // Minimal JWT parsing without external dependency. Returns payload or null.
 function parseJwt(token: string | undefined | null): any | null {
@@ -91,13 +119,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let mounted = true;
     (async () => {
       const t = await loadTokenSecure();
+      const r = await loadRefreshSecure();
+      if (r) setRefreshToken(r);
       if (!mounted) return;
       if (t) {
         console.log('[Auth] found token in storage, validating...');
         // validateToken will set token, axios header and store only if valid
         const valid = await validateToken(t);
         if (!valid) {
-          console.log('[Auth] stored token invalid or expired — cleared');
+          // try refresh if refresh token exists
+          if (r) {
+            const refreshed = await refreshAccessToken(r);
+            if (!refreshed) console.log('[Auth] refresh failed — cleared');
+          } else {
+            console.log('[Auth] stored token invalid or expired — cleared');
+          }
         }
       } else {
         setLoading(false);
@@ -156,6 +192,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await storeTokenSecure(null);
           return { success: false, message: data.message || 'Token validation failed' };
         }
+        // store refresh token if provided
+        if (data.refreshToken) {
+          setRefreshToken(data.refreshToken);
+          storeRefreshSecure(data.refreshToken);
+        }
         // validateToken already sets token/user and stores the token on success
         return { success: true, message: data.message || '' };
       }
@@ -167,10 +208,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 // ...existing code...
 
-  const logout = () => {
+  const logout = async () => {
+    // Attempt to notify backend to clear refresh token (best-effort)
+    try {
+      const rt = refreshToken ?? loadRefreshSecure();
+      if (rt) {
+        await axios.post(`${API_BASE}/auth/logout`, { refreshToken: rt });
+      }
+    } catch (e) {
+      console.warn('[Auth] logout notify failed', e);
+    }
     setToken(null);
     setUser(null);
+    setRefreshToken(null);
     storeTokenSecure(null);
+    storeRefreshSecure(null);
   };
 
   const validateToken = async (tokenArg?: string | null): Promise<boolean> => {
@@ -193,11 +245,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
       return false;
     } catch (err) {
+      // try to refresh using stored refresh token if present
+      const r = refreshToken ?? loadRefreshSecure();
+      if (r) {
+        const ok = await refreshAccessToken(r);
+        if (ok) {
+          // retry validation with new token
+          const newT = token ?? loadTokenSecure();
+          if (newT) {
+            try {
+              const { data } = await axios.get(`${API_BASE}/admin/current`, { headers: { Authorization: `Bearer ${newT}` } });
+              if (data && data.success && data.user) {
+                setUser(data.user as AdminUser);
+                setToken(newT);
+                setLoading(false);
+                return true;
+              }
+            } catch (e) {
+              // fall through to logout
+            }
+          }
+        }
+      }
       logout();
       setLoading(false);
       return false;
     }
   };
+
+  // Use refresh token to obtain a new access token
+  const refreshAccessToken = async (rt?: string | null): Promise<boolean> => {
+    const refresh = rt ?? refreshToken ?? loadRefreshSecure();
+    if (!refresh) return false;
+    try {
+      const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken: refresh });
+      if (data && data.accessToken) {
+        setToken(data.accessToken);
+        await storeTokenSecure(data.accessToken);
+        // axios defaults header will be set by token useEffect
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.warn('[Auth] refresh failed', e);
+      return false;
+    }
+  };
+
+  // Attach axios response interceptor to attempt refresh on 401 errors
+  useEffect(() => {
+    const id = axios.interceptors.response.use(
+      (res) => res,
+      async (error) => {
+        const status = error?.response?.status;
+        const originalRequest = error?.config;
+        if (status === 401 && originalRequest && !originalRequest._retry) {
+          originalRequest._retry = true;
+          const ok = await refreshAccessToken();
+          if (ok) {
+            const newToken = loadTokenSecure();
+            if (newToken) {
+              originalRequest.headers = originalRequest.headers || {};
+              originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+              return axios(originalRequest);
+            }
+          }
+          // if refresh failed, ensure logout
+          logout();
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => axios.interceptors.response.eject(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   const getCurrentUser = async (): Promise<AdminUser | null> => {
     const ok = await validateToken();
