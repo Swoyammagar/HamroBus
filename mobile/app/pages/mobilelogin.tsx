@@ -82,7 +82,7 @@ const Login = () => {
             </View>
 
             <TouchableOpacity className="bg-green-100 rounded-lg p-3 items-center">
-              <Text className="text-green-700 font-medium text-lg">Create New Account</Text>
+              <Text onPress={()=>router.push("/pages/preference")} className="text-green-700 font-medium text-lg">Create New Account</Text>
             </TouchableOpacity>
           </View>
         </View>

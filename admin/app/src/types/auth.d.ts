@@ -12,5 +12,6 @@ export type ApiResponse = {
 export type LoginResponse = {
 	admin?: { id: string; email: string };
 	token?: string;
+	refreshToken?: string;
 	message?: string;
 };

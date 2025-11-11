@@ -7,7 +7,7 @@ import License from "./driver/license";
 export default function Index() {
   return (
     <View>
-      <License />
+      <Login />
     </View>
   );
 }

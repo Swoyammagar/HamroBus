@@ -26,6 +26,8 @@ const createUser = async(req, res) =>{
     }
 };
 
+const { generateToken, generateRefreshToken } = require('../utils/authutils');
+
 const LoginUser = async (req, res) => {
     const { email, password } = req.body;   
     try {
@@ -37,7 +39,11 @@ const LoginUser = async (req, res) => {
         if (!isPasswordValid) {
             return res.status(401).json({ message: "Invalid password" });
         }
-        res.status(200).json({ message: "Login successful", user: { email: user.email, id: user._id } });
+    const accessToken = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
+    user.refreshToken = refreshToken;
+    await user.save();
+    res.status(200).json({ message: "Login successful", user: { email: user.email, id: user._id }, accessToken, refreshToken });
     } catch (error) {   
         console.error("Error logging in user:", error);
         res.status(500).json({ message: "Internal server error" });

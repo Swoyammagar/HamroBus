@@ -1,6 +1,6 @@
 const Admin = require('../models/admin.model');
 const bcrypt = require('bcrypt');
-const { generateToken } = require('../utils/authutils');
+const { generateToken, generateRefreshToken } = require('../utils/authutils');
 const { generateOTP } = require('../utils/OTPutils');
 const { sendPasswordResetEmail } = require('../utils/OTPutils');
 const { hashPassword } = require('../utils/authutils');
@@ -17,11 +17,15 @@ const Login = async (req, res) =>{
         if(!isPasswordValid){
             return res.status(401).json({ message: "Invalid password" });
         }
-        const token = generateToken(existing);
-        res.status(200).json({ 
-            admin: { email: existing.email, id: existing._id, fullname: existing.fullname },
-            token,
-            message: "Login successful"});
+    const token = generateToken(existing);
+    const refreshToken = generateRefreshToken(existing);
+    existing.refreshToken = refreshToken;
+    await existing.save();
+    res.status(200).json({ 
+      admin: { email: existing.email, id: existing._id, fullname: existing.fullname },
+      token,
+      refreshToken,
+      message: "Login successful"});
     }   
     catch (error) {
         console.error("Error logging in admin:", error);

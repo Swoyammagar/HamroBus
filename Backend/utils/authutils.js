@@ -11,8 +11,21 @@ const comparePassword = async (plainPassword, hashedPassword) => {
 };
 
 const generateToken = (admin) => {
-    const payload = { id: admin._id, email: admin.email  };
-    return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+  const payload = { id: admin._id, email: admin.email  };
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' });
 }
 
-module.exports = { generateToken, hashPassword, comparePassword };
+const generateRefreshToken = (admin) => {
+  const payload = { id: admin._id };
+  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET, { expiresIn: '30d' });
+}
+
+const verifyRefreshToken = (token) => {
+  try {
+    return jwt.verify(token, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+  } catch (err) {
+    return null;
+  }
+}
+
+module.exports = { generateToken, generateRefreshToken, verifyRefreshToken, hashPassword, comparePassword };

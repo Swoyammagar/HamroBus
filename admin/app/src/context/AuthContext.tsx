@@ -19,6 +19,8 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'http://localhost:3000/api';
 const tokenKey = 'hb_token';
+const refreshKey = 'hb_refresh_token';
+
 
 // ...existing code...
 // LocalStorage-only token helpers (web / dev-friendly)
@@ -80,6 +82,7 @@ function parseJwt(token: string | undefined | null): any | null {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AdminUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const logoutTimer = React.useRef<number | null>(null);
 
