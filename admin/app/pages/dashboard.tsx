@@ -11,6 +11,7 @@ import Analytics from '../src/components/pages/Analytics';
 import Notifications from '../src/components/pages/Notifications';
 import Dashboard from '../src/components/pages/Dashboard';
 import { Stack } from 'expo-router';
+import RequireAuth from '../src/components/RequireAuth';
 
 export default function DashboardPage() {
   const [selected, setSelected] = useState<MenuKey>('buses');
@@ -50,18 +51,20 @@ export default function DashboardPage() {
   };
 
   return (
-    <>
-    <Stack.Screen options={{ headerShown: false }} />
-    <View style={styles.page}>
-      <View style={styles.body}>
-        <Sidebar onSelect={(k) => setSelected(k)} />
-        <View style={styles.content}>
-          <Header title={pageTitleMap[selected] ?? 'Dashboard'} onSelect={(k) => setSelected(k)} />
-          <View style={styles.innerContent}>{renderContent()}</View>
+    <RequireAuth>
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.page}>
+          <View style={styles.body}>
+            <Sidebar onSelect={(k) => setSelected(k)} />
+            <View style={styles.content}>
+              <Header title={pageTitleMap[selected] ?? 'Dashboard'} onSelect={(k) => setSelected(k)} />
+              <View style={styles.innerContent}>{renderContent()}</View>
+            </View>
+          </View>
         </View>
-      </View>
-    </View>
-    </>
+      </>
+    </RequireAuth>
   );
 }
 
