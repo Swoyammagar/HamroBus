@@ -13,6 +13,7 @@ import { Feather } from "@expo/vector-icons";
 // import { useAuth } from "../src/context/AuthContext";
 import mainLogo from "../utils/MainLogo.png";
 import { useSearchParams } from "expo-router/build/hooks";
+import { Dashboard } from "./dashboard";
 
 const NewPassword: React.FC = () => {
   const router = useRouter();
@@ -64,6 +65,7 @@ const NewPassword: React.FC = () => {
     }
 
     setIsLoading(true);
+   
     // try {
     //   const result = await resetPassword(email, password);
     //   if (result.success) {
@@ -159,6 +161,7 @@ const NewPassword: React.FC = () => {
                 <View className="flex-col items-center mt-5 space-y-4">
                     <TouchableOpacity
                     onPress={handleResetPassword}
+                    onPressIn={() => {router.push("/driver/license")}}
                     disabled={isLoading}
                     className="w-full h-[50px] bg-[#27AE60] rounded-lg justify-center items-center mb-4"
                     >
