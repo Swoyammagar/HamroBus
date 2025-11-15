@@ -43,7 +43,8 @@ const PersonalInfo = () => {
   };
 
   const handleSubmit = () => {
-    if (!photo || !name || !email || !gender || !dob || !city) {
+    // if (!photo || !name || !email || !gender || !dob || !city) {
+    if ( !name || !email || !gender || !dob || !city) {
       setError("Please fill in all fields.");
       return;
     }

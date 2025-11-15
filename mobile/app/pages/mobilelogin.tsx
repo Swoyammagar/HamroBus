@@ -46,7 +46,7 @@ const Login = () => {
 
             <Text className="text-gray-700 mb-1">Email</Text>
             <TextInput
-              className={`rounded-lg shadow p-3 mb-4 border w-full ${
+              className={`rounded-lg p-3 mb-4 border w-full ${
               isEmailFocused ? "border-blue-500" : "border-gray-300"}`}
               placeholder="Enter your email"
               keyboardType="email-address"
@@ -61,7 +61,7 @@ const Login = () => {
               <Text onPress={()=> router.push("/pages/resetPassword")} className="text-gray-400 text-xs">Forgot Password?</Text>
             </View>
             <TextInput
-              className={`rounded-lg shadow p-3 mb-4 border w-full ${
+              className={`rounded-lg p-3 mb-4 border w-full ${
               isPasswordFocused ? "border-blue-500" : "border-gray-300"}`}
               placeholder="Enter your password"
               secureTextEntry

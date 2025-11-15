@@ -53,9 +53,8 @@ const License = () => {
     );
   const handleSubmit = () => {
     if (
-      !licenseNumber ||
-      !licenseType ||
-      !photo
+      // !licenseNumber || !licenseType || !photo
+      !licenseNumber || !licenseType
     ) {
       setError("Please fill in all fields and add a license image.");
       return;
