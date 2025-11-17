@@ -14,7 +14,7 @@ import { Stack } from 'expo-router';
 import RequireAuth from '../src/components/RequireAuth';
 
 export default function DashboardPage() {
-  const [selected, setSelected] = useState<MenuKey>('buses');
+  const [selected, setSelected] = useState<MenuKey>('dashboard');
 
   const pageTitleMap: Record<MenuKey, string> = {
     dashboard: 'Dashboard',

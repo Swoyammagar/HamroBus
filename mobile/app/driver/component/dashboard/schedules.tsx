@@ -1,9 +1,9 @@
 import { View, Text } from "react-native";
-const Home= () =>{
+const Schedules= () =>{
     return(
         <View>
-             <Text>Home</Text>
+             <Text>Schedules</Text>
         </View>
     )
 }
-export default Home;
+export default Schedules;

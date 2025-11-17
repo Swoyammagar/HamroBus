@@ -1,9 +1,9 @@
 import { View, Text } from "react-native";
-const Home= () =>{
+const Map= () =>{
     return(
         <View>
-             <Text>Home</Text>
+             <Text>Map</Text>
         </View>
     )
 }
-export default Home;
+export default Map;
