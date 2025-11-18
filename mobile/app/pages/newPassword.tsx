@@ -64,6 +64,7 @@ const NewPassword: React.FC = () => {
     }
 
     setIsLoading(true);
+    router.push("/pages/mobilelogin");
     // try {
     //   const result = await resetPassword(email, password);
     //   if (result.success) {

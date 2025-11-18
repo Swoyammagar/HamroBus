@@ -1,72 +1,90 @@
-import { View, Text } from "react-native";
-import Header from "./component/header";
+import { View, StyleSheet } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Stack } from "expo-router";
-import { StyleSheet } from "react-native";
-import Footer, { MenuKey } from "./component/footer";
 import { useState } from "react";
-import  Schedules  from "./component/dashboard/schedules";
-import  Map  from "./component/dashboard/map";
-import History  from "./component/dashboard/history";
-import  Profile  from "./component/dashboard/profile";
+
+import Header from "./component/header";
+import Footer, { MenuKey } from "./component/footer";
+
 import Home from "./component/dashboard/home";
+import Schedules from "./component/dashboard/schedules";
+import Map from "./component/dashboard/map";
+import History from "./component/dashboard/history";
+import Profile from "./component/dashboard/profile";
 
 export const Dashboard = () => {
-  const [selected, setSelected] = useState<MenuKey>('home');
-  const pageTitleMap: Record<MenuKey, string> = {
-    home: 'Home',
-    schedules: 'Schedules',
-    map: 'Map',
-    history: 'History',
-    profile: 'Profile'
-  };
+  const [selected, setSelected] = useState<MenuKey>("home");
+
   const renderContent = () => {
     switch (selected) {
-      case 'home':
-        return<Home/>;
-      case 'schedules':
-        return <Schedules/>;
-      case 'map':
-        return <Map/>;
-      case 'history':
-        return <History/>;
-      case 'profile':
-        return <Profile/>;
-      default:
-        return <Home/>;
+      case "home": return <Home />;
+      case "schedules": return <Schedules />;
+      case "map": return <Map />;
+      case "history": return <History />;
+      case "profile": return <Profile />;
+      default: return <Home />;
     }
   };
 
+  const insets = useSafeAreaInsets();
+
   return (
-      <>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.page}>
-          <View style={styles.body}>
-            <View style={styles.content}>
-              <Header />
-              {renderContent()}
-              <Footer onSelect={(k) => setSelected(k)} />
-            </View>
-          </View>
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <SafeAreaView style={styles.page}>
+
+        {/* Header (normal flow) */}
+        <View style={styles.headerWrapper}>
+          <Header />
         </View>
-      </>
+
+        {/* Content (fills space, DOES NOT push footer) */}
+        <View style={[styles.content, { paddingBottom: 60 + insets.bottom + 10 }]}>
+          {renderContent()}
+        </View>
+
+        {/* FOOTER — fixed at bottom so map interactions can't push it */}
+        <View style={[styles.footerFixed, { height: 60 + insets.bottom, paddingBottom: insets.bottom }]}>
+          <Footer onSelect={setSelected} />
+        </View>
+
+      </SafeAreaView>
+    </>
   );
-}
+};
 
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: '#f8fafc'
+    backgroundColor: "#f8fafc",
   },
-  body: {
-    flex: 1,
-    flexDirection: 'row'
+
+  headerWrapper: {
+    width: "100%",
+    backgroundColor: "#fff",
+    zIndex: 5,
   },
+
   content: {
     flex: 1,
-    backgroundColor: '#fff'
-  }
-  ,innerContent: {
-    flex: 1,
-    padding: 12
-  }
+    backgroundColor: "#f1f1f1",
+    // leave room for footer (footer is positioned absolute)
+    paddingBottom: 80,
+  },
+
+  footerFixed: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    backgroundColor: "transparent",
+
+    // ensures footer is above everything
+    zIndex: 999,
+    elevation: 10,
+  },
+  
 });
+export default Dashboard;

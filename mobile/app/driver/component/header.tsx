@@ -26,8 +26,9 @@ const Header = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
+    <>
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.container}>
 
         {/* LEFT: HAMBURGER */}
         <TouchableOpacity style={styles.leftBtn}>
@@ -57,9 +58,16 @@ const Header = () => {
           <Text style={styles.icon}>⚙️</Text>
         </TouchableOpacity>
 
-      </View>
-      {/* SLIDING SIDEBAR */}
-      <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarX }] }]}>
+        </View>
+      </SafeAreaView>
+
+      {/* Overlay (click to close) */}
+      {sidebarOpen && (
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={closeSidebar} />
+      )}
+
+      {/* SLIDING SIDEBAR (full-height) */}
+      <Animated.View style={[styles.sidebarPanel, { transform: [{ translateX: sidebarX }] }]}>
 
         <TouchableOpacity onPress={closeSidebar} style={styles.closeBtn}>
           <Text style={styles.sidebarTitle}>Menu</Text>
@@ -71,12 +79,17 @@ const Header = () => {
         <Text style={styles.menuItem}>Settings</Text>
         <Text style={styles.menuItem}>Logout</Text>
       </Animated.View>
-    </SafeAreaView>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
   safe: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 999,
     backgroundColor: "#fff",
   },
   container: {
@@ -143,7 +156,7 @@ overlay: {
   backgroundColor: "rgba(0,0,0,0.4)",
 },
 
-sidebar: {
+sidebarPanel: {
   position: "absolute",
   top: 0,
   bottom: 0,
@@ -156,6 +169,7 @@ sidebar: {
   shadowColor: "#000",
   shadowOpacity: 0.3,
   shadowOffset: { width: 0, height: 2 },
+  zIndex: 1000,
 },
 
 sidebarTitle: {

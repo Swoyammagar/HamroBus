@@ -161,7 +161,7 @@ const NewPassword: React.FC = () => {
                 <View className="flex-col items-center mt-5 space-y-4">
                     <TouchableOpacity
                     onPress={handleResetPassword}
-                    onPressIn={() => {router.push("/driver/license")}}
+                    onPressIn={() => {router.push("/driver/dashboard")}}
                     disabled={isLoading}
                     className="w-full h-[50px] bg-[#27AE60] rounded-lg justify-center items-center mb-4"
                     >

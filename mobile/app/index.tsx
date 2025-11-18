@@ -9,7 +9,7 @@ import Header from "./driver/component/header";
 export default function Index() {
   return (
     <View>
-      <Dashboard />
+      <Login />
     </View>
   );
 }
