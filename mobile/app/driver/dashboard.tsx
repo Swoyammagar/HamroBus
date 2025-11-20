@@ -28,19 +28,21 @@ export const Dashboard = () => {
 
   const insets = useSafeAreaInsets();
 
+  const HEADER_HEIGHT = 64;
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
 
       <SafeAreaView style={styles.page}>
 
-        {/* Header (normal flow) */}
-        <View style={styles.headerWrapper}>
+        {/* Header (absolute) — reserve space with wrapper height */}
+        <View style={[styles.headerWrapper, { height: HEADER_HEIGHT + insets.top }]}>
           <Header />
         </View>
 
         {/* Content (fills space, DOES NOT push footer) */}
-        <View style={[styles.content, { paddingBottom: 60 + insets.bottom + 10 }]}>
+        <View style={[styles.content, { paddingBottom: 60 + insets.bottom + 10, paddingTop: HEADER_HEIGHT + insets.top }]}>
           {renderContent()}
         </View>
 
@@ -58,12 +60,17 @@ const styles = StyleSheet.create({
   page: {
     flex: 1,
     backgroundColor: "#f8fafc",
+    position: 'relative',
   },
 
   headerWrapper: {
     width: "100%",
     backgroundColor: "#fff",
-    zIndex: 5,
+    zIndex: 999,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
 
   content: {
