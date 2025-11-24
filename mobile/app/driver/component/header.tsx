@@ -62,23 +62,23 @@ const Header = () => {
       </SafeAreaView>
 
       {/* Overlay (click to close) */}
-      {sidebarOpen && (
+      {/* {sidebarOpen && (
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={closeSidebar} />
-      )}
+      )} */}
 
       {/* SLIDING SIDEBAR (full-height) */}
-      <Animated.View style={[styles.sidebarPanel, { transform: [{ translateX: sidebarX }] }]}>
+      {/* <Animated.View style={[styles.sidebarPanel, { transform: [{ translateX: sidebarX }] }]}> */}
 
-        <TouchableOpacity onPress={closeSidebar} style={styles.closeBtn}>
+        {/* <TouchableOpacity onPress={closeSidebar} style={styles.closeBtn}>
           <Text style={styles.sidebarTitle}>Menu</Text>
           <Text style={{ fontSize: 20 }}>✕</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         {/* Add menu items here */}
-        <Text style={styles.menuItem}>Profile</Text>
+        {/* <Text style={styles.menuItem}>Profile</Text>
         <Text style={styles.menuItem}>Settings</Text>
         <Text style={styles.menuItem}>Logout</Text>
-      </Animated.View>
+      </Animated.View> */}
     </>
   );
 };

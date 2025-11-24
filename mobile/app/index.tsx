@@ -4,8 +4,9 @@ import VerifyOTP from "./pages/otpPassword";
 import Preference from "./pages/preference";
 import PersonalInfo from "./driver/signupInfo";
 import License from "./driver/license";
-import { Dashboard } from "./driver/dashboard";
+import Dashboard  from "./driver/dashboard";
 import Header from "./driver/component/header";
+import Home from "./driver/(tabs)/home";
 export default function Index() {
   return (
     <View>

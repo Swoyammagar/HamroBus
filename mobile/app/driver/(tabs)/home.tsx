@@ -36,7 +36,7 @@ const Home = () => {
 };
 
 const styles = StyleSheet.create({
-    container: { padding: 16, paddingBottom: 40 },
+    container: { padding: 16},
     welcome: { fontSize: 20, fontWeight: "700", marginBottom: 12 },
     statsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
     statCard: { flex: 1, backgroundColor: "#fff", marginHorizontal: 6, padding: 12, borderRadius: 8, alignItems: "center" },

@@ -1,4 +1,4 @@
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, Text } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Stack } from "expo-router";
 import { useState } from "react";
@@ -6,14 +6,14 @@ import { useState } from "react";
 import Header from "./component/header";
 import Footer, { MenuKey } from "./component/footer";
 
-import Home from "./component/dashboard/home";
-import Schedules from "./component/dashboard/schedules";
-import Map from "./component/dashboard/map";
-import History from "./component/dashboard/history";
-import Profile from "./component/dashboard/profile";
+import Home from "./(tabs)/home";
+import Schedules from "./(tabs)/schedules";
+import Map from "./(tabs)/map";
+import History from "./(tabs)/history";
+import Profile from "./(tabs)/profile";
 
 export const Dashboard = () => {
-  const [selected, setSelected] = useState<MenuKey>("home");
+  const [selected, setSelected] = useState<MenuKey>("schedules");
 
   const renderContent = () => {
     switch (selected) {
@@ -32,9 +32,8 @@ export const Dashboard = () => {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
 
-      <SafeAreaView style={styles.page}>
+      <SafeAreaView >
 
         {/* Header (absolute) — reserve space with wrapper height */}
         <View style={[styles.headerWrapper, { height: HEADER_HEIGHT + insets.top }]}>
@@ -42,14 +41,14 @@ export const Dashboard = () => {
         </View>
 
         {/* Content (fills space, DOES NOT push footer) */}
-        <View style={[styles.content, { paddingBottom: 60 + insets.bottom + 10, paddingTop: HEADER_HEIGHT + insets.top }]}>
-          {renderContent()}
+        <View >
+          <Home/>
         </View>
 
         {/* FOOTER — fixed at bottom so map interactions can't push it */}
-        <View style={[styles.footerFixed, { height: 60 + insets.bottom, paddingBottom: insets.bottom }]}>
+        {/* <View style={[styles.footerFixed]}>
           <Footer onSelect={setSelected} />
-        </View>
+        </View> */}
 
       </SafeAreaView>
     </>
@@ -81,17 +80,15 @@ const styles = StyleSheet.create({
   },
 
   footerFixed: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 60,
-    backgroundColor: "transparent",
-
-    // ensures footer is above everything
-    zIndex: 999,
-    elevation: 10,
-  },
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  height: 60,     // fixed height
+  backgroundColor: "transparent",
+  zIndex: 999,
+  elevation: 10,
+}
   
 });
 export default Dashboard;
