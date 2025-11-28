@@ -35,10 +35,6 @@ export const Dashboard = () => {
 
       <SafeAreaView >
 
-        {/* Header (absolute) — reserve space with wrapper height */}
-        <View style={[styles.headerWrapper, { height: HEADER_HEIGHT + insets.top }]}>
-          <Header />
-        </View>
 
         {/* Content (fills space, DOES NOT push footer) */}
         <View >
@@ -56,39 +52,7 @@ export const Dashboard = () => {
 };
 
 const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-    position: 'relative',
-  },
 
-  headerWrapper: {
-    width: "100%",
-    backgroundColor: "#fff",
-    zIndex: 999,
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-  },
-
-  content: {
-    flex: 1,
-    backgroundColor: "#f1f1f1",
-    // leave room for footer (footer is positioned absolute)
-    paddingBottom: 80,
-  },
-
-  footerFixed: {
-  position: "absolute",
-  bottom: 0,
-  left: 0,
-  right: 0,
-  height: 60,     // fixed height
-  backgroundColor: "transparent",
-  zIndex: 999,
-  elevation: 10,
-}
   
 });
 export default Dashboard;

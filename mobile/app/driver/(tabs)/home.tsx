@@ -1,6 +1,6 @@
 import React from "react";
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
-
+import { SafeAreaView} from "react-native-safe-area-context";
 const Home = () => {
     const stats = [
         { label: "Today Trips", value: 3 },
@@ -9,6 +9,7 @@ const Home = () => {
     ];
 
     return (
+        <SafeAreaView>
         <ScrollView contentContainerStyle={styles.container}>
             <Text style={styles.welcome}>Good Morning, Driver</Text>
 
@@ -32,6 +33,7 @@ const Home = () => {
                 </View>
             </View>
         </ScrollView>
+        </SafeAreaView>
     );
 };
 
