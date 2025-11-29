@@ -14,32 +14,45 @@ export default function DashboardOverview() {
 		.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
 		.slice(0, 5);
 
-	useEffect(() => {
-		if (Platform.OS === 'web') {
-		  const id = 'leaflet-css';
-		  if (!document.getElementById(id)) {
-			const link = document.createElement('link');
-			link.id = id;
-			link.rel = 'stylesheet';
-			link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-			// avoid integrity/crossorigin to reduce CDN/CSP issues in dev
-			document.head.appendChild(link);
-		  }
-		}
-	}, []);
+		useEffect(() => {
+			if (Platform.OS === 'web') {
+			const id = 'leaflet-css';
+			if (!document.getElementById(id)) {
+				const link = document.createElement('link');
+				link.id = id;
+				link.rel = 'stylesheet';
+				link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+				// avoid integrity/crossorigin to reduce CDN/CSP issues in dev
+				document.head.appendChild(link);
+			}
+			}
+		}, []);
+
 	const WebMap: React.FC = () => {
-  const [leafletLoaded, setLeafletLoaded] = useState(false);
+  const mapRef = React.useRef<any>(null);
+  const [leaflet, setLeaflet] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        await import("leaflet");
-        setLeafletLoaded(true);
-      } catch (err) {}
+        const rl = await import("react-leaflet");
+        const L = await import("leaflet");
+
+        // Fix Leaflet default icon paths for Webpack/Vite/Next bundlers
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+          iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+          shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+        });
+
+        setLeaflet({ ...rl, L });
+      } catch (err) {
+        console.log("Leaflet import failed", err);
+      }
     })();
   }, []);
 
-  if (!leafletLoaded) {
+  if (!leaflet) {
     return (
       <View style={styles.mapPlaceholder}>
         <Text style={{ color: "#6b7280" }}>Loading map...</Text>
@@ -47,11 +60,58 @@ export default function DashboardOverview() {
     );
   }
 
+  const { MapContainer, TileLayer, Marker, Popup } = leaflet;
+
   return (
-    <iframe
-      src="https://www.openstreetmap.org/export/embed.html?bbox=85.30,27.68,85.35,27.72&layer=mapnik"
-      style={{ width: "100%", height: "100%", borderRadius: 8 }}
-    ></iframe>
+    <MapContainer
+      center={[27.7172, 85.3240]}
+      zoom={13}
+      style={{ height: "100%", width: "100%" }}
+      whenCreated={(mapInstance: any) => {
+        mapRef.current = mapInstance;
+      }}
+    >
+      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
+      {/* 🚌 Bus markers */}
+      {buses.map((bus) => (
+  <Marker
+    key={bus._id}
+    position={[
+      bus.currentLocation.latitude,
+      bus.currentLocation.longitude
+    ]}
+    icon={
+      new leaflet.L.DivIcon({
+        html: `
+          <div style="
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            transform:translateY(-10px);
+          ">
+            <div style="
+              background:#1e3a8a;
+              color:white;
+              padding:2px 6px;
+              border-radius:4px;
+              font-size:12px;
+              margin-bottom:2px;
+            ">
+              ${bus.busNumber}
+            </div>
+            <img
+              src="https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png"
+              style="width:25px;height:41px;"
+            />
+          </div>
+        `,
+        className: "",
+      })
+    }
+  />
+))}
+    </MapContainer>
   );
 };
 	
