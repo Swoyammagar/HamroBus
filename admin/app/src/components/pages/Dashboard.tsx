@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { drivers, buses, routes, schedules, getDriverRatingSummary, notifications } from '../data/dummyData';
 
 export default function DashboardOverview() {
@@ -13,6 +13,48 @@ export default function DashboardOverview() {
 		.filter(n => n.target === 'admin')
 		.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
 		.slice(0, 5);
+
+	useEffect(() => {
+		if (Platform.OS === 'web') {
+		  const id = 'leaflet-css';
+		  if (!document.getElementById(id)) {
+			const link = document.createElement('link');
+			link.id = id;
+			link.rel = 'stylesheet';
+			link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+			// avoid integrity/crossorigin to reduce CDN/CSP issues in dev
+			document.head.appendChild(link);
+		  }
+		}
+	}, []);
+	const WebMap: React.FC = () => {
+  const [leafletLoaded, setLeafletLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        await import("leaflet");
+        setLeafletLoaded(true);
+      } catch (err) {}
+    })();
+  }, []);
+
+  if (!leafletLoaded) {
+    return (
+      <View style={styles.mapPlaceholder}>
+        <Text style={{ color: "#6b7280" }}>Loading map...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <iframe
+      src="https://www.openstreetmap.org/export/embed.html?bbox=85.30,27.68,85.35,27.72&layer=mapnik"
+      style={{ width: "100%", height: "100%", borderRadius: 8 }}
+    ></iframe>
+  );
+};
+	
 
 	return (
 		<ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -41,7 +83,12 @@ export default function DashboardOverview() {
 				<View style={styles.mapCard}>
 					<Text style={styles.mapTitle}>Live Bus Locations</Text>
 					<View style={styles.mapPlaceholder}>
-						<Text style={{ color: '#9CA3AF' }}>Map placeholder — live locations will appear here</Text>
+						{Platform.OS === 'web' ? (
+                // @ts-ignore
+                <WebMap />
+              ) : (
+                <View style={styles.mapPlaceholder}><Text style={{ color: '#6b7280' }}>Map is available on web only.</Text></View>
+              )}
 					</View>
 				</View>
 
@@ -144,7 +191,7 @@ const styles = StyleSheet.create({
 	cardPrimaryLight: { backgroundColor: '#fff', borderColor: '#e5e7eb' },
 	cardTitle: { color: '#065f46', fontWeight: '600' },
 	cardValue: { fontSize: 28, fontWeight: '800', marginTop: 8, color: '#065f46' },
-
+	mapLoadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
 	mainRow: { flexDirection: 'row', gap: 12 },
 	mapCard: { flex: 2, backgroundColor: '#fff', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#e5e7eb' },
 	mapTitle: { fontWeight: '700', color: '#111827', marginBottom: 8 },
