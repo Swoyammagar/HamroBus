@@ -24,6 +24,7 @@ const Login = () => {
       return;
     }
     setError("");
+    router.replace("/driver/(tabs)/home");
   };
 
   return (
