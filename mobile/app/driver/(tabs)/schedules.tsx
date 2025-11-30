@@ -1,6 +1,6 @@
 import React from "react";
 import { ScrollView, View, Text, StyleSheet } from "react-native";
-
+import { SafeAreaView} from "react-native-safe-area-context";
 const sampleSchedules = [
     { id: 1, route: "Bus Park → Ring Road", time: "07:30 AM" },
     { id: 2, route: "Lazimpat → New Bus Stand", time: "09:00 AM" },
@@ -9,6 +9,7 @@ const sampleSchedules = [
 
 const Schedules = () => {
     return (
+        <SafeAreaView>
         <ScrollView contentContainerStyle={styles.container}>
             <Text style={styles.title}>Scheduled Trips</Text>
             {sampleSchedules.map((s) => (
@@ -18,6 +19,7 @@ const Schedules = () => {
                 </View>
             ))}
         </ScrollView>
+        </SafeAreaView>
     );
 };
 

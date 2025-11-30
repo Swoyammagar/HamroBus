@@ -1,6 +1,6 @@
 import React from "react";
 import { ScrollView, View, Text, StyleSheet } from "react-native";
-
+import { SafeAreaView} from "react-native-safe-area-context";
 const sampleHistory = [
     { id: 1, title: "Trip to Ratna Park", date: "2025-11-18", status: "Completed" },
     { id: 2, title: "Morning Shuttle", date: "2025-11-17", status: "Completed" },
@@ -9,6 +9,7 @@ const sampleHistory = [
 
 const History = () => {
     return (
+        <SafeAreaView>
         <ScrollView contentContainerStyle={styles.container}>
             <Text style={styles.title}>Trip History</Text>
             {sampleHistory.map((h) => (
@@ -18,6 +19,7 @@ const History = () => {
                 </View>
             ))}
         </ScrollView>
+        </SafeAreaView>
     );
 };
 
