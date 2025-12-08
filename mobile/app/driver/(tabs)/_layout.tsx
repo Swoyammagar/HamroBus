@@ -37,15 +37,6 @@ const TabLayout = () => {
         }}
       />
 
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
-          ),
-        }}
-      />
 
       <Tabs.Screen
         name="schedules"
@@ -56,6 +47,15 @@ const TabLayout = () => {
           ),
         }}
       />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: "Profile",
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="person-outline" size={size} color={color} />
+            ),
+          }}
+        />
     </Tabs>
     )
 }
