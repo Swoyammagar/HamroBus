@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, Switch } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { palette, spacing } from '../theme';
-
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 interface HeaderProps {
   isOnline: boolean;
   onToggleOnline: () => void;

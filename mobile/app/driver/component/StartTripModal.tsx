@@ -6,28 +6,31 @@ import { palette, spacing, radius } from '../theme';
 interface Props {
   visible: boolean;
   onClose: () => void;
+  tripDetails: { route: string; time: string; duration: string };
+  onStart: () => void;
 }
 
-export default function EmergencySOSModal({ visible, onClose }: Props) {
+export default function StartTripModal({ visible, onClose, tripDetails, onStart }: Props) {
   return (
-    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
+    <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <View style={styles.headerRow}>
-            <Feather name="alert-triangle" size={24} color={palette.danger} />
-            <Text style={styles.title}>Emergency SOS</Text>
+            <Text style={styles.title}>Start Trip</Text>
             <Pressable onPress={onClose} hitSlop={8}>
               <Feather name="x" size={20} color={palette.muted} />
             </Pressable>
           </View>
-          <Text style={styles.body}>
-            Notify dispatch and share your live location immediately.
-          </Text>
-          <Pressable style={styles.primary} onPress={onClose}>
-            <Text style={styles.primaryText}>Send SOS</Text>
-          </Pressable>
-          <Pressable style={styles.secondary} onPress={onClose}>
-            <Text style={styles.secondaryText}>Cancel</Text>
+          <View style={styles.row}>
+            <Feather name="map" size={18} color={palette.primary} />
+            <Text style={styles.label}>{tripDetails.route}</Text>
+          </View>
+          <View style={styles.row}>
+            <Feather name="clock" size={18} color={palette.primary} />
+            <Text style={styles.label}>{tripDetails.time} · {tripDetails.duration}</Text>
+          </View>
+          <Pressable style={styles.primary} onPress={onStart}>
+            <Text style={styles.primaryText}>Go Online & Start</Text>
           </Pressable>
         </View>
       </View>
@@ -56,18 +59,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: {
-    flex: 1,
-    marginLeft: spacing.sm,
     fontSize: 18,
     fontWeight: '700',
     color: palette.text,
   },
-  body: {
-    color: palette.muted,
-    lineHeight: 20,
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  label: {
+    color: palette.text,
   },
   primary: {
-    backgroundColor: palette.danger,
+    marginTop: spacing.sm,
+    backgroundColor: palette.primary,
     paddingVertical: spacing.md,
     borderRadius: radius.md,
     alignItems: 'center',
@@ -75,17 +81,5 @@ const styles = StyleSheet.create({
   primaryText: {
     color: '#FFFFFF',
     fontWeight: '700',
-  },
-  secondary: {
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  secondaryText: {
-    color: palette.text,
-    fontWeight: '600',
   },
 });
