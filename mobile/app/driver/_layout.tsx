@@ -7,7 +7,16 @@ export default function DriverLayout() {
       <Stack.Screen name="license" />
       <Stack.Screen name="phonePage" />
       <Stack.Screen name="signupInfo" />
-      <Stack.Screen name="(tabs)" />
+
+      {/* Custom driver app shell */}
+      <Stack.Screen name="app" />
+
+      {/* Expo Router still sees these screens */}
+      <Stack.Screen name="screens/HomeScreen" />
+      <Stack.Screen name="screens/ProfileScreen" />
+      <Stack.Screen name="screens/HistoryScreen" />
+      <Stack.Screen name="screens/MapScreen" />
+      <Stack.Screen name="screens/SchedulesScreen" />
     </Stack>
   );
 }
