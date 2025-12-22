@@ -21,10 +21,26 @@ const Login = async (req, res) =>{
     const refreshToken = generateRefreshToken(existing);
     existing.refreshToken = refreshToken;
     await existing.save();
+    
+    // Set access token in httpOnly cookie
+    res.cookie('access_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000 // 1 minute
+    });
+    
+    // Set refresh token in httpOnly cookie
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+    
     res.status(200).json({ 
+      success: true,
       admin: { email: existing.email, id: existing._id, fullname: existing.fullname },
-      token,
-      refreshToken,
       message: "Login successful"});
     }   
     catch (error) {
