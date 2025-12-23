@@ -10,8 +10,7 @@ export type ApiResponse = {
 };
 
 export type LoginResponse = {
-	admin?: { id: string; email: string };
-	token?: string;
-	refreshToken?: string;
+	admin?: { id: string; email: string; fullname?: string };
+	success?: boolean;
 	message?: string;
 };
