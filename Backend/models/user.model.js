@@ -1,28 +1,47 @@
 const mongoose = require("mongoose");
+
 const userSchema = new mongoose.Schema({
-    email:{
+    firstName: {
+        type: String,
+        required: true
+    },
+    lastName: {
+        type: String,
+        required: true
+    },
+    address: {
+        type: String,
+        required: false
+    },
+    phoneNumber: {
         type: String,
         required: true,
         unique: true
     },
-    password:{
+    email: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    password: {
         type: String,
         required: true
     },
-    longitude: {
-        type: Number,
+    isVerified: {
+        type: Boolean,
+        default: false
     },
-    latitude: {
-        type: Number,
+    role: {
+        type: String,
+        enum: ['driver', 'passenger'],
+        required: true
     },
-    timestamp: {
-        type: Date,
-        default: Date.now
-    }
-    ,
     refreshToken: {
         type: String,
-        default: null,
+        default: null
     }
+}, {
+    timestamps: true
 });
+
 module.exports = mongoose.models.User || mongoose.model("User", userSchema);
