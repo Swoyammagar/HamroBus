@@ -6,7 +6,7 @@ const { generateToken, generateRefreshToken } = require('../utils/authutils');
 
 // Driver Registration
 const registerDriver = async (req, res) => {
-    const { firstName, lastName, address, phoneNumber, email, password, profileImgUrl, licenseNo, licenseImgUrl } = req.body;
+    const { firstName, lastName, address, phoneNumber, email, password, licenseNo } = req.body;
     
     try {
         // 1️⃣ Check if license already exists
@@ -30,7 +30,7 @@ const registerDriver = async (req, res) => {
                 phoneNumber,
                 email,
                 password: hashedPassword,
-                profileImgUrl,
+                profileImgUrl: req.files.profileImg ? req.files.profileImg[0].path : '', // Cloudinary URL
                 roles: ['driver'],
                 isVerified: false
             });
@@ -59,7 +59,7 @@ const registerDriver = async (req, res) => {
             userId: user._id,
             driverId,
             licenseNo,
-            licenseImgUrl: licenseImgUrl || '',
+            licenseImgUrl: req.files.licenseImg ? req.files.licenseImg[0].path : '', // Cloudinary URL
             validationStatus: 'pending',
             isActive: false
         });

@@ -10,7 +10,15 @@ const {
 const { authenticateMobileUser, isDriver } = require('../middlewares/mobile.auth.middleware');
 
 // Public routes
-router.post('/register', registerDriver);
+router.post(
+  '/register',
+  upload.fields([
+    { name: 'profileImg', maxCount: 1 },
+    { name: 'licenseImg', maxCount: 1 },
+  ]),
+  registerDriver
+);
+
 router.post('/login', loginDriver);
 
 // Protected routes (require authentication)
