@@ -27,12 +27,17 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    profileImgUrl: {
+        type: String,
+        required: false
+    },
     isVerified: {
         type: Boolean,
         default: false
     },
-    role: {
-        type: String,
+    roles: {
+        type: [String],
+        default: [],
         enum: ['driver', 'passenger'],
         required: true
     },
