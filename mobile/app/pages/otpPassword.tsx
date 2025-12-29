@@ -13,6 +13,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { useSearchParams } from "expo-router/build/hooks";
 import mainLogo from "../utils/MainLogo.png";
+import { useAuth } from "../context/AuthContext";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -21,6 +22,7 @@ const VerifyOTP: React.FC = () => {
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
 
+  const { verifyOTP, passwordResetEmail } = useAuth();
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -38,16 +40,19 @@ const VerifyOTP: React.FC = () => {
     }
 
     setIsLoading(true);
-    // Dummy navigation for now (no backend)
-    setTimeout(() => {
-      setIsLoading(false);
-      if (otp === "123456") {
-        router.push(`/pages/newPassword`);
-        // router.push(`/pages/newPassword?email=${encodeURIComponent(email)}`);
+    try {
+      const result = await verifyOTP(email, otp);
+      if (result.success) {
+        // router.push(`pages/new/newPassword?email=${encodeURIComponent(email)}`);
+        router.push(`/pages/newPassword?email=${encodeURIComponent(email)}`);
       } else {
-        setError("Invalid OTP. Please try again.");
+        setError(result.message || "Invalid OTP. Please try again.");
       }
-    }, 1200);
+    } catch (err: any) {
+      setError(err.message || "Invalid OTP. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleResendOTP = async () => {
@@ -59,11 +64,18 @@ const VerifyOTP: React.FC = () => {
     }
 
     setIsResending(true);
-    // Dummy resend behavior
-    setTimeout(() => {
+    try {
+      const res = await passwordResetEmail(email);
+      if (res.success) {
+        setSuccess(res.message || "OTP resent successfully");
+      } else {
+        setError(res.message || "Failed to resend OTP. Please try again.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to resend OTP. Please try again.");
+    } finally {
       setIsResending(false);
-      setSuccess("OTP resent successfully");
-    }, 1000);
+    }
   };
 
   return (

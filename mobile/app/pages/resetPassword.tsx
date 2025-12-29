@@ -11,12 +11,14 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import mainLogo from "../utils/MainLogo.png";
+import { useAuth } from "../context/AuthContext";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const ResetPassword: React.FC = () => {
   const router = useRouter();
 
+  const { passwordResetEmail } = useAuth();
   const [email, setEmail] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
@@ -33,13 +35,19 @@ const ResetPassword: React.FC = () => {
     }
 
     setIsLoading(true);
-    // Simulate network call (no backend)
-    setTimeout(() => {
+    try {
+      const result = await passwordResetEmail(email);
+      if (result.success) {
+        setSuccess("Password reset email sent. Please check your inbox.");
+        router.push(`/pages/otpPassword?email=${encodeURIComponent(email)}`);
+      } else {
+        setError(result.message || "Failed to send reset email. Please try again.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to send reset email. Please try again.");
+    } finally {
       setIsLoading(false);
-      setSuccess("Password reset email sent. Please check your inbox.");
-      router.push(`/pages/otpPassword`);
-      // router.push(`/pages/otp?email=${encodeURIComponent(email)}`);
-    }, 1200);
+    }
   };
 
   return (

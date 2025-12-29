@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-// import { useAuth } from "../src/context/AuthContext";
+import { useAuth } from "../context/AuthContext";
 import mainLogo from "../utils/MainLogo.png";
 import { useSearchParams } from "expo-router/build/hooks";
 
@@ -19,7 +19,7 @@ const NewPassword: React.FC = () => {
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
 
-  // const { resetPassword } = useAuth();
+  const { resetPassword } = useAuth();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -64,19 +64,18 @@ const NewPassword: React.FC = () => {
     }
 
     setIsLoading(true);
-    router.push("/pages/mobilelogin");
-    // try {
-    //   const result = await resetPassword(email, password);
-    //   if (result.success) {
-    //     router.push("/pages/mobilelogin");
-    //   } else {
-    //     setError(result.message || "Failed to reset password. Please try again.");
-    //   }
-    // } catch (err: any) {
-    //   setError(err.message || "Failed to reset password. Please try again.");
-    // } finally {
-    //   setIsLoading(false);
-    // }
+    try {
+      const result = await resetPassword(email, password);
+      if (result.success) {
+        router.push("/pages/mobilelogin");
+      } else {
+        setError(result.message || "Failed to reset password. Please try again.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to reset password. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

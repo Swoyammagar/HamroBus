@@ -2,30 +2,82 @@ import React, { useState } from "react";
 import { Text, View, Image, TouchableOpacity, TextInput, ScrollView, Dimensions } from "react-native";
 import MainLogo from "../utils/MainLogo.png";
 import { router, Stack } from "expo-router";
+import { useAuth } from "../context/AuthContext";
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
+
 const Login = () => {
+  const {login} = useAuth();
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [isEmailFocused, setIsEmailFocused] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   
-  const handleLogin = () => {
+  const handleLogin = async () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const passwordRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*]).{6,}$/;
-
     if (!emailRegex.test(email)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-    if (!passwordRegex.test(password)) {
-      setError("Password must be at least 6 characters long, contain a number and a special character.");
-      return;
-    }
-    setError("");
-    router.replace("/driver/(tabs)/home");
+        setError("Please enter a valid email address.");
+        return;
+      }
+
+      if (!passwordRegex.test(password)) {
+        setError("Invalid password format.");
+        return;
+      }
+
+      setSubmitting(true);
+      setError("");
+
+      try {
+        const res = await login(email, password);
+
+        if (!res.success || !res.user) {
+          setError(res.message || "Login failed");
+          return;
+        }
+
+        const roles = res.user.roles;
+
+        if (roles.includes("driver")) {
+          router.replace("/driver/app");
+        } else if (roles.includes("passenger")) {
+          router.replace("/passenger/(tabs)/home");
+        } else {
+          setError("Unknown user role");
+        }
+
+      } catch (err: any) {
+        setError("Login error");
+      } finally {
+        setSubmitting(false);
+  }
   };
+
+//   const handleLogin = async () => {
+//   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+//   const passwordRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*]).{6,}$/;
+
+//   if (!emailRegex.test(email)) {
+//     setError("Please enter a valid email address.");
+//     return;
+//   }
+
+//   if (!passwordRegex.test(password)) {
+//     setError("Invalid password format.");
+//     return;
+//   }
+
+//   setSubmitting(true);
+//   setError("");
+
+//   // TEMP navigation (since login is commented)
+//   router.replace("/passenger/(tabs)/home");
+
+//   setSubmitting(false);
+// };
 
   return (
     <>
