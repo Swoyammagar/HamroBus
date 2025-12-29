@@ -6,7 +6,7 @@ import axios from 'axios';
 // Android Emulator: 10.0.2.2 (host machine gateway) on port 5000
 // iOS Simulator: localhost or your machine IP on port 5000
 // Physical device: your machine's local IP (192.168.x.x) on port 5000
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
+const API_URL =  'http://10.0.2.2:3000/api';
 
 interface User {
   _id: string;
@@ -24,6 +24,10 @@ interface LoginResponse {
   user?: User;
 }
 
+type ApiResponse = {
+  success: boolean;
+  message?: string;
+};
 
 interface AuthContextType {
   user: User | null;
@@ -54,10 +58,7 @@ interface AuthContextType {
     email: string,
     newPassword: string
   ) => Promise<{ success: boolean; message?: string }>;
-  verifyOTP: (
-    email: string,
-    otp: string
-  ) => Promise<{ success: boolean; message?: string }>;
+  verifyOTP: (email: string, otp: string) => Promise<ApiResponse>;
 }
 
 
@@ -288,12 +289,12 @@ const login = async (
    */
   const verifyOTP = async (email: string, otp: string) => {
     try {
-      const { data } = await axios.post<{ success: boolean; message?: string }>(
+      const { data } = await axios.post<ApiResponse & { status?: string }>(
         `${API_URL}/users/verify-otp`,
         { email, otp }
       );
       return {
-        success: data.success || false,
+        success: data.status === 'success',
         message: data.message || '',
       };
     } catch (err: any) {
