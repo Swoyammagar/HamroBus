@@ -3,6 +3,7 @@ const Driver = require('../models/driver.model');
 const Location = require('../models/location.model');
 const bcrypt = require('bcrypt');
 const { generateToken, generateRefreshToken } = require('../utils/authutils');
+const { sendEmail } = require('../utils/sendEmail');
 
 // Driver Registration
 const registerDriver = async (req, res) => {
@@ -30,7 +31,10 @@ const registerDriver = async (req, res) => {
                 phoneNumber,
                 email,
                 password: hashedPassword,
-                profileImgUrl: req.files.profileImg ? req.files.profileImg[0].path : '', // Cloudinary URL
+                profileImgUrl:
+                    req.files && req.files.profileImg
+                        ? req.files.profileImg[0].path
+                        : '', // Cloudinary URL
                 roles: ['driver'],
                 isVerified: false
             });
@@ -59,12 +63,25 @@ const registerDriver = async (req, res) => {
             userId: user._id,
             driverId,
             licenseNo,
-            licenseImgUrl: req.files.licenseImg ? req.files.licenseImg[0].path : '', // Cloudinary URL
+            licenseImgUrl: req.files && req.files.licenseImg ? req.files.licenseImg[0].path : '', // Cloudinary URL
             validationStatus: 'pending',
             isActive: false
         });
 
         await newDriver.save();
+        
+        // 6️⃣ Send notification to admin via Socket.io
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin-room').emit('new-driver-request', {
+                driverId: newDriver.driverId,
+                name: `${user.firstName} ${user.lastName}`,
+                email: user.email,
+                phoneNumber: user.phoneNumber,
+                licenseNo: newDriver.licenseNo,
+                timestamp: new Date(),
+            });
+        }
 
         res.status(201).json({
             message: "Driver registered successfully. Awaiting validation.",
@@ -242,10 +259,116 @@ const getDriverProfile = async (req, res) => {
     }
 };
 
+// Get pending drivers (admin)
+const getPendingDrivers = async (req, res) => {
+    try {
+        const pendingDrivers = await Driver.find({ validationStatus: 'pending' })
+            .populate('userId', 'firstName lastName email phoneNumber address profileImgUrl');
+
+        res.status(200).json({ drivers: pendingDrivers });
+    } catch (error) {
+        console.error('Error fetching pending drivers:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Approve driver (admin)
+const approveDriver = async (req, res) => {
+    const { driverId } = req.params;
+
+    try {
+        const driver = await Driver.findOne({ driverId }).populate('userId');
+        if (!driver) {
+            return res.status(404).json({ message: 'Driver not found' });
+        }
+
+        driver.validationStatus = 'approved';
+        driver.isActive = true;
+        await driver.save();
+
+        if (driver.userId) {
+            driver.userId.isVerified = true;
+            await driver.userId.save();
+        }
+
+        if (driver.userId?.email) {
+            await sendEmail(
+                driver.userId.email,
+                `<p>Hello ${driver.userId.firstName},</p><p>Your driver signup request has been approved. You can now log in to the app.</p>`,
+                'Driver Verification Approved'
+            );
+        }
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin-room').emit('driver-approved', {
+                driverId: driver.driverId,
+                userId: driver.userId?._id,
+            });
+        }
+
+        res.status(200).json({ message: 'Driver approved', driver });
+    } catch (error) {
+        console.error('Error approving driver:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Reject driver (admin)
+const rejectDriver = async (req, res) => {
+    const { driverId } = req.params;
+
+    try {
+        const driver = await Driver.findOne({ driverId }).populate('userId');
+        if (!driver) {
+            return res.status(404).json({ message: 'Driver not found' });
+        }
+
+        driver.validationStatus = 'rejected';
+        await driver.save();
+
+        if (driver.userId?.email) {
+            await sendEmail(
+                driver.userId.email,
+                `<p>Hello ${driver.userId.firstName},</p><p>Your driver signup request was not approved. Please contact support for details.</p>`,
+                'Driver Verification Update'
+            );
+        }
+
+        const io = req.app.get('io');
+        if (io) {
+            io.to('admin-room').emit('driver-rejected', {
+                driverId: driver.driverId,
+                userId: driver.userId?._id,
+            });
+        }
+
+        res.status(200).json({ message: 'Driver rejected', driver });
+    } catch (error) {
+        console.error('Error rejecting driver:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// List all drivers (admin)
+const getAllDrivers = async (req, res) => {
+    try {
+        const drivers = await Driver.find().populate('userId', 'firstName lastName email phoneNumber address profileImgUrl');
+        res.status(200).json({ drivers });
+    } catch (error) {
+        console.error('Error fetching drivers:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 module.exports = {
     registerDriver,
     loginDriver,
     updateDriverLocation,
     getDriverLocationHistory,
-    getDriverProfile
+    getDriverProfile,
+    getPendingDrivers,
+    approveDriver,
+    rejectDriver,
+    getAllDrivers
 };

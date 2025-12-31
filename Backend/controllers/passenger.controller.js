@@ -4,7 +4,8 @@ const bcrypt = require('bcrypt');
 const { generateToken, generateRefreshToken } = require('../utils/authutils');
 
 const registerPassenger = async (req, res) => {
-    const { firstName, lastName, address, phoneNumber, email, password,profileImgUrl } = req.body;
+    const { firstName, lastName, address, phoneNumber, email, password, profileImgUrl } = req.body;
+    const profileImage = req.file ? req.file.path : (profileImgUrl || '');
 
     try {
         // 1️⃣ Check if user already exists
@@ -22,7 +23,7 @@ const registerPassenger = async (req, res) => {
                 phoneNumber,
                 email,
                 password: hashedPassword,
-                profileImgUrl,
+                profileImgUrl: profileImage,
                 roles: ['passenger'],
                 isVerified: false
             });
