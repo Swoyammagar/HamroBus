@@ -1,16 +1,9 @@
 const express = require("express");
 const router = express.Router();
-const { createUser, getAllUsers, LoginUser, getUserLocation, updateUserLocation } = require("../controllers/user.controller");
+const { requestPasswordReset, resetPassword, verifyOTPUser } = require("../controllers/user.controller");
 
-// POST /api/users
-router.post("/create", createUser);
-
-// GET /api/users
-router.get("/getAll", getAllUsers);
-
-router.post("/login", LoginUser);
-
-router.put("/updateLocation/:id", updateUserLocation);
-router.get("/getLocation/:id", getUserLocation);
+router.post("/request-password-reset", requestPasswordReset);
+router.post("/reset-password", resetPassword);
+router.post("/verify-otp", verifyOTPUser);
 
 module.exports = router;

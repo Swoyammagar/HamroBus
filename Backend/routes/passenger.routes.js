@@ -6,10 +6,11 @@ const {
     getPassengerProfile,
     updatePassengerProfile 
 } = require('../controllers/passenger.controller');
+const upload = require('../middlewares/upload');
 const { authenticateMobileUser, isPassenger } = require('../middlewares/mobile.auth.middleware');
 
 // Public routes
-router.post('/register', registerPassenger);
+router.post('/register', upload.single('profileImg'), registerPassenger);
 router.post('/login', loginPassenger);
 
 // Protected routes (require authentication)
