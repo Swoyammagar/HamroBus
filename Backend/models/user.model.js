@@ -23,10 +23,24 @@ const userSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    gender: {
+        type: String,
+        required: false
+    },
+    dob: {
+        type: Date,
+        required: false
+    },
     password: {
         type: String,
         required: true
     },
+    confirmPassword:{
+        type: String,
+    },
+    otp:{
+        type: String,
+    }, 
     profileImgUrl: {
         type: String,
         required: false
