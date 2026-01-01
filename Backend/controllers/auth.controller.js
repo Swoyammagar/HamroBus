@@ -67,4 +67,4 @@ const logout = async (req, res) => {
   res.status(200).json({ message: 'Logged out' });
 };
 
-module.exports = { login, refreshAccessToken, logout };
+module.exports = { refreshAccessToken, logout };

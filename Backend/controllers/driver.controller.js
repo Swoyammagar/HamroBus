@@ -7,9 +7,14 @@ const { sendEmail } = require('../utils/sendEmail');
 
 // Driver Registration
 const registerDriver = async (req, res) => {
-    const { firstName, lastName, address, phoneNumber, email, password, licenseNo } = req.body;
+    const { firstName, lastName, address, phoneNumber, gender, dob, email, password, licenseNo } = req.body;
     
     try {
+        // Validate required fields
+        if (!firstName || !lastName || !email || !password || !phoneNumber || !licenseNo) {
+            return res.status(400).json({ message: "Missing required fields" });
+        }
+
         // 1️⃣ Check if license already exists
         const existingLicense = await Driver.findOne({ licenseNo });
         if (existingLicense) {
@@ -18,6 +23,14 @@ const registerDriver = async (req, res) => {
 
         // 2️⃣ Check if user already exists
         let user = await User.findOne({ $or: [{ email }, { phoneNumber }] });
+
+        let profileImgUrl = '';
+        if (req.files && req.files.profileImg && req.files.profileImg.length > 0) {
+            profileImgUrl = req.files.profileImg[0].path;
+            if (!profileImgUrl) {
+                return res.status(400).json({ message: "Profile image upload failed" });
+            }
+        }
 
         if (!user) {
             // 2a. Hash password
@@ -29,12 +42,11 @@ const registerDriver = async (req, res) => {
                 lastName,
                 address,
                 phoneNumber,
+                gender,
+                dob,
                 email,
                 password: hashedPassword,
-                profileImgUrl:
-                    req.files && req.files.profileImg
-                        ? req.files.profileImg[0].path
-                        : '', // Cloudinary URL
+                profileImgUrl,
                 roles: ['driver'],
                 isVerified: false
             });
@@ -42,6 +54,9 @@ const registerDriver = async (req, res) => {
         } else {
             // 2c. User exists → add driver role if not already present
             if (!user.roles.includes('driver')) {
+                if (profileImgUrl) {
+                    user.profileImgUrl = profileImgUrl;
+                }
                 user.roles.push('driver');
                 await user.save();
             } else {
@@ -58,12 +73,21 @@ const registerDriver = async (req, res) => {
         // 4️⃣ Generate unique driver ID
         const driverId = `DRV${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
-        // 5️⃣ Create Driver profile
+        // 5️⃣ Create Driver profile with license image
+        let licenseImgUrl = '';
+        if (req.files && req.files.licenseImg && req.files.licenseImg.length > 0) {
+            licenseImgUrl = req.files.licenseImg[0].path;
+            if (!licenseImgUrl) {
+                console.error("License image upload to Cloudinary failed");
+                return res.status(400).json({ message: "License image upload failed" });
+            }
+        }
+
         const newDriver = new Driver({
             userId: user._id,
             driverId,
             licenseNo,
-            licenseImgUrl: req.files && req.files.licenseImg ? req.files.licenseImg[0].path : '', // Cloudinary URL
+            licenseImgUrl,
             validationStatus: 'pending',
             isActive: false
         });
@@ -79,6 +103,8 @@ const registerDriver = async (req, res) => {
                 email: user.email,
                 phoneNumber: user.phoneNumber,
                 licenseNo: newDriver.licenseNo,
+                profileImg: user.profileImgUrl,
+                licenseImg: newDriver.licenseImgUrl,
                 timestamp: new Date(),
             });
         }
@@ -91,16 +117,20 @@ const registerDriver = async (req, res) => {
                 email: user.email,
                 firstName: user.firstName,
                 lastName: user.lastName,
-                validationStatus: 'pending'
+                phoneNumber: user.phoneNumber,
+                profileImgUrl: user.profileImgUrl,
+                validationStatus: 'pending',
+                licenseImgUrl: newDriver.licenseImgUrl
             }
         });
 
     } catch (error) {
         console.error("Error registering driver:", error);
         if (error.code === 11000) {
-            return res.status(400).json({ message: "Duplicate key error" });
+            const field = Object.keys(error.keyPattern)[0];
+            return res.status(400).json({ message: `${field} already exists` });
         }
-        res.status(500).json({ message: "Internal server error" });
+        res.status(500).json({ message: "Internal server error", error: error.message });
     }
 };
 
