@@ -7,8 +7,23 @@ const { sendEmail } = require('../utils/sendEmail');
 
 // Driver Registration
 const registerDriver = async (req, res) => {
-    const { firstName, lastName, address, phoneNumber, gender, dob, email, password, licenseNo } = req.body;
-    
+    const {
+        firstName,
+        lastName,
+        address,
+        phoneNumber,
+        gender,
+        dob,
+        email,
+        password,
+        licenseNo,
+        profileImgUrl,   // ✅ NEW (Cloudinary URL)
+        licenseImgUrl    // ✅ NEW (Cloudinary URL)
+    } = req.body;
+
+    console.log("👉 DRIVER REGISTER HIT");
+    console.log("BODY:", req.body);
+
     try {
         // Validate required fields
         if (!firstName || !lastName || !email || !password || !phoneNumber || !licenseNo) {
@@ -24,19 +39,11 @@ const registerDriver = async (req, res) => {
         // 2️⃣ Check if user already exists
         let user = await User.findOne({ $or: [{ email }, { phoneNumber }] });
 
-        let profileImgUrl = '';
-        if (req.files && req.files.profileImg && req.files.profileImg.length > 0) {
-            profileImgUrl = req.files.profileImg[0].path;
-            if (!profileImgUrl) {
-                return res.status(400).json({ message: "Profile image upload failed" });
-            }
-        }
-
         if (!user) {
             // 2a. Hash password
             const hashedPassword = await bcrypt.hash(password, 10);
 
-            // 2b. Create User with roles array
+            // 2b. Create User
             user = new User({
                 firstName,
                 lastName,
@@ -46,22 +53,24 @@ const registerDriver = async (req, res) => {
                 dob,
                 email,
                 password: hashedPassword,
-                profileImgUrl,
+                profileImgUrl: profileImgUrl || '', // ✅ URL from mobile
                 roles: ['driver'],
                 isVerified: false
             });
             await user.save();
         } else {
-            // 2c. User exists → add driver role if not already present
-            if (!user.roles.includes('driver')) {
-                if (profileImgUrl) {
-                    user.profileImgUrl = profileImgUrl;
-                }
-                user.roles.push('driver');
-                await user.save();
-            } else {
-                return res.status(400).json({ message: "Driver with this email or phone number already exists" });
+            if (user.roles.includes('driver')) {
+                return res.status(400).json({
+                    message: "Driver with this email or phone number already exists",
+                });
             }
+
+            if (profileImgUrl) {
+                user.profileImgUrl = profileImgUrl; // ✅ URL from mobile
+            }
+
+            user.roles.push('driver');
+            await user.save();
         }
 
         // 3️⃣ Check if driver profile already exists
@@ -73,28 +82,19 @@ const registerDriver = async (req, res) => {
         // 4️⃣ Generate unique driver ID
         const driverId = `DRV${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
-        // 5️⃣ Create Driver profile with license image
-        let licenseImgUrl = '';
-        if (req.files && req.files.licenseImg && req.files.licenseImg.length > 0) {
-            licenseImgUrl = req.files.licenseImg[0].path;
-            if (!licenseImgUrl) {
-                console.error("License image upload to Cloudinary failed");
-                return res.status(400).json({ message: "License image upload failed" });
-            }
-        }
-
+        // 5️⃣ Create Driver profile
         const newDriver = new Driver({
             userId: user._id,
             driverId,
             licenseNo,
-            licenseImgUrl,
+            licenseImgUrl: licenseImgUrl || '', // ✅ URL from mobile
             validationStatus: 'pending',
             isActive: false
         });
 
         await newDriver.save();
-        
-        // 6️⃣ Send notification to admin via Socket.io
+
+        // 6️⃣ Socket logic (UNCHANGED)
         const io = req.app.get('io');
         if (io) {
             io.to('admin-room').emit('new-driver-request', {
@@ -113,7 +113,7 @@ const registerDriver = async (req, res) => {
             message: "Driver registered successfully. Awaiting validation.",
             driver: {
                 id: user._id,
-                driverId: driverId,
+                driverId,
                 email: user.email,
                 firstName: user.firstName,
                 lastName: user.lastName,
@@ -133,6 +133,7 @@ const registerDriver = async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 };
+
 
 // Driver Login
 const loginDriver = async (req, res) => {
