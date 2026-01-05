@@ -6,7 +6,6 @@ const {
     getPassengerProfile,
     updatePassengerProfile 
 } = require('../controllers/passenger.controller');
-const upload = require('../middlewares/upload');
 const { authenticateMobileUser, isPassenger } = require('../middlewares/mobile.auth.middleware');
 
 // Public routes

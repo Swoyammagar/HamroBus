@@ -10,7 +10,6 @@ const {
   approveDriver,
   rejectDriver
 } = require('../controllers/driver.controller');
-const upload = require('../middlewares/upload');
 const authenticateAdmin = require('../middlewares/auth.middleware');
 const { authenticateMobileUser, isDriver } = require('../middlewares/mobile.auth.middleware');
 
