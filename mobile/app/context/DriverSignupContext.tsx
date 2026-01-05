@@ -6,14 +6,13 @@ interface DriverSignupData {
   lastName?: string;
   email?: string;
   gender?: string;
-  dob?: string;
+  dob?: Date;
   address?: string;
   profileImage?: string;
   phoneNumber?: string;
   
   // License Info
   licenseNo?: string;
-  licenseType?: string;
   licenseImage?: string;
   
   // Password
