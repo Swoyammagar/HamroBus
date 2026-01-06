@@ -4,10 +4,13 @@ const bcrypt = require('bcrypt');
 const { generateToken, generateRefreshToken } = require('../utils/authutils');
 
 const registerPassenger = async (req, res) => {
-    const { firstName, lastName, address, phoneNumber, email, password, profileImgUrl } = req.body;
-    const profileImage = req.file ? req.file.path : (profileImgUrl || '');
+    const { firstName, lastName, address, phoneNumber,gender, dob, email, password, profileImgUrl } = req.body;
 
     try {
+
+        if (!firstName || !lastName || !email || !password || !phoneNumber) {
+            return res.status(400).json({ message: "Missing required fields" });
+        }
         // 1️⃣ Check if user already exists
         let user = await User.findOne({ $or: [{ email }, { phoneNumber }] });
 
@@ -21,9 +24,11 @@ const registerPassenger = async (req, res) => {
                 lastName,
                 address,
                 phoneNumber,
+                gender,
+                dob,
                 email,
                 password: hashedPassword,
-                profileImgUrl: profileImage,
+                profileImgUrl: profileImgUrl,
                 roles: ['passenger'],
                 isVerified: false
             });
