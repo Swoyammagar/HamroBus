@@ -6,7 +6,7 @@ interface PassengerSignupData {
   lastName?: string;
   email?: string;
   gender?: string;
-  dob?: string;
+  dob?: Date;
   address?: string;
   profileImage?: string;
   phoneNumber?: string;
