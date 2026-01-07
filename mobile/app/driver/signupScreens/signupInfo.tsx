@@ -14,6 +14,7 @@ import { router, Stack } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { useForm, Controller } from "react-hook-form";
 import { useDriverSignup } from "../../context/DriverSignupContext";
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const screenWidth = Dimensions.get("window").width;
 interface SignupInfoForm {
@@ -29,6 +30,8 @@ interface SignupInfoForm {
 
 const PersonalInfo = () => {
   const { signupData, updateSignupData } = useDriverSignup();
+  const [showDobPicker, setShowDobPicker] = useState(false);
+
   
   const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm<SignupInfoForm>({
     defaultValues: {
@@ -36,7 +39,7 @@ const PersonalInfo = () => {
       lastName: signupData.lastName || "",
       email: signupData.email || "",
       gender: signupData.gender || "",
-      dob: signupData.dob || "",
+      dob: typeof signupData.dob === "string" ? signupData.dob : signupData.dob instanceof Date ? signupData.dob.toISOString().split('T')[0] : "",
       address: signupData.address || "",
       profileImage: signupData.profileImage || null,
     },
@@ -68,7 +71,7 @@ const PersonalInfo = () => {
       lastName: data.lastName,
       email: data.email,
       gender: data.gender,
-      dob: data.dob,
+      dob: new Date(data.dob),
       address: data.address,
       profileImage: data.profileImage || undefined,
     });
@@ -198,21 +201,45 @@ const PersonalInfo = () => {
         />
         {errors.gender && <Text style={styles.errorText}>{errors.gender.message}</Text>}
         
-        <Text className="font-medium text-[#333]  mb-1">Date of Birth: </Text>
+        <Text className="font-medium text-[#333] mb-1">Date of Birth: </Text>
         <Controller
           control={control}
           name="dob"
           rules={{ required: "Date of birth is required" }}
           render={({ field: { onChange, value } }) => (
-            <TextInput
-              style={styles.input}
-              placeholder="Date of Birth (YYYY-MM-DD)"
-              value={value}
-              onChangeText={onChange}
-            />
+            <>
+              <TouchableOpacity
+                style={styles.input}
+                onPress={() => setShowDobPicker(true)}
+              >
+                <Text style={{ color: value ? '#000' : '#777', fontSize: 16 }}>
+                  {value || 'Select Date of Birth'}
+                </Text>
+              </TouchableOpacity>
+
+              {showDobPicker && (
+                <DateTimePicker
+                  value={value ? new Date(value) : new Date()}
+                  mode="date"
+                  display="default"
+                  maximumDate={new Date()} // prevents future dates
+                  onChange={(event, selectedDate) => {
+                    setShowDobPicker(false);
+                    if (selectedDate) {
+                      const formattedDate = selectedDate
+                        .toISOString()
+                        .split('T')[0]; // YYYY-MM-DD
+                      onChange(formattedDate);
+                    }
+                  }}
+                />
+              )}
+            </>
           )}
         />
+
         {errors.dob && <Text style={styles.errorText}>{errors.dob.message}</Text>}
+
         
         <Text className="font-medium text-[#333]  mb-1">Address: </Text>
         <Controller

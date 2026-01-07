@@ -15,10 +15,8 @@ import * as ImagePicker from "expo-image-picker";
 import { useForm, Controller } from "react-hook-form";
 import { useDriverSignup } from "../../context/DriverSignupContext";
 
-const licenseOptions = ["LMV", "HMV", "Other"];
 interface LicenseForm {
   licenseNo: string;
-  licenseType: string;
   licenseImage: string | null;
 }
 
@@ -29,15 +27,11 @@ const License = () => {
   const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm<LicenseForm>({
     defaultValues: {
       licenseNo: signupData.licenseNo || "",
-      licenseType: signupData.licenseType || "",
       licenseImage: signupData.licenseImage || null,
     },
   });
   
   const licenseImage = watch("licenseImage");
-  const licenseType = watch("licenseType");
-  
-  const [showsDropdown, setShowsDropdown] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const handlePickImage = async () => {
@@ -52,27 +46,10 @@ const License = () => {
     }
   };
   
-  const renderDropdown = (
-      options: string[],
-      onSelect: (value: string) => void
-    ) => (
-      <View style={styles.dropdownList}>
-        {options.map((option) => (
-          <TouchableOpacity
-            key={option}
-            style={styles.dropdownItem}
-            onPress={() => onSelect(option)}
-          >
-            <Text style={styles.dropdownItemText}>{option}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
     
   const onSubmit = (data: LicenseForm) => {
     updateSignupData({
       licenseNo: data.licenseNo,
-      licenseType: data.licenseType,
       licenseImage: data.licenseImage || undefined,
     });
     router.push("/driver/signupScreens/password");
@@ -116,34 +93,7 @@ const License = () => {
               />
             )}
           />
-                    {errors.licenseNo && <Text style={styles.errorText}>{errors.licenseNo.message}</Text>}
-          
-          <Text className="font-medium text-[#333] mb-1">License Type:</Text>
-          <Controller
-            control={control}
-            name="licenseType"
-            rules={{ required: "License type is required" }}
-            render={({ field: { onChange, value } }) => (
-              <View style={{ marginBottom: 8 }}>
-                <TouchableOpacity
-                  style={styles.dropdown}
-                  onPress={() => {
-                    setShowsDropdown(!showsDropdown);
-                  }}
-                >
-                  <Text style={value ? styles.dropdownText : styles.placeholderText}>
-                    {value || "Select License Type"}
-                  </Text>
-                </TouchableOpacity>
-                {showsDropdown &&
-                  renderDropdown(licenseOptions, (selectedValue) => {
-                    onChange(selectedValue);
-                    setShowsDropdown(false);
-                  })}
-              </View>
-            )}
-          />
-          {errors.licenseType && <Text style={styles.errorText}>{errors.licenseType.message}</Text>}
+          {errors.licenseNo && <Text style={styles.errorText}>{errors.licenseNo.message}</Text>}
 
 
           {/* License Image Upload */}

@@ -63,41 +63,49 @@ const NewPassword: React.FC = () => {
   };
 
   const onSubmit = async (data: FormValues) => {
-    setError("");
+  setError("");
 
-    if (data.password !== data.confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
+  if (data.password !== data.confirmPassword) {
+    setError("Passwords do not match");
+    return;
+  }
 
-    setIsLoading(true);
-    try {
-      const payload = {
-        ...signupData,
-        password: data.password,
-      };
+  setIsLoading(true);
 
-      const result = await register(payload, "driver");
+  try {
+    const payload = {
+      ...signupData,
+      password: data.password,
+    };
 
-      if (result.success) {
-        Alert.alert("Registration Successful", "Your driver account has been created.", [
-          {
-            text: "OK",
-            onPress: () => {
-              resetSignupData();
-              router.replace("/pages/mobilelogin");
-            },
-          },
-        ]);
-      } else {
-        setError(result.message || "Registration failed. Please try again.");
-      }
-    } catch (err: any) {
-      setError(err?.message || "Registration failed. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const result = await register(payload, 'driver');
+
+    console.log("✅ REGISTER SUCCESS:", result);
+
+    Alert.alert(
+      "Registration Successful",
+      "Your driver account has been created. Wait for approval."
+    );
+
+    // ✅ IMPORTANT: delay navigation slightly
+    setTimeout(() => {
+      resetSignupData();
+      router.replace("/pages/mobilelogin");
+    }, 300);
+
+  } catch (err: any) {
+    console.error("❌ REGISTER FAILED:", err);
+    Alert.alert("Error", err?.message || "Registration failed. Please try again.");
+    setError(
+      err?.response?.data?.message ||
+      err?.message ||
+      "Registration failed. Please try again."
+    );
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   return (
     <>
