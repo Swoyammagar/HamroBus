@@ -78,22 +78,19 @@ const NewPassword: React.FC = () => {
       };
 
       const result = await register(completeSignupData, "passenger");
-
-      if (result.success) {
-        Alert.alert("Registration Successful", "Your account has been created successfully!", [
-          {
-            text: "OK",
-            onPress: () => {
-              resetSignupData();
-              router.replace("/pages/mobilelogin");
-            },
-          },
-        ]);
-      } else {
-        setError(result.message || "Please try again.");
-      }
+      console.log("✅ REGISTER SUCCESS:", result);
+        Alert.alert("Registration Successful", "Your account has been created successfully!");
+        setTimeout(() => {
+        resetSignupData();
+        router.replace("/pages/mobilelogin");
+      }, 300); 
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Registration failed. Please try again.");
+      setError(
+      err?.response?.data?.message ||
+      err?.message ||
+      "Registration failed. Please try again."
+    );
     } finally {
       setIsLoading(false);
     }
