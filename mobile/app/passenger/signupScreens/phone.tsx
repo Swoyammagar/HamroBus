@@ -9,11 +9,11 @@ const DriverPhone = () => {
   const { updateSignupData } = usePassengerSignup();
   
   const { control, handleSubmit, formState: { errors } } = useForm({
-    defaultValues: { phoneNumber: '' },
+    defaultValues: { email: '' },
   });
 
-  const onSubmit = (data: { phoneNumber: string }) => {
-    updateSignupData({ phoneNumber: data.phoneNumber });
+  const onSubmit = (data: { email: string }) => {
+    updateSignupData({ email: data.email });
     router.push('/passenger/signupScreens/signup');
   };
 
@@ -26,37 +26,34 @@ const DriverPhone = () => {
           <Text className="text-2xl font-medium text-black">Create New</Text>
           <Text className="text-2xl font-medium text-[#27AE60] ml-2">Account</Text>
         </View>
-        <Text className="font-medium text-[#333]  mb-2">Your phone number: </Text>
+        <Text className="font-medium text-[#333]  mb-2">Your email address: </Text>
         <Controller
           control={control}
-          name="phoneNumber"
+          name="email"
           rules={{
-            required: 'Phone number is required',
+            required: 'Email is required',
             pattern: {
-              value: /^[0-9]{10}$/,
-              message: 'Enter a valid 10-digit number',
+              value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+              message: 'Enter a valid email address',
             },
           }}
           render={({ field: { onChange, value } }) => (
             <View style={styles.inputContainer}>
-              <View style={styles.flagContainer}>
-                <Text style={styles.flag}>🇳🇵</Text>
-              </View>
               <TextInput
                 style={[styles.input, isFocused && styles.inputFocused]}
                 value={value}
                 onChangeText={onChange}
-                placeholder="+977 XXXXXXXXXX"
+                placeholder="Enter your email address"
                 placeholderTextColor="#666"
-                keyboardType="phone-pad"
+                keyboardType="email-address"
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
               />
             </View>
           )}
         />
-        {errors.phoneNumber && (
-          <Text style={{ color: 'red', marginBottom: 20 }}>{errors.phoneNumber.message}</Text>
+        {errors.email && (
+          <Text style={{ color: 'red', marginBottom: 20 }}>{errors.email.message}</Text>
         )}
         
         <TouchableOpacity style={styles.nextButton} onPress={handleSubmit(onSubmit)}>
@@ -110,12 +107,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  flagContainer: {
-    marginRight: 10,
-  },
-  flag: {
-    fontSize: 24,
-  },
+
   input: {
     flex: 1,
     color: '#333',
