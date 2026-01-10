@@ -30,7 +30,7 @@ const registerPassenger = async (req, res) => {
                 password: hashedPassword,
                 profileImgUrl: profileImgUrl,
                 roles: ['passenger'],
-                isVerified: false
+                passwordResetVerified: false
             });
 
             await user.save();

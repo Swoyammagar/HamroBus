@@ -1,9 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const { requestPasswordReset, resetPassword, verifyOTPUser } = require("../controllers/user.controller");
+const { requestPasswordReset, resetPassword, verifyOTPUser, requestSignupOTP, verifySignupOTP } = require("../controllers/user.controller");
 
 router.post("/request-password-reset", requestPasswordReset);
 router.post("/reset-password", resetPassword);
 router.post("/verify-otp", verifyOTPUser);
+router.post("/request-signup-otp", requestSignupOTP);  
+router.post("/verify-signup-otp", verifySignupOTP);  
 
 module.exports = router;

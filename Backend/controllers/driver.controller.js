@@ -55,7 +55,7 @@ const registerDriver = async (req, res) => {
                 password: hashedPassword,
                 profileImgUrl: profileImgUrl || '', // ✅ URL from mobile
                 roles: ['driver'],
-                isVerified: false
+                passwordResetVerified: false
             });
             await user.save();
         } else {
@@ -318,7 +318,7 @@ const approveDriver = async (req, res) => {
         await driver.save();
 
         if (driver.userId) {
-            driver.userId.isVerified = true;
+            driver.userId.isEmailVerified = true;
             await driver.userId.save();
         }
 
