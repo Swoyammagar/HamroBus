@@ -10,12 +10,12 @@ const DriverPhone = () => {
   const { updateSignupData } = useDriverSignup();
 
   const { control, handleSubmit, setError, formState: { errors } } = useForm({
-    defaultValues: { phoneNumber: '' },
+    defaultValues: { email: '' },
   });
 
-  const onSubmit = async (data: { phoneNumber: string }) => {
-    // Store phone number in context
-    updateSignupData({ phoneNumber: data.phoneNumber });
+  const onSubmit = async (data: { email: string }) => {
+    // Store email in context
+    updateSignupData({ email: data.email });
     router.push('/driver/signupScreens/signupInfo');
   };
 
@@ -28,39 +28,35 @@ const DriverPhone = () => {
           <Text className="text-2xl font-medium text-[#27AE60] ml-2">Account</Text>
         </View>
 
-        <Text style={{ fontWeight: '500', color: '#333', marginBottom: 8 }}>Your phone number:</Text>
+        <Text style={{ fontWeight: '500', color: '#333', marginBottom: 8 }}>Your email address:</Text>
 
         {/* Mobile Number Input */}
         <Controller
           control={control}
-          name="phoneNumber"
+          name="email"
           rules={{
-            required: 'Phone number is required',
+            required: 'Email is required',
             pattern: {
-              value: /^[0-9]{10}$/, // basic 10-digit number validation
-              message: 'Enter a valid 10-digit number',
+              value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+              message: 'Enter a valid email address',
             },
           }}
           render={({ field: { onChange, value } }) => (
             <View style={styles.inputContainer}>
-              <View style={styles.flagContainer}>
-                <Text style={styles.flag}>🇳🇵</Text>
-              </View>
               <TextInput
                 style={[styles.input, isFocused && styles.inputFocused]}
                 value={value}
                 onChangeText={onChange}
-                placeholder="+977 XXXXXXXXXX"
+                placeholder="you@example.com"
                 placeholderTextColor="#666"
-                keyboardType="phone-pad"
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
               />
             </View>
           )}
         />
-        {errors.phoneNumber && (
-          <Text style={{ color: 'red', marginBottom: 20 }}>{errors.phoneNumber.message}</Text>
+        {errors.email && (
+          <Text style={{ color: 'red', marginBottom: 20 }}>{errors.email.message}</Text>
         )}
 
         {/* Next Button */}
@@ -124,8 +120,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  flagContainer: { marginRight: 10 },
-  flag: { fontSize: 24 },
   input: { flex: 1, color: '#333', fontSize: 16 },
   inputFocused: { borderColor: "#3b82f6", shadowColor: "#27AE60", shadowOpacity: 0.3, shadowRadius: 5 },
   nextButton: { backgroundColor: '#27AE60', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginBottom: 40, elevation: 2 },

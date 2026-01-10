@@ -20,7 +20,7 @@ const screenWidth = Dimensions.get("window").width;
 interface SignupInfoForm {
   firstName: string;
   lastName: string;
-  email: string;
+  phoneNumber: string;
   gender: string;
   dob: string;
   address: string;
@@ -37,7 +37,7 @@ const PersonalInfo = () => {
     defaultValues: {
       firstName: signupData.firstName || "",
       lastName: signupData.lastName || "",
-      email: signupData.email || "",
+      phoneNumber: signupData.phoneNumber || "",
       gender: signupData.gender || "",
       dob: typeof signupData.dob === "string" ? signupData.dob : signupData.dob instanceof Date ? signupData.dob.toISOString().split('T')[0] : "",
       address: signupData.address || "",
@@ -69,7 +69,7 @@ const PersonalInfo = () => {
     updateSignupData({
       firstName: data.firstName,
       lastName: data.lastName,
-      email: data.email,
+      phoneNumber: data.phoneNumber,
       gender: data.gender,
       dob: new Date(data.dob),
       address: data.address,
@@ -150,27 +150,27 @@ const PersonalInfo = () => {
                 />
                 {errors.lastName && <Text style={styles.errorText}>{errors.lastName.message}</Text>}
         
-        <Text className="font-medium text-[#333]  mb-1">Email Address: </Text>
+        <Text className="font-medium text-[#333]  mb-1">Phone Number: </Text>
         <Controller
           control={control}
-          name="email"
+          name="phoneNumber"
           rules={{ 
-            required: "Email is required",
+            required: "Phone number is required",
             pattern: {
-              value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-              message: "Invalid email address"
+              value: /^[0-9]{10}$/,
+              message: "Invalid phone number"
             }
           }}
           render={({ field: { onChange, value } }) => (
             <TextInput
               style={styles.input}
-              placeholder="Enter your email"
+              placeholder="+977 XXXXXXXXXX"
               value={value}
               onChangeText={onChange}
-              keyboardType="email-address"
+              keyboardType="phone-pad"
             />
           )}
-          {...errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
+          {...errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber.message}</Text>}
         
         />
         <Text className="font-medium text-[#333]  mb-1">Gender: </Text>
