@@ -57,7 +57,7 @@ const userSchema = new mongoose.Schema({
         type: [String],
         default: [],
         enum: ['driver', 'passenger'],
-        required: true
+        required: true,
     },
     refreshToken: {
         type: String,

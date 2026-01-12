@@ -4,50 +4,47 @@ const bcrypt = require('bcrypt');
 const { generateToken, generateRefreshToken } = require('../utils/authutils');
 
 const registerPassenger = async (req, res) => {
-    const { firstName, lastName, address, phoneNumber,gender, dob, email, password, profileImgUrl } = req.body;
+    const { firstName, lastName, address, phoneNumber, gender, dob, email, password, profileImgUrl } = req.body;
 
     try {
-
         if (!firstName || !lastName || !email || !password || !phoneNumber) {
             return res.status(400).json({ message: "Missing required fields" });
         }
-        // 1️⃣ Check if user already exists
-        let user = await User.findOne({ $or: [{ email }, { phoneNumber }] });
 
-        if (!user) {
-            // 2a. Hash password
-            const hashedPassword = await bcrypt.hash(password, 10);
-
-            // 2b. Create new User with roles array
-            user = new User({
-                firstName,
-                lastName,
-                address,
-                phoneNumber,
-                gender,
-                dob,
-                email,
-                password: hashedPassword,
-                profileImgUrl: profileImgUrl,
-                roles: ['passenger'],
-                passwordResetVerified: false
+        // ✅ NEW: Check if email is verified
+        const tempUser = await User.findOne({ email });
+        if (!tempUser || !tempUser.isEmailVerified) {
+            return res.status(400).json({ 
+                message: "Email must be verified before registration",
+                error: 'EMAIL_NOT_VERIFIED'
             });
+        }
 
+        // Rest of the code remains the same...
+        // 1️⃣ Check if user already exists
+        let user = tempUser; // Use the verified temporary user
+
+        if (!user.roles.includes('passenger')) {
+            user.roles.push('passenger');
+            // Update user with full details
+            const hashedPassword = await bcrypt.hash(password, 10);
+            user.firstName = firstName;
+            user.lastName = lastName;
+            user.address = address;
+            user.phoneNumber = phoneNumber;
+            user.gender = gender;
+            user.dob = dob;
+            user.password = hashedPassword;
+            user.profileImgUrl = profileImgUrl || '';
             await user.save();
         } else {
-            // 3️⃣ User exists → add passenger role if not already present
-            if (!user.roles.includes('passenger')) {
-                user.roles.push('passenger');
-                await user.save();
-            } else {
-                return res.status(400).json({ message: "Passenger with this email or phone number already exists" });
-            }
+            return res.status(400).json({ message: "Passenger with this email already exists" });
         }
 
         // 4️⃣ Check if passenger profile already exists
         const existingPassengerProfile = await Passenger.findOne({ userId: user._id });
         if (existingPassengerProfile) {
-            return res.status(400).json({ message: "Passenger profile already exists for this user" });
+            return res.status(400).json({ message: "Passenger profile already exists" });
         }
 
         // 5️⃣ Generate unique passenger ID

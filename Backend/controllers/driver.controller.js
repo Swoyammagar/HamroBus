@@ -30,48 +30,46 @@ const registerDriver = async (req, res) => {
             return res.status(400).json({ message: "Missing required fields" });
         }
 
+        // ✅ NEW: Check if email is verified before registration
+        const existingUserForEmail = await User.findOne({ email });
+        if (!existingUserForEmail || !existingUserForEmail.isEmailVerified) {
+            return res.status(400).json({ 
+                message: "Email must be verified before registration",
+                error: 'EMAIL_NOT_VERIFIED'
+            });
+        }
+
         // 1️⃣ Check if license already exists
         const existingLicense = await Driver.findOne({ licenseNo });
         if (existingLicense) {
             return res.status(400).json({ message: "License number already registered" });
         }
 
-        // 2️⃣ Check if user already exists
-        let user = await User.findOne({ $or: [{ email }, { phoneNumber }] });
+        // 2️⃣ Use the verified user
+        let user = existingUserForEmail;
 
-        if (!user) {
-            // 2a. Hash password
-            const hashedPassword = await bcrypt.hash(password, 10);
-
-            // 2b. Create User
-            user = new User({
-                firstName,
-                lastName,
-                address,
-                phoneNumber,
-                gender,
-                dob,
-                email,
-                password: hashedPassword,
-                profileImgUrl: profileImgUrl || '', // ✅ URL from mobile
-                roles: ['driver'],
-                passwordResetVerified: false
+        // Check if user already has driver role
+        if (user.roles.includes('driver')) {
+            return res.status(400).json({
+                message: "Driver with this email already exists",
             });
-            await user.save();
-        } else {
-            if (user.roles.includes('driver')) {
-                return res.status(400).json({
-                    message: "Driver with this email or phone number already exists",
-                });
-            }
-
-            if (profileImgUrl) {
-                user.profileImgUrl = profileImgUrl; // ✅ URL from mobile
-            }
-
-            user.roles.push('driver');
-            await user.save();
         }
+
+        // 2a. Hash password and update user with full details
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        user.firstName = firstName;
+        user.lastName = lastName;
+        user.address = address;
+        user.phoneNumber = phoneNumber;
+        user.gender = gender;
+        user.dob = dob;
+        user.password = hashedPassword;
+        user.profileImgUrl = profileImgUrl || '';
+        user.roles.push('driver');
+        user.otp = null; // Clear OTP after successful registration
+        
+        await user.save();
 
         // 3️⃣ Check if driver profile already exists
         const existingDriverProfile = await Driver.findOne({ userId: user._id });
