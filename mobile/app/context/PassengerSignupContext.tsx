@@ -10,7 +10,7 @@ interface PassengerSignupData {
   address?: string;
   profileImage?: string;
   phoneNumber?: string;
-  
+  emailVerified?: boolean;
   // Password
   password?: string;
 }

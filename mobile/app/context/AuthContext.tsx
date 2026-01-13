@@ -39,7 +39,8 @@ interface User {
   phoneNumber: string;
   roles: string[];
   profileImgUrl?: string;
-  isVerified: boolean;
+  passwordResetVerified: boolean;
+  isEmailVerified: boolean;
 }
 
 type ApiResponse = {
@@ -81,6 +82,8 @@ interface AuthContextType {
     newPassword: string
   ) => Promise<{ success: boolean; message?: string }>;
   verifyOTP: (email: string, otp: string) => Promise<ApiResponse>;
+  requestSignupOTP: (email: string) => Promise<{ success: boolean; message?: string }>;
+  verifySignupOTP: (email: string, otp: string) => Promise<{ success: boolean; message?: string }>;
 }
 
 
@@ -399,7 +402,39 @@ const uploadImageToCloudinary = async (
       };
     }
   };
+  
+const requestSignupOTP = async (email: string) => {
+  try {
+    const { data } = await axios.post<{ success: boolean; message?: string }>(
+      `${API_URL}/users/request-signup-otp`,
+      { email }
+    );
+    return { success: !!data.success, message: data.message || '' };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.response?.data?.message || 'Network error',
+    };
+  }
+};
 
+const verifySignupOTP = async (email: string, otp: string) => {
+  try {
+    const { data } = await axios.post<{ success: boolean; status?: string; message?: string }>(
+      `${API_URL}/users/verify-signup-otp`,
+      { email, otp }
+    );
+    return {
+      success: data.status === 'success' || !!data.success,
+      message: data.message || '',
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.response?.data?.message || 'Network error',
+    };
+  }
+};
   return (
     <AuthContext.Provider 
       value={{ 
@@ -419,6 +454,8 @@ const uploadImageToCloudinary = async (
         passwordResetEmail,
         resetPassword,
         verifyOTP,
+        requestSignupOTP,
+        verifySignupOTP,
       }}
     >
       {children}

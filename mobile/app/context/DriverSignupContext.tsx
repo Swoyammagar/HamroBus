@@ -10,7 +10,7 @@ interface DriverSignupData {
   address?: string;
   profileImage?: string;
   phoneNumber?: string;
-  
+  emailVerified?: boolean;
   // License Info
   licenseNo?: string;
   licenseImage?: string;
