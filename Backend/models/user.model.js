@@ -3,20 +3,17 @@ const mongoose = require("mongoose");
 const userSchema = new mongoose.Schema({
     firstName: {
         type: String,
-        required: true
     },
     lastName: {
         type: String,
-        required: true
     },
     address: {
         type: String,
-        required: false
     },
     phoneNumber: {
         type: String,
-        required: true,
-        unique: true
+        unique: true,
+        sparse: true
     },
     email: {
         type: String,
@@ -33,7 +30,6 @@ const userSchema = new mongoose.Schema({
     },
     password: {
         type: String,
-        required: true
     },
     confirmPassword:{
         type: String,
@@ -41,6 +37,10 @@ const userSchema = new mongoose.Schema({
     otp:{
         type: String,
     }, 
+    otpExpiresAt: {
+        type: Date,
+        index: { expireAfterSeconds: 0 } // ✅ TTL index
+    },
     profileImgUrl: {
         type: String,
         required: false

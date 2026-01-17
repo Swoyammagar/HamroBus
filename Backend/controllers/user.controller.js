@@ -111,7 +111,7 @@ const verifyOTPUser = async (req, res) => {
 const requestSignupOTP = async (req, res) => {
   const { email } = req.body;
   try {
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email, isEmailVerified: true });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -120,20 +120,20 @@ const requestSignupOTP = async (req, res) => {
     }
     const otp = generateOTP().otp;
     let tempUser = await User.findOne({ email});
+    const expiry = new Date(Date.now() + 10 * 60 * 1000);
     if (!tempUser) {
       tempUser = new User({
         email,
         otp,
-        firstName: "temp",
-        lastName: "temp",
-        password: "temp",
-        phoneNumber: "temp",
+        phoneNumber: null,
         roles: [],
         isEmailVerified: false,
+        otpExpiresAt: expiry,
       });
       await tempUser.save();
     } else {
       tempUser.otp = otp;
+      tempUser.otpExpiresAt = expiry;
       await tempUser.save();
     }
     const fullName = "User";
@@ -162,6 +162,12 @@ const verifySignupOTP = async (req, res) => {
         error: 'EMAIL_NOT_FOUND'
       });
     }
+    if (user.otpExpiresAt && user.otpExpiresAt < new Date()) {
+      return res.status(400).json({
+        error: 'OTP_EXPIRED',
+        message: "OTP expired"
+      });
+    }
     if (user.otp !== otp) {
       return res.status(400).json({
         status: 'error',
@@ -171,6 +177,7 @@ const verifySignupOTP = async (req, res) => {
     }
     user.isEmailVerified = true;
     user.otp = null;
+    user.otpExpiresAt = null; // ✅ STOP TTL deletion
     await user.save();
     res.status(200).json({
       status: 'success',
@@ -186,10 +193,31 @@ const verifySignupOTP = async (req, res) => {
     });
   }
 };
+
+const phoneExists = async (req, res) => {
+  const { phoneNumber } = req.body;
+  console.log("Phone exists route hit:", req.body.phoneNumber);
+
+  try {
+    const user = await User.findOne({ phoneNumber });
+    if (user) {
+      return res.status(200).json({ exists: true });  
+    } else {
+      return res.status(200).json({ exists: false }); 
+    }
+  } catch (error) {
+    console.error("Error checking phone number existence:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
 module.exports = {
   requestPasswordReset,
   resetPassword,
   verifyOTPUser,
   requestSignupOTP,
-  verifySignupOTP
+  verifySignupOTP,
+  phoneExists,
 };
