@@ -125,7 +125,6 @@ const requestSignupOTP = async (req, res) => {
       tempUser = new User({
         email,
         otp,
-        phoneNumber: null,
         roles: [],
         isEmailVerified: false,
         otpExpiresAt: expiry,
@@ -199,7 +198,7 @@ const phoneExists = async (req, res) => {
   console.log("Phone exists route hit:", req.body.phoneNumber);
 
   try {
-    const user = await User.findOne({ phoneNumber });
+    const user = await User.findOne({ phoneNumber, isEmailVerified: true  });
     if (user) {
       return res.status(200).json({ exists: true });  
     } else {
