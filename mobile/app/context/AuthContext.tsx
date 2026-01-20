@@ -84,6 +84,7 @@ interface AuthContextType {
   verifyOTP: (email: string, otp: string) => Promise<ApiResponse>;
   requestSignupOTP: (email: string) => Promise<{ success: boolean; message?: string }>;
   verifySignupOTP: (email: string, otp: string) => Promise<{ success: boolean; message?: string }>;
+  checkPhoneExists: (phoneNumber: string) => Promise<{ exists: boolean; message?: string }>;
 }
 
 
@@ -435,6 +436,22 @@ const verifySignupOTP = async (email: string, otp: string) => {
     };
   }
 };
+
+const checkPhoneExists = async (phoneNumber: string) => {
+  try {
+    const { data } = await axios.post<{ exists: boolean; message?: string }>(
+      `${API_URL}/users/phone-exists`,
+      { phoneNumber }
+    );
+    return { exists: data.exists, message: data.message || '' };
+  } catch (err: any) {
+    return {
+      exists: false,
+      message: err?.response?.data?.message || 'Network error',
+    };
+  }
+};
+
   return (
     <AuthContext.Provider 
       value={{ 
@@ -456,6 +473,7 @@ const verifySignupOTP = async (email: string, otp: string) => {
         verifyOTP,
         requestSignupOTP,
         verifySignupOTP,
+        checkPhoneExists,
       }}
     >
       {children}
