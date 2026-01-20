@@ -66,11 +66,12 @@ const NewPassword: React.FC = () => {
   setError("");
 
   if (data.password !== data.confirmPassword) {
-    setError("Passwords do not match");
+    Alert.alert("Error", "Passwords do not match");
     return;
   }
 
   setIsLoading(true);
+  let isSuccess = false;
 
   try {
     const payload = {
@@ -78,20 +79,8 @@ const NewPassword: React.FC = () => {
       password: data.password,
     };
 
-    const result = await register(payload, 'driver');
-
-    console.log("✅ REGISTER SUCCESS:", result);
-
-    Alert.alert(
-      "Registration Successful",
-      "Your driver account has been created. Wait for approval."
-    );
-
-    // ✅ IMPORTANT: delay navigation slightly
-    setTimeout(() => {
-      resetSignupData();
-      router.replace("/pages/mobilelogin");
-    }, 300);
+    await register(payload, 'driver');
+    isSuccess = true;
 
   } catch (err: any) {
     console.error("❌ REGISTER FAILED:", err);
@@ -101,9 +90,25 @@ const NewPassword: React.FC = () => {
       err?.message ||
       "Registration failed. Please try again."
     );
+    return;
   } finally {
     setIsLoading(false);
   }
+  if (isSuccess) {
+      Alert.alert(
+        "Registration Successful",
+        "Your account has been created successfully!",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              resetSignupData();
+              router.replace("/pages/mobilelogin");
+            }
+          }
+        ]
+      );
+    }
 };
 
 

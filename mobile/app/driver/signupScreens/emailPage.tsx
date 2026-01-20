@@ -1,23 +1,40 @@
 import { Stack, router } from 'expo-router';
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
-import axios from 'axios';
 import { useDriverSignup } from '../../context/DriverSignupContext';
+import { useAuth } from '@/app/context/AuthContext';
 
 const DriverPhone = () => {
   const [isFocused, setIsFocused] = useState(false);
   const { updateSignupData } = useDriverSignup();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+      const [error, setError] = useState("");
+      const { requestSignupOTP } = useAuth();
 
-  const { control, handleSubmit, setError, formState: { errors } } = useForm({
+  const { control, handleSubmit, formState: { errors } } = useForm({
     defaultValues: { email: '' },
   });
 
-  const onSubmit = async (data: { email: string }) => {
-    // Store email in context
-    updateSignupData({ email: data.email });
-    router.push('/driver/signupScreens/signupInfo');
-  };
+   const onSubmit = async (data: { email: string }) => {
+      setIsSubmitting(true);
+      setError("");
+      
+      try {
+        // Request OTP for signup
+        const result = await requestSignupOTP(data.email);
+        if (result.success) {
+          updateSignupData({ email: data.email });
+          router.push(`/driver/signupScreens/otp?email=${encodeURIComponent(data.email)}&role=driver`);
+        } else {
+          setError(result.message || "Failed to send OTP");
+        }
+      } catch (err: any) {
+        setError(err.message || "Failed to send OTP");
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
 
   return (
     <>
@@ -47,7 +64,7 @@ const DriverPhone = () => {
                 style={[styles.input, isFocused && styles.inputFocused]}
                 value={value}
                 onChangeText={onChange}
-                placeholder="you@example.com"
+                placeholder="Enter your email address"
                 placeholderTextColor="#666"
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
@@ -60,9 +77,17 @@ const DriverPhone = () => {
         )}
 
         {/* Next Button */}
-        <TouchableOpacity style={styles.nextButton} onPress={handleSubmit(onSubmit)}>
-          <Text style={styles.nextButtonText}>NEXT</Text>
-        </TouchableOpacity>
+        <TouchableOpacity
+                  style={[styles.nextButton, isSubmitting && styles.disabledButton]}
+                  onPress={handleSubmit(onSubmit)}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.nextButtonText}>NEXT</Text>
+                  )}
+          </TouchableOpacity>
 
         {/* Info Sections */}
         <View style={styles.infoContainer}>
@@ -130,4 +155,7 @@ const styles = StyleSheet.create({
   infoText: { flex: 1 },
   infoTitle: { color: '#2e7d32', fontSize: 16, fontWeight: '600', marginBottom: 4 },
   infoDescription: { color: '#444', fontSize: 14, lineHeight: 20 },
+  disabledButton: {
+    opacity: 0.7,
+  },
 });
