@@ -1,21 +1,45 @@
 import { router, Stack } from 'expo-router';
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { usePassengerSignup } from '../../context/PassengerSignupContext';
-
+import { useAuth } from '../../context/AuthContext';
 const DriverPhone = () => {
   const [isFocused, setIsFocused] = useState(false);
   const { updateSignupData } = usePassengerSignup();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const { requestSignupOTP } = useAuth();
   
   const { control, handleSubmit, formState: { errors } } = useForm({
     defaultValues: { email: '' },
   });
 
-  const onSubmit = (data: { email: string }) => {
-    updateSignupData({ email: data.email });
-    router.push('/passenger/signupScreens/signup');
+  const onSubmit = async (data: { email: string }) => {
+    setIsSubmitting(true);
+    setError("");
+    
+    try {
+      // Request OTP for signup
+      const result = await requestSignupOTP(data.email);
+      if (result.success) {
+        updateSignupData({ email: data.email });
+        router.push(`/passenger/signupScreens/otpVerification?email=${encodeURIComponent(data.email)}&role=passenger`);
+      } else {
+        setError(result.message || "Failed to send OTP");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to send OTP");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+  useEffect(() => {
+    if (error) {
+      Alert.alert("Error", error);
+    }
+  }, [error]);
+
 
   return (
     <>
@@ -56,9 +80,18 @@ const DriverPhone = () => {
           <Text style={{ color: 'red', marginBottom: 20 }}>{errors.email.message}</Text>
         )}
         
-        <TouchableOpacity style={styles.nextButton} onPress={handleSubmit(onSubmit)}>
-          <Text style={styles.nextButtonText}>NEXT</Text>
+        <TouchableOpacity
+          style={[styles.nextButton, isSubmitting && styles.disabledButton]}
+          onPress={handleSubmit(onSubmit)}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.nextButtonText}>NEXT</Text>
+          )}
         </TouchableOpacity>
+
         <View className="flex-row flex-wrap justify-center ">
             <Text className="text-sm text-[#333] font-light">
                 By clicking Next, you agree to the{" "}
@@ -91,6 +124,9 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     marginBottom: 40,
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
   inputContainer: {
     flexDirection: 'row',

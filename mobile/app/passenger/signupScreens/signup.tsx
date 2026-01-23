@@ -15,6 +15,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useForm, Controller } from "react-hook-form";
 import { usePassengerSignup } from "../../context/PassengerSignupContext";
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useAuth } from "@/app/context/AuthContext";
 
 const screenWidth = Dimensions.get("window").width;
 interface SignupForm {
@@ -30,6 +31,7 @@ interface SignupForm {
 
 const PersonalInfo = () => {
   const { signupData, updateSignupData } = usePassengerSignup();
+  const { checkPhoneExists } = useAuth();
    const [showDobPicker, setShowDobPicker] = useState(false);
 
   const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm<SignupForm>({
@@ -64,7 +66,12 @@ const PersonalInfo = () => {
     }
   };
 
-  const onSubmit = (data: SignupForm) => {
+  const onSubmit = async (data: SignupForm) => {
+    const phoneCheck = await checkPhoneExists(data.phoneNumber);
+    if (phoneCheck.exists) {
+      Alert.alert("Phone number already exists", phoneCheck.message || "Please use a different phone number.");
+      return;
+    }
     updateSignupData({
       firstName: data.firstName,
       lastName: data.lastName,

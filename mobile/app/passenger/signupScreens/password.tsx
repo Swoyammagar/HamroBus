@@ -62,39 +62,65 @@ const NewPassword: React.FC = () => {
     return true;
   };
 
-  const onSubmit = async (data: FormValues) => {
-    setError("");
+const onSubmit = async (data: FormValues) => {
+  setError("");
 
-    if (data.password !== data.confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
+  if (data.password !== data.confirmPassword) {
+    Alert.alert("Error", "Passwords do not match");
+    return;
+  }
 
-    setIsLoading(true);
-    try {
-      const completeSignupData = {
-        ...signupData,
-        password: data.password,
-      };
+  setIsLoading(true);
 
-      const result = await register(completeSignupData, "passenger");
-      console.log("✅ REGISTER SUCCESS:", result);
-        Alert.alert("Registration Successful", "Your account has been created successfully!");
-        setTimeout(() => {
-        resetSignupData();
-        router.replace("/pages/mobilelogin");
-      }, 300); 
-    } catch (err: any) {
-      Alert.alert("Error", err?.message || "Registration failed. Please try again.");
-      setError(
+  let isSuccess = false;
+
+  try {
+    const completeSignupData = {
+      ...signupData,
+      password: data.password,
+    };
+
+    await register(completeSignupData, "passenger");
+    isSuccess = true;
+
+  } catch (err: any) {
+    console.log("❌ REGISTER ERROR:", err);
+
+    Alert.alert(
+      "Registration Failed",
       err?.response?.data?.message ||
       err?.message ||
-      "Registration failed. Please try again."
+      "Registration failed"
     );
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
+    setError(
+      err?.response?.data?.message ||
+      err?.message ||
+      "Registration failed"
+    );
+
+    return; // ⛔ STOP HERE
+  } finally {
+    setIsLoading(false);
+  }
+
+  // ✅ SUCCESS FLOW (runs ONLY if no error)
+  if (isSuccess) {
+    Alert.alert(
+      "Registration Successful",
+      "Your account has been created successfully!",
+      [
+        {
+          text: "OK",
+          onPress: () => {
+            resetSignupData();
+            router.replace("/pages/mobilelogin");
+          }
+        }
+      ]
+    );
+  }
+};
 
   return (
     <>
