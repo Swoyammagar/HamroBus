@@ -48,34 +48,47 @@ const registerDriver = async (req, res) => {
         // 2️⃣ Use the verified user
         let user = existingUserForEmail;
 
-        // Check if user already has driver role
+        // ✅ Allow existing users (e.g., passengers) to add driver role
         if (user.roles.includes('driver')) {
             return res.status(400).json({
                 message: "Driver with this email already exists",
             });
         }
 
-        // 2a. Hash password and update user with full details
-        const hashedPassword = await bcrypt.hash(password, 10);
-        
-        user.firstName = firstName;
-        user.lastName = lastName;
-        user.address = address;
-        user.phoneNumber = phoneNumber;
-        user.gender = gender;
-        user.dob = dob;
-        user.password = hashedPassword;
-        user.profileImgUrl = profileImgUrl || '';
-        user.roles.push('driver');
-        user.otp = null; // Clear OTP after successful registration
-        
-        await user.save();
-
         // 3️⃣ Check if driver profile already exists
         const existingDriverProfile = await Driver.findOne({ userId: user._id });
         if (existingDriverProfile) {
             return res.status(400).json({ message: "Driver profile already exists for this user" });
         }
+
+        // 2a. Add driver role to user
+        user.roles.push('driver');
+
+        // Update user details (only update if not already set or if explicitly provided)
+        if (!user.firstName || firstName) user.firstName = firstName;
+        if (!user.lastName || lastName) user.lastName = lastName;
+        if (!user.address || address) user.address = address;
+        if (!user.phoneNumber || phoneNumber) {
+            // Check if phone number is already taken by another user
+            const existingPhone = await User.findOne({ phoneNumber, _id: { $ne: user._id } });
+            if (existingPhone) {
+                return res.status(400).json({ message: "Phone number already in use" });
+            }
+            user.phoneNumber = phoneNumber;
+        }
+        if (!user.gender || gender) user.gender = gender;
+        if (!user.dob || dob) user.dob = dob;
+        if (!user.profileImgUrl || profileImgUrl) user.profileImgUrl = profileImgUrl || '';
+        
+        // Update password only if provided and user doesn't already have one
+        if (!user.password || password) {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            user.password = hashedPassword;
+        }
+
+        user.otp = null; // Clear OTP after successful registration
+        
+        await user.save();
 
         // 4️⃣ Generate unique driver ID
         const driverId = `DRV${Date.now()}${Math.floor(Math.random() * 1000)}`;

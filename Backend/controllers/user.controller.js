@@ -1,4 +1,5 @@
 const User = require('../models/user.model');
+const TempUser = require('../models/tempUser.model');
 const { generateOTP } = require('../utils/OTPutils');
 const { sendPasswordResetEmail , sendVerificationEmail} = require('../utils/OTPutils');
 const { hashPassword } = require('../utils/authutils');
@@ -108,39 +109,65 @@ const verifyOTPUser = async (req, res) => {
   }
 };
 
+/**
+ * ✅ FIXED: Uses TempUser model to prevent verified user deletion
+ */
 const requestSignupOTP = async (req, res) => {
-  const { email } = req.body;
+  const { email, role } = req.body;
+
   try {
+    // Check if user already exists and is verified
     const existingUser = await User.findOne({ email, isEmailVerified: true });
-    if (existingUser) {
+
+    // 🚫 Case 1: User already has this role
+    if (existingUser && existingUser.roles?.includes(role)) {
       return res.status(400).json({
         success: false,
-        message: "Email already in use",
+        message: `User already registered as ${role}`,
       });
     }
-    const otp = generateOTP().otp;
-    let tempUser = await User.findOne({ email});
-    const expiry = new Date(Date.now() + 10 * 60 * 1000);
-    if (!tempUser) {
-      tempUser = new User({
-        email,
-        otp,
-        roles: [],
-        isEmailVerified: false,
-        otpExpiresAt: expiry,
+
+    // 🚫 Case 2: User already has both roles
+    if (existingUser && 
+        existingUser.roles?.includes("driver") && 
+        existingUser.roles?.includes("passenger")) {
+      return res.status(400).json({
+        success: false,
+        message: "User already registered as both driver and passenger",
       });
-      await tempUser.save();
-    } else {
+    }
+
+    // ✅ Generate and send OTP using TempUser model
+    const otp = generateOTP().otp;
+    const expiry = new Date(Date.now() + 10 * 60 * 1000);
+
+    // Check if temp user already exists for this email
+    let tempUser = await TempUser.findOne({ email });
+    
+    if (tempUser) {
+      // Update existing temp user
       tempUser.otp = otp;
       tempUser.otpExpiresAt = expiry;
-      await tempUser.save();
+      tempUser.role = role;
+    } else {
+      // Create new temp user
+      tempUser = new TempUser({
+        email,
+        otp,
+        otpExpiresAt: expiry,
+        role
+      });
     }
-    const fullName = "User";
-    await sendVerificationEmail(email, fullName, otp);
+
+    await tempUser.save();
+
+    await sendVerificationEmail(email, "User", otp);
+
     res.status(200).json({
       success: true,
       message: "OTP sent to your email for account verification",
     });
+
   } catch (error) {
     console.error("Error requesting signup OTP:", error);
     res.status(500).json({
@@ -150,38 +177,62 @@ const requestSignupOTP = async (req, res) => {
   }
 };
 
+/**
+ * ✅ FIXED: Uses TempUser model for verification
+ */
 const verifySignupOTP = async (req, res) => {
   const { email, otp } = req.body;
   try {
-    const user = await User.findOne({ email });
-    if (!user) {
+    // Look in TempUser collection
+    const tempUser = await TempUser.findOne({ email });
+    if (!tempUser) {
       return res.status(400).json({
         status: 'error',
-        message: "Email not found",
+        message: "OTP request not found or expired",
         error: 'EMAIL_NOT_FOUND'
       });
     }
-    if (user.otpExpiresAt && user.otpExpiresAt < new Date()) {
+    
+    if (tempUser.otpExpiresAt < new Date()) {
       return res.status(400).json({
         error: 'OTP_EXPIRED',
         message: "OTP expired"
       });
     }
-    if (user.otp !== otp) {
+    
+    if (tempUser.otp !== otp) {
       return res.status(400).json({
         status: 'error',
         message: "Invalid OTP",
         error: 'INVALID_OTP'
       });
     }
-    user.isEmailVerified = true;
-    user.otp = null;
-    user.otpExpiresAt = null; // ✅ STOP TTL deletion
+    
+    // ✅ OTP verified - now check if user exists
+    let user = await User.findOne({ email });
+    
+    if (!user) {
+      // Create new user with verified email
+      user = new User({
+        email,
+        isEmailVerified: true,
+        roles: []
+      });
+    } else {
+      // Mark existing user as verified (for multi-role registration)
+      user.isEmailVerified = true;
+    }
+    
     await user.save();
+    
+    // Delete temp user after successful verification
+    await TempUser.deleteOne({ email });
+    
     res.status(200).json({
       status: 'success',
       message: "Account verified successfully. Please proceed to complete your registration.",
-      email: user.email
+      email: user.email,
+      role: tempUser.role
     });
   } catch (error) {
     console.error("Error verifying signup OTP:", error);
@@ -193,17 +244,30 @@ const verifySignupOTP = async (req, res) => {
   }
 };
 
+/**
+ * ✅ FIXED: Phone numbers are now globally unique across all users
+ */
 const phoneExists = async (req, res) => {
-  const { phoneNumber } = req.body;
-  console.log("Phone exists route hit:", req.body.phoneNumber);
+  const { phoneNumber, email } = req.body;
+  console.log("Phone exists route hit:", phoneNumber, "for email:", email);
 
   try {
-    const user = await User.findOne({ phoneNumber, isEmailVerified: true  });
-    if (user) {
-      return res.status(200).json({ exists: true });  
-    } else {
-      return res.status(200).json({ exists: false }); 
+    // Check if phone number exists for ANY verified user
+    const userWithPhone = await User.findOne({ phoneNumber, isEmailVerified: true });
+    
+    if (!userWithPhone) {
+      // Phone number doesn't exist - allow
+      return res.status(200).json({ exists: false });
     }
+    
+    // If phone belongs to the current user (email matches), allow it
+    if (userWithPhone.email === email) {
+      return res.status(200).json({ exists: false });
+    }
+    
+    // Phone number belongs to a different user - block
+    return res.status(200).json({ exists: true });
+    
   } catch (error) {
     console.error("Error checking phone number existence:", error);
     res.status(500).json({
@@ -212,6 +276,7 @@ const phoneExists = async (req, res) => {
     });
   }
 };
+
 module.exports = {
   requestPasswordReset,
   resetPassword,

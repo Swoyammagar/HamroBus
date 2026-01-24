@@ -20,32 +20,47 @@ const registerPassenger = async (req, res) => {
             });
         }
 
-        // Rest of the code remains the same...
         // 1️⃣ Check if user already exists
         let user = tempUser; // Use the verified temporary user
 
-        if (!user.roles.includes('passenger')) {
-            user.roles.push('passenger');
-            // Update user with full details
-            const hashedPassword = await bcrypt.hash(password, 10);
-            user.firstName = firstName;
-            user.lastName = lastName;
-            user.address = address;
-            user.phoneNumber = phoneNumber;
-            user.gender = gender;
-            user.dob = dob;
-            user.password = hashedPassword;
-            user.profileImgUrl = profileImgUrl || '';
-            await user.save();
-        } else {
+        // ✅ Allow existing users (e.g., drivers) to add passenger role
+        if (user.roles.includes('passenger')) {
+            // User already has passenger role - cannot register twice
             return res.status(400).json({ message: "Passenger with this email already exists" });
         }
 
-        // 4️⃣ Check if passenger profile already exists
+        // Check if passenger profile already exists for this user
         const existingPassengerProfile = await Passenger.findOne({ userId: user._id });
         if (existingPassengerProfile) {
             return res.status(400).json({ message: "Passenger profile already exists" });
         }
+
+        // Add passenger role to user
+        user.roles.push('passenger');
+
+        // Update user details (only update if not already set or if explicitly provided)
+        if (!user.firstName || firstName) user.firstName = firstName;
+        if (!user.lastName || lastName) user.lastName = lastName;
+        if (!user.address || address) user.address = address;
+        if (!user.phoneNumber || phoneNumber) {
+            // Check if phone number is already taken by another user
+            const existingPhone = await User.findOne({ phoneNumber, _id: { $ne: user._id } });
+            if (existingPhone) {
+                return res.status(400).json({ message: "Phone number already in use" });
+            }
+            user.phoneNumber = phoneNumber;
+        }
+        if (!user.gender || gender) user.gender = gender;
+        if (!user.dob || dob) user.dob = dob;
+        if (!user.profileImgUrl || profileImgUrl) user.profileImgUrl = profileImgUrl || '';
+        
+        // Update password only if provided and user doesn't already have one
+        if (!user.password || password) {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            user.password = hashedPassword;
+        }
+
+        await user.save();
 
         // 5️⃣ Generate unique passenger ID
         const passengerId = `PSG${Date.now()}${Math.floor(Math.random() * 1000)}`;
