@@ -8,7 +8,8 @@ const {
   getDriverProfile,
   getPendingDrivers,
   approveDriver,
-  rejectDriver
+  rejectDriver,
+  getAllDrivers
 } = require('../controllers/driver.controller');
 const { authenticateAdmin } = require('../middlewares/admin.auth.middleware'); // ✅ Updated import
 const { authenticateMobileUser, isDriver } = require('../middlewares/mobile.auth.middleware');
@@ -19,6 +20,7 @@ router.post('/login', loginDriver);
 
 // Admin-only routes ✅ Now properly protected with role verification
 router.get('/pending', authenticateAdmin, getPendingDrivers);
+router.get('/allDrivers', authenticateAdmin, getAllDrivers);
 router.post('/approve/:driverId', authenticateAdmin, approveDriver);
 router.post('/reject/:driverId', authenticateAdmin, rejectDriver);
 
