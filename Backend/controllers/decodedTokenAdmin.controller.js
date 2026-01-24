@@ -1,27 +1,35 @@
-const User = require("../models/admin.model");
+const Admin = require("../models/admin.model");
 
+/**
+ * Get current authenticated admin user
+ * req.user is populated by authenticateAdmin middleware
+ */
 const currentUser = async (req, res) => {
   try {
-    const userId = req.userId; // This comes from the auth middleware
-    const user = await User.findById(userId).select('-password -otp');
+    // Use req.user from middleware (already verified)
+    const userId = req.user.id;
+    
+    const admin = await Admin.findById(userId).select('-password -otp -refreshToken');
 
-    if (!user) {
+    if (!admin) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
+        message: "Admin not found",
       });
     }
 
     res.status(200).json({
       success: true,
       user: {
-        id: user._id,
-        fullname: user.fullname,
-        email: user.email
+        id: admin._id,
+        fullname: admin.fullname,
+        email: admin.email,
+        role: admin.role, // ✅ Include role in response
+        isVerified: admin.isVerified
       }
     });
   } catch (error) {
-    console.error("Error fetching current user:", error);
+    console.error("Error fetching current admin:", error);
     res.status(500).json({
       success: false,
       message: "Server error",

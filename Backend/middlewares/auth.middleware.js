@@ -1,7 +1,10 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/admin.model");
+const Admin = require("../models/admin.model");
 
-
+/**
+ * @deprecated Use authenticateAdmin from admin.auth.middleware.js instead
+ * This middleware is kept for backward compatibility
+ */
 async function authenticateUser(req, res, next) {
   try {
     // 1️⃣ Read token from cookies
@@ -15,9 +18,17 @@ async function authenticateUser(req, res, next) {
     const data = jwt.verify(token, process.env.JWT_SECRET);
     req.userId = data.id;
 
-    const user = await User.findById(req.userId);
+    const user = await Admin.findById(req.userId);
     if (!user) {
       return res.status(401).json({ error: "User not found" });
+    }
+
+    // ✅ Add role verification
+    if (user.role !== 'admin') {
+      return res.status(403).json({ 
+        error: "Access denied",
+        message: "Admin privileges required" 
+      });
     }
 
     req.user = {
@@ -30,9 +41,11 @@ async function authenticateUser(req, res, next) {
 
     next();
   } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: "Token expired" });
+    }
     return res.status(403).json({ error: "Invalid or expired token" });
   }
 }
-
 
 module.exports = authenticateUser;

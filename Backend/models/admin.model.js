@@ -1,34 +1,46 @@
 const mongoose = require("mongoose");
+
 const adminSchema = new mongoose.Schema({
-    fullname:{
+    fullname: {
         type: String,
         default: 'Administrator'       
     },
-    email:{
+    email: {
         type: String,
         required: true,
+        unique: true // ✅ Add unique constraint
     },
-    password:{
+    password: {
+        type: String,
+        required: true // ✅ Make required
+    }, 
+    confirmPassword: {
+        type: String,
+    },
+    otp: {
         type: String,
     }, 
-    confirmPassword:{
-        type: String,
-    },
-    otp:{
-        type: String,
-    }, 
-    role:{
+    role: {
         type: String,
         default: 'admin'
     },
-    isVerified:{
+    permissions: {
+        type: [String],
+        default: [] // ✅ Add permissions array for future RBAC
+    },
+    isVerified: {
         type: Boolean,
         default: false
     },
     refreshToken: {
         type: String,
         default: null,
-    },
-    default: {}
+    }
+}, {
+    timestamps: true // ✅ Add timestamps
 });
+
+// ✅ Add index for faster email lookups
+adminSchema.index({ email: 1 });
+
 module.exports = mongoose.models.Admin || mongoose.model("Admin", adminSchema);
