@@ -15,7 +15,7 @@ const server = http.createServer(app);
 // Setup Socket.io with CORS
 const io = new Server(server, {
   cors: {
-    origin: ['http://localhost:8081', 'http://localhost:3000', 'http://192.168.1.72:8081', 'http://10.0.2.2:8081'],
+    origin: ['http://localhost:8081', 'http://localhost:8082', 'http://localhost:3000', 'http://192.168.1.72:8081', 'http://10.0.2.2:8081'],
     credentials: true,
   },
 });
@@ -39,7 +39,7 @@ app.set('io', io);
 
 app.use(
   cors({
-    origin: ['http://localhost:8081', 'http://192.168.1.73:8081', 'http://10.0.2.2:8081'] ,
+    origin: ['http://localhost:8081','http://localhost:8082', 'http://192.168.1.73:8081', 'http://10.0.2.2:8081'] ,
     credentials: true,
   })
 );
