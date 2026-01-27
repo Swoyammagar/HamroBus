@@ -53,9 +53,9 @@ const SignupOTPVerification: React.FC = () => {
         
         setTimeout(() => {
           if (role === "driver") {
-            router.push("/driver/signupScreens/signupInfo");
+            router.push(`/driver/signupScreens/signupInfo?email=${encodeURIComponent(email)}`);
           } else {
-            router.push("/passenger/signupScreens/signup");
+            router.push(`/passenger/signupScreens/signup?email=${encodeURIComponent(email)}`);
           }
         }, 1000);
       } else {
@@ -78,7 +78,7 @@ const SignupOTPVerification: React.FC = () => {
 
     setIsResending(true);
     try {
-      const res = await requestSignupOTP(email);
+      const res = await requestSignupOTP(email, 'driver');
       if (res.success) {
         setSuccess(res.message || "OTP resent successfully");
       } else {

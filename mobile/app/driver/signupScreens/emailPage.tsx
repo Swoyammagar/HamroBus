@@ -22,7 +22,7 @@ const DriverPhone = () => {
       
       try {
         // Request OTP for signup
-        const result = await requestSignupOTP(data.email);
+        const result = await requestSignupOTP(data.email, 'driver');
         if (result.success) {
           updateSignupData({ email: data.email });
           router.push(`/driver/signupScreens/otp?email=${encodeURIComponent(data.email)}&role=driver`);
@@ -72,8 +72,8 @@ const DriverPhone = () => {
             </View>
           )}
         />
-        {errors.email && (
-          <Text style={{ color: 'red', marginBottom: 20 }}>{errors.email.message}</Text>
+        {error && (
+          <Text style={{ color: 'red', marginBottom: 20 }}>{error}</Text>
         )}
 
         {/* Next Button */}
