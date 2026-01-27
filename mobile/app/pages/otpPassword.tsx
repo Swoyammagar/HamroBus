@@ -43,7 +43,6 @@ const VerifyOTP: React.FC = () => {
     try {
       const result = await verifyOTP(email, otp);
       if (result.success) {
-        // router.push(`pages/new/newPassword?email=${encodeURIComponent(email)}`);
         router.push(`/pages/newPassword?email=${encodeURIComponent(email)}`);
       } else {
         setError(result.message || "Invalid OTP. Please try again.");

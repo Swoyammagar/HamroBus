@@ -31,10 +31,10 @@ const Preference: React.FC = () => {
                 </View>
                 <View className="mt-4">
                     <TouchableOpacity className="bg-[#27AE60] rounded-lg p-9 py-3 mb-4">
-                        <Text className="text-white text-center text-base font-medium" onPress={()=>router.push("/passenger/signupScreens/phone")}>Sign Up as Passenger</Text>
+                        <Text className="text-white text-center text-base font-medium" onPress={()=>router.push("/passenger/signupScreens/email")}>Sign Up as Passenger</Text>
                     </TouchableOpacity>
                     <TouchableOpacity className="bg-[#27AE60] rounded-lg py-3">
-                        <Text className="text-white text-center text-base font-medium" onPress={()=>router.push("/driver/signupScreens/phonePage")}>Sign Up as Driver</Text>
+                        <Text className="text-white text-center text-base font-medium" onPress={()=>router.push("/driver/signupScreens/emailPage")}>Sign Up as Driver</Text>
                     </TouchableOpacity>
                 </View>   
             </View>
