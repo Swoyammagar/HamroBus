@@ -21,7 +21,7 @@ const DriverPhone = () => {
     
     try {
       // Request OTP for signup
-      const result = await requestSignupOTP(data.email);
+      const result = await requestSignupOTP(data.email, 'passenger');
       if (result.success) {
         updateSignupData({ email: data.email });
         router.push(`/passenger/signupScreens/otpVerification?email=${encodeURIComponent(data.email)}&role=passenger`);

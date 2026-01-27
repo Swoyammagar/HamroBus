@@ -16,6 +16,7 @@ import { useForm, Controller } from "react-hook-form";
 import { usePassengerSignup } from "../../context/PassengerSignupContext";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuth } from "@/app/context/AuthContext";
+import { useSearchParams } from "expo-router/build/hooks";
 
 const screenWidth = Dimensions.get("window").width;
 interface SignupForm {
@@ -33,6 +34,8 @@ const PersonalInfo = () => {
   const { signupData, updateSignupData } = usePassengerSignup();
   const { checkPhoneExists } = useAuth();
    const [showDobPicker, setShowDobPicker] = useState(false);
+  const searchParams = useSearchParams();
+  const email = searchParams.get("email") || "";
 
   const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm<SignupForm>({
     defaultValues: {
@@ -67,7 +70,7 @@ const PersonalInfo = () => {
   };
 
   const onSubmit = async (data: SignupForm) => {
-    const phoneCheck = await checkPhoneExists(data.phoneNumber);
+    const phoneCheck = await checkPhoneExists(data.phoneNumber, email);
     if (phoneCheck.exists) {
       Alert.alert("Phone number already exists", phoneCheck.message || "Please use a different phone number.");
       return;
