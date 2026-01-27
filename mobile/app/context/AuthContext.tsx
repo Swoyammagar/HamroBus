@@ -6,7 +6,8 @@ import axios from 'axios';
 // Android Emulator: 10.0.2.2 (host machine gateway) on port 5000
 // iOS Simulator: localhost or your machine IP on port 5000
 // Physical device: your machine's local IP (192.168.x.x) on port 5000
-const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://10.0.2.2:3000/api' ;
+// const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://10.0.2.2:3000/api' ;
+const API_URL = 'http://localhost:3000/api' ;
 interface Driver {
   driverId: string;
   licenseNo: string;
@@ -82,9 +83,9 @@ interface AuthContextType {
     newPassword: string
   ) => Promise<{ success: boolean; message?: string }>;
   verifyOTP: (email: string, otp: string) => Promise<ApiResponse>;
-  requestSignupOTP: (email: string) => Promise<{ success: boolean; message?: string }>;
+  requestSignupOTP: (email: string, role: 'driver' | 'passenger') => Promise<{ success: boolean; message?: string }>;
   verifySignupOTP: (email: string, otp: string) => Promise<{ success: boolean; message?: string }>;
-  checkPhoneExists: (phoneNumber: string) => Promise<{ exists: boolean; message?: string }>;
+  checkPhoneExists: (phoneNumber: string, email: string) => Promise<{ exists: boolean; message?: string }>;
 }
 
 
@@ -404,11 +405,11 @@ const uploadImageToCloudinary = async (
     }
   };
   
-const requestSignupOTP = async (email: string) => {
+const requestSignupOTP = async (email: string, role: string) => {
   try {
     const { data } = await axios.post<{ success: boolean; message?: string }>(
       `${API_URL}/users/request-signup-otp`,
-      { email }
+      { email, role }
     );
     return { success: !!data.success, message: data.message || '' };
   } catch (err: any) {
@@ -437,11 +438,11 @@ const verifySignupOTP = async (email: string, otp: string) => {
   }
 };
 
-const checkPhoneExists = async (phoneNumber: string) => {
+const checkPhoneExists = async (phoneNumber: string, email: string) => {
   try {
     const { data } = await axios.post<{ exists: boolean; message?: string }>(
       `${API_URL}/users/phone-exists`,
-      { phoneNumber }
+      { phoneNumber, email }
     );
     return { exists: data.exists, message: data.message || '' };
   } catch (err: any) {
