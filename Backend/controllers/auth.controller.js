@@ -67,4 +67,89 @@ const logout = async (req, res) => {
   res.status(200).json({ message: 'Logged out' });
 };
 
-module.exports = { refreshAccessToken, logout };
+// ✅ NEW: Mobile-specific refresh token (receives token in body, returns JSON)
+const refreshAccessTokenMobile = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(400).json({ success: false, message: 'Refresh token required' });
+    }
+
+    const payload = verifyRefreshToken(refreshToken);
+    if (!payload) {
+      return res.status(403).json({ success: false, message: 'Invalid refresh token' });
+    }
+
+    const userId = payload.id;
+    let user = await Admin.findById(userId);
+    let isAdmin = true;
+    if (!user) {
+      user = await User.findById(userId);
+      isAdmin = false;
+    }
+
+    if (!user || user.refreshToken !== refreshToken) {
+      return res.status(403).json({ success: false, message: 'Refresh token not recognized' });
+    }
+
+    // Issue new access token
+    const accessToken = generateToken(user);
+    res.status(200).json({ 
+      success: true, 
+      accessToken,
+      message: 'Token refreshed' 
+    });
+  } catch (error) {
+    console.error('Mobile token refresh error:', error);
+    res.status(500).json({ success: false, message: 'Token refresh failed' });
+  }
+};
+
+// ✅ NEW: Mobile-specific logout (receives token in body)
+const logoutMobile = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Refresh token required' 
+      });
+    }
+
+    const payload = verifyRefreshToken(refreshToken);
+    if (!payload) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Invalid refresh token' 
+      });
+    }
+
+    const userId = payload.id;
+    let user = await Admin.findById(userId);
+    if (!user) {
+      user = await User.findById(userId);
+    }
+
+    if (user) {
+      // Clear the refresh token from database
+      user.refreshToken = null;
+      await user.save();
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Logged out successfully' 
+    });
+
+  } catch (error) {
+    console.error('Mobile logout error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Logout failed' 
+    });
+  }
+};
+
+
+module.exports = { refreshAccessToken, logout, refreshAccessTokenMobile, logoutMobile };

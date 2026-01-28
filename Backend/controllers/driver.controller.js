@@ -280,7 +280,7 @@ const getDriverLocationHistory = async (req, res) => {
 
 // Get Driver Profile
 const getDriverProfile = async (req, res) => {
-    const userId = req.user.id; // From JWT middleware
+    const userId = req.user.id; 
 
     try {
         const user = await User.findById(userId).select('-password -refreshToken');
