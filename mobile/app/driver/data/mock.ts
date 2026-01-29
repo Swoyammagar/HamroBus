@@ -21,14 +21,26 @@ export const stats = [
   { label: 'Total Passengers', value: '142', icon: 'users', color: '#7C3AED' },
 ];
 
+// UPDATED: Now includes lat/lng coordinates
 export const busStops = [
-  { id: 1, name: 'Central Station', status: 'completed', passengers: 8, time: '2:30 PM' },
-  { id: 2, name: 'Market Square', status: 'completed', passengers: 5, time: '2:42 PM' },
-  { id: 3, name: 'City Library', status: 'active', passengers: 0, time: '2:55 PM' },
-  { id: 4, name: 'City Mall', status: 'upcoming', passengers: 0, time: '3:08 PM' },
-  { id: 5, name: 'Hospital', status: 'upcoming', passengers: 0, time: '3:20 PM' },
-  { id: 6, name: 'University', status: 'upcoming', passengers: 0, time: '3:35 PM' },
-  { id: 7, name: 'Downtown Hub', status: 'upcoming', passengers: 0, time: '4:15 PM' },
+  { id: 1, name: 'Central Station', status: 'completed', passengers: 8, time: '2:30 PM', latitude: 40.7489, longitude: -73.9680 },
+  { id: 2, name: 'Market Square', status: 'completed', passengers: 5, time: '2:42 PM', latitude: 40.7505, longitude: -73.9776 },
+  { id: 3, name: 'City Library', status: 'active', passengers: 0, time: '2:55 PM', latitude: 40.7532, longitude: -73.9822 },
+  { id: 4, name: 'City Mall', status: 'upcoming', passengers: 0, time: '3:08 PM', latitude: 40.7614, longitude: -73.9776 },
+  { id: 5, name: 'Hospital', status: 'upcoming', passengers: 0, time: '3:20 PM', latitude: 40.7689, longitude: -73.9642 },
+  { id: 6, name: 'University', status: 'upcoming', passengers: 0, time: '3:35 PM', latitude: 40.8075, longitude: -73.9626 },
+  { id: 7, name: 'Downtown Hub', status: 'upcoming', passengers: 0, time: '4:15 PM', latitude: 40.7128, longitude: -74.0060 },
+];
+
+// Route polyline coordinates connecting all stops
+export const routePolyline = [
+  { latitude: 40.7489, longitude: -73.9680 },
+  { latitude: 40.7505, longitude: -73.9776 },
+  { latitude: 40.7532, longitude: -73.9822 },
+  { latitude: 40.7614, longitude: -73.9776 },
+  { latitude: 40.7689, longitude: -73.9642 },
+  { latitude: 40.8075, longitude: -73.9626 },
+  { latitude: 40.7128, longitude: -74.0060 },
 ];
 
 export const schedules = {
