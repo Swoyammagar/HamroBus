@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated, Dimensions, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { palette, spacing, radius, shadow } from '../theme';
-
+import { useRouter } from 'expo-router';
+import { useAuth } from '../../context/AuthContext';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -20,6 +21,23 @@ const menuItems = [
 
 export default function SideMenu({ isOpen, onClose, isOnline }: Props) {
   const slide = useRef(new Animated.Value(-Dimensions.get('window').width)).current;
+  const router = useRouter();
+  const { logout } = useAuth();
+  
+  const handleLogout = () => {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      {
+        text: 'Logout',
+        onPress: () => {
+          logout();
+          Alert.alert('Success', 'You have been logged out');
+          router.push('/pages/mobilelogin');
+        },
+        style: 'destructive',
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
 
   useEffect(() => {
     Animated.timing(slide, {
@@ -63,9 +81,9 @@ export default function SideMenu({ isOpen, onClose, isOnline }: Props) {
           ))}
         </View>
 
-        <Pressable style={styles.logout} onPress={onClose}>
+        <Pressable style={styles.logout} onPress={handleLogout}>
           <Feather name="log-out" size={18} color={palette.danger} />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText} >Logout</Text>
         </Pressable>
       </Animated.View>
     </View>

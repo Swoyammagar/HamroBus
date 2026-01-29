@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -11,17 +11,27 @@ import SideMenu from './component/SideMenu';
 import AnnouncementBanner from './component/AnnouncementBanner';
 import EmergencySOSModal from './component/EmergencySOSModal';
 import { palette } from './theme';
+import { useAuth } from '../context/AuthContext';
 
 export default function App() {
   const [isOnline, setIsOnline] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
+  const { getCurrentUser, isLoading } = useAuth();
 
   const [announcement, setAnnouncement] = useState({
     show: true,
     message: 'Route 42 - Minor delay expected on Main St due to traffic',
     type: 'warning' as 'info' | 'warning' | 'emergency',
   });
+
+  // ✅ FETCH CURRENT USER DATA ON APP MOUNT
+  useEffect(() => {
+    const loadUserData = async () => {
+      await getCurrentUser();
+    };
+    loadUserData();
+  }, [getCurrentUser]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -30,12 +40,6 @@ export default function App() {
         {/* EVERYTHING inside SafeAreaView */}
         <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
 
-          {/* Side Menu (overlay) */}
-          <SideMenu
-            isOpen={menuOpen}
-            onClose={() => setMenuOpen(false)}
-            isOnline={isOnline}
-          />
 
           {/* Header (always safe-area aware) */}
           <Header
@@ -47,9 +51,9 @@ export default function App() {
           {/* Announcements */}
           {announcement.show && (
             <AnnouncementBanner
-              message={announcement.message}
-              type={announcement.type}
-              onClose={() => setAnnouncement({ ...announcement, show: false })}
+            message={announcement.message}
+            type={announcement.type}
+            onClose={() => setAnnouncement({ ...announcement, show: false })}
             />
           )}
 
@@ -67,6 +71,12 @@ export default function App() {
             onClose={() => setShowSOS(false)}
           />
 
+          {/* Side Menu (overlay) */}
+          <SideMenu
+            isOpen={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            isOnline={isOnline}
+          />
           <StatusBar style="dark" />
 
         </SafeAreaView>

@@ -48,6 +48,10 @@ const License = () => {
   
     
   const onSubmit = (data: LicenseForm) => {
+    if (!data.licenseImage) {
+      alert("Please upload a license image.");
+      return;
+    }
     updateSignupData({
       licenseNo: data.licenseNo,
       licenseImage: data.licenseImage || undefined,
