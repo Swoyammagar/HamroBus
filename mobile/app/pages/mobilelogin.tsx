@@ -8,7 +8,7 @@ const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 
 const Login = () => {
-  const { loginDriver, loginPassenger } = useAuth();
+  const { loginDriver, loginPassenger, getCurrentUser} = useAuth();
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -46,7 +46,7 @@ const Login = () => {
           setError(res.message || "Login failed");
           return;
         }
-
+        await getCurrentUser();
         if (role === 'driver') {
           router.replace("/driver/app");
         } else if (role === 'passenger') {
