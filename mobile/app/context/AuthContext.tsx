@@ -6,14 +6,14 @@ import axios from 'axios';
 // Android Emulator: 10.0.2.2 (host machine gateway) on port 5000
 // iOS Simulator: localhost or your machine IP on port 5000
 // Physical device: your machine's local IP (192.168.x.x) on port 5000
-// const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://10.0.2.2:3000/api' ;
-const API_URL = 'http://localhost:3000/api' ;
+const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://10.0.2.2:3000/api' ;
 interface Driver {
   driverId: string;
   licenseNo: string;
   assignedBus: any;
   assignedRoute: any;
   isActive: boolean;
+  licenseImgUrl?: string;
 }
 
 interface Passenger {
@@ -102,6 +102,51 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     loadStoredAuth();
   }, []);
+  // Add this after the AuthContext is created, inside AuthProvider component
+
+useEffect(() => {
+  // Setup axios interceptor for token refresh
+  const requestInterceptor = axios.interceptors.request.use(
+    (config) => {
+      if (token && !config.headers.Authorization) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
+
+  const responseInterceptor = axios.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const originalRequest = error.config;
+
+      // If 401 and we haven't already tried to refresh
+      if (error.response?.status === 401 && !originalRequest._retry) {
+        originalRequest._retry = true;
+
+        const refreshed = await refreshToken();
+        if (refreshed) {
+          // Update header with new token and retry
+          const newToken = await AsyncStorage.getItem('authToken');
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return axios(originalRequest);
+        } else {
+          // Refresh failed, logout
+          await logout();
+          return Promise.reject(error);
+        }
+      }
+
+      return Promise.reject(error);
+    }
+  );
+
+  return () => {
+    axios.interceptors.request.eject(requestInterceptor);
+    axios.interceptors.response.eject(responseInterceptor);
+  };
+}, [token]);
 
   const loadStoredAuth = async () => {
     try {
@@ -257,54 +302,103 @@ const register = async (userData: any, role: 'driver' | 'passenger') => {
 
 
 
-  const logout = async () => {
-    try {
-      await AsyncStorage.removeItem('authToken');
-      await AsyncStorage.removeItem('user');
-      await AsyncStorage.removeItem('refreshToken');
-      await AsyncStorage.removeItem('driverProfile');
-      await AsyncStorage.removeItem('passengerProfile');
-      setToken(null);
-      setUser(null);
-      setDriver(null);
-      setPassenger(null);
-    } catch (error) {
-      console.error('Logout error:', error);
+const logout = async () => {
+  try {
+    // Try to notify backend about logout
+    const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
+    if (storedRefreshToken) {
+      try {
+        await axios.post(`${API_URL}/auth/logout-mobile`, {
+          refreshToken: storedRefreshToken
+        });
+      } catch (error) {
+        console.warn('Backend logout notification failed:', error);
+        // Continue with local logout even if backend fails
+      }
     }
-  };
 
-  const refreshToken = async () => {
-    try {
-      const response = await axios.post(`${API_URL}/auth/refresh`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      const { accessToken: newToken } = response.data;
-      await AsyncStorage.setItem('authToken', newToken);
-      setToken(newToken);
-      
-      return true;
-    } catch (error) {
-      console.error('Token refresh error:', error);
+    // Clear all local storage
+    await AsyncStorage.removeItem('authToken');
+    await AsyncStorage.removeItem('user');
+    await AsyncStorage.removeItem('refreshToken');
+    await AsyncStorage.removeItem('driverProfile');
+    await AsyncStorage.removeItem('passengerProfile');
+    
+    // Clear all state
+    setToken(null);
+    setUser(null);
+    setDriver(null);
+    setPassenger(null);
+
+    console.log('✅ User logged out successfully');
+  } catch (error) {
+    console.error('Logout error:', error);
+    // Force local logout even if something fails
+    setToken(null);
+    setUser(null);
+    setDriver(null);
+    setPassenger(null);
+  }
+};
+
+const getCurrentUser = async () => {
+  try {
+    if (!token) return;
+    
+    // Get user role from stored data to determine correct endpoint
+    const storedUser = await AsyncStorage.getItem('user');
+    if (!storedUser) return;
+    
+    const userData = JSON.parse(storedUser);
+    const roles = userData.roles || [];
+    
+    let endpoint = '/profile';
+    if (roles.includes('driver')) {
+      endpoint = '/driver/profile';
+    } else if (roles.includes('passenger')) {
+      endpoint = '/passenger/profile';
+    }
+    
+    const response = await axios.get(`${API_URL}${endpoint}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    const updatedUserData = response.data.user;
+    await AsyncStorage.setItem('user', JSON.stringify(updatedUserData));
+    setUser(updatedUserData);
+  } catch (error: any) {
+    console.error('Get current user error:', error.response?.status, error.message);
+    // Don't throw - user data is already loaded from login
+  }
+};
+
+// ✅ FIX: Implement proper refresh token handling for mobile
+const refreshToken = async () => {
+  try {
+    const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
+    if (!storedRefreshToken) {
+      console.warn('No refresh token available');
       return false;
     }
-  };
 
-  const getCurrentUser = async () => {
-    try {
-      if (!token) return;
-      
-      const response = await axios.get(`${API_URL}/user/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      const userData = response.data.user;
-      await AsyncStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
-    } catch (error) {
-      console.error('Get current user error:', error);
-    }
-  };
+    const response = await axios.post(
+      `${API_URL}/auth/refresh-mobile`, 
+      { refreshToken: storedRefreshToken }
+    );
+    
+    const { accessToken: newToken } = response.data;
+    await AsyncStorage.setItem('authToken', newToken);
+    setToken(newToken);
+    
+    console.log('✅ Token refreshed successfully');
+    return true;
+  } catch (error: any) {
+    console.error('Token refresh error:', error.message);
+    // If refresh fails, logout user
+    await logout();
+    return false;
+  }
+};
 
 
 const uploadImageToCloudinary = async (
