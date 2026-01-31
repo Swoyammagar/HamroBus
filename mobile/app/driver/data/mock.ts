@@ -1,3 +1,14 @@
+type BusStopStatus = 'completed' | 'active' | 'upcoming';
+
+interface BusStop {
+  id: number;
+  name: string;
+  status: BusStopStatus;
+  passengers: number;
+  time: string;
+  latitude: number;
+  longitude: number;
+}
 export const currentTrip = {
   route: 'Route 42 - Downtown Express',
   startTime: '2:30 PM',
@@ -22,26 +33,41 @@ export const stats = [
 ];
 
 // UPDATED: Now includes lat/lng coordinates
-export const busStops = [
-  { id: 1, name: 'Central Station', status: 'completed', passengers: 8, time: '2:30 PM', latitude: 40.7489, longitude: -73.9680 },
-  { id: 2, name: 'Market Square', status: 'completed', passengers: 5, time: '2:42 PM', latitude: 40.7505, longitude: -73.9776 },
-  { id: 3, name: 'City Library', status: 'active', passengers: 0, time: '2:55 PM', latitude: 40.7532, longitude: -73.9822 },
-  { id: 4, name: 'City Mall', status: 'upcoming', passengers: 0, time: '3:08 PM', latitude: 40.7614, longitude: -73.9776 },
-  { id: 5, name: 'Hospital', status: 'upcoming', passengers: 0, time: '3:20 PM', latitude: 40.7689, longitude: -73.9642 },
-  { id: 6, name: 'University', status: 'upcoming', passengers: 0, time: '3:35 PM', latitude: 40.8075, longitude: -73.9626 },
-  { id: 7, name: 'Downtown Hub', status: 'upcoming', passengers: 0, time: '4:15 PM', latitude: 40.7128, longitude: -74.0060 },
+export const busStops: BusStop[] = [
+  { id: 1, name: 'Naya Bus Park (Gongabu)', status: 'completed', passengers: 12, time: '08:00 AM', latitude: 27.7260, longitude: 85.3310 },
+  { id: 2, name: 'Syuchatar Stop', status: 'completed', passengers: 7, time: '08:15 AM', latitude: 27.6991, longitude: 85.2814 },
+  { id: 3, name: 'Bafal Stop', status: 'completed', passengers: 5, time: '08:25 AM', latitude: 27.7002, longitude: 85.2818 },
+  { id: 4, name: 'Kalanki Bus Stop', status: 'active', passengers: 10, time: '08:40 AM', latitude: 27.7160, longitude: 85.2760 },
+  { id: 5, name: 'Satdobato Stop', status: 'upcoming', passengers: 0, time: '08:55 AM', latitude: 27.6662, longitude: 85.3080 },
+  { id: 6, name: 'Koteshwor Stop', status: 'upcoming', passengers: 0, time: '09:10 AM', latitude: 27.7150, longitude: 85.3230 },
+  { id: 7, name: 'Sinamangal Stop', status: 'upcoming', passengers: 0, time: '09:25 AM', latitude: 27.7062, longitude: 85.3278 },
+  { id: 8, name: 'Chabahil Bus Stop', status: 'upcoming', passengers: 0, time: '09:40 AM', latitude: 27.7103, longitude: 85.3272 },
 ];
 
 // Route polyline coordinates connecting all stops
 export const routePolyline = [
-  { latitude: 40.7489, longitude: -73.9680 },
-  { latitude: 40.7505, longitude: -73.9776 },
-  { latitude: 40.7532, longitude: -73.9822 },
-  { latitude: 40.7614, longitude: -73.9776 },
-  { latitude: 40.7689, longitude: -73.9642 },
-  { latitude: 40.8075, longitude: -73.9626 },
-  { latitude: 40.7128, longitude: -74.0060 },
+  // Naya Bus Park (Gongabu)
+  { latitude: 27.7260, longitude: 85.3310 },
+
+  // Balaju area
+  { latitude: 27.7215, longitude: 85.3050 },
+
+  // Kalanki
+  { latitude: 27.7160, longitude: 85.2760 },
+
+  // Satdobato
+  { latitude: 27.6662, longitude: 85.3080 },
+
+  // Koteshwor
+  { latitude: 27.7150, longitude: 85.3230 },
+
+  // Sinamangal
+  { latitude: 27.7062, longitude: 85.3278 },
+
+  // Chabahil
+  { latitude: 27.7103, longitude: 85.3272 },
 ];
+
 
 export const schedules = {
   today: [
