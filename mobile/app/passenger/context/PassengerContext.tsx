@@ -82,13 +82,14 @@ export interface Review {
 
 export interface PassengerProfile {
   id: string;
+  passengerId: string;
   name: string;
   email: string;
   phone: string;
   profilePicture?: string;
-  totalTrips: number;
-  totalSpent: number;
-  averageRating: number;
+  totalTrips?: number;
+  totalSpent?: number;
+  averageRating?: number;
   memberSince: string;
 }
 

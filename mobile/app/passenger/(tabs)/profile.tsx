@@ -1,3 +1,4 @@
+// mobile/app/passenger/(tabs)/profile.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -8,30 +9,69 @@ import {
   Alert,
   Image,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { usePassenger } from '../context/PassengerContext';
-import { mockProfileData } from '../utils/mockData';
 import { formatDate } from '../utils/helpers';
+import { useAuth } from '@/app/context/AuthContext';
+import axios from 'axios';
+
+const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://10.0.2.2:3000/api';
 
 const Profile = () => {
   const router = useRouter();
   const { profile, setProfile } = usePassenger();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { logout, user, passenger, token } = useAuth();
 
   useEffect(() => {
-    if (!profile) {
-      setProfile(mockProfileData);
-    }
+    fetchPassengerProfile();
   }, []);
+
+  const fetchPassengerProfile = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API_URL}/passenger/profile`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const { user: userData, passenger: passengerData } = response.data;
+
+      // Map to PassengerProfile format
+      const profileData = {
+        id: userData._id,
+        name: `${userData.firstName} ${userData.lastName}`,
+        email: userData.email,
+        phone: userData.phoneNumber || 'N/A',
+        profilePicture: userData.profileImgUrl,
+        totalTrips: 0, // These will come from bookings
+        totalSpent: 0,
+        averageRating: 0,
+        memberSince: userData.createdAt || new Date().toISOString(),
+        passengerId: passengerData.passengerId,
+      };
+
+      setProfile(profileData);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      Alert.alert('Error', 'Failed to load profile data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       {
         text: 'Logout',
-        onPress: () => {
+        onPress: async () => {
+          await logout();
           Alert.alert('Success', 'You have been logged out');
           router.push('/pages/mobilelogin');
         },
@@ -45,7 +85,26 @@ const Profile = () => {
     Alert.alert('Edit Profile', 'Profile editing feature coming soon');
   };
 
-  const profileData = profile || mockProfileData;
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </View>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Ionicons name="alert-circle" size={48} color="#ef4444" />
+        <Text style={styles.errorText}>Failed to load profile</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={fetchPassengerProfile}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -57,14 +116,21 @@ const Profile = () => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Profile Card */}
         <View style={styles.profileCard}>
-          <View style={styles.profileAvatar}>
-            <Ionicons name="person-circle" size={80} color="#3b82f6" />
-          </View>
+          {profile.profilePicture ? (
+            <Image source={{ uri: profile.profilePicture }} style={styles.profileImage} />
+          ) : (
+            <View style={styles.profileAvatar}>
+              <Ionicons name="person-circle" size={80} color="#3b82f6" />
+            </View>
+          )}
 
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{profileData.name}</Text>
-            <Text style={styles.profileEmail}>{profileData.email}</Text>
-            <Text style={styles.profilePhone}>{profileData.phone}</Text>
+            <Text style={styles.profileName}>{profile.name}</Text>
+            <Text style={styles.profileEmail}>{profile.email}</Text>
+            <Text style={styles.profilePhone}>{profile.phone}</Text>
+            {profile.passengerId && (
+              <Text style={styles.profileId}>ID: {profile.passengerId}</Text>
+            )}
           </View>
 
           <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
@@ -78,7 +144,7 @@ const Profile = () => {
             <View style={styles.statIcon}>
               <Ionicons name="bus-outline" size={24} color="#3b82f6" />
             </View>
-            <Text style={styles.statValue}>{profileData.totalTrips}</Text>
+            <Text style={styles.statValue}>{profile.totalTrips}</Text>
             <Text style={styles.statLabel}>Total Trips</Text>
           </View>
 
@@ -86,7 +152,7 @@ const Profile = () => {
             <View style={styles.statIcon}>
               <Ionicons name="wallet-outline" size={24} color="#10b981" />
             </View>
-            <Text style={styles.statValue}>Rs. {profileData.totalSpent}</Text>
+            <Text style={styles.statValue}>Rs. {profile.totalSpent}</Text>
             <Text style={styles.statLabel}>Total Spent</Text>
           </View>
 
@@ -94,7 +160,7 @@ const Profile = () => {
             <View style={styles.statIcon}>
               <Ionicons name="star-outline" size={24} color="#f59e0b" />
             </View>
-            <Text style={styles.statValue}>{profileData.averageRating}</Text>
+            <Text style={styles.statValue}>{profile.averageRating || 'N/A'}</Text>
             <Text style={styles.statLabel}>Avg Rating</Text>
           </View>
         </View>
@@ -224,14 +290,14 @@ const Profile = () => {
           <View style={styles.infoBox}>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Member Since</Text>
-              <Text style={styles.infoValue}>{formatDate(profileData.memberSince)}</Text>
+              <Text style={styles.infoValue}>{formatDate(profile.memberSince)}</Text>
             </View>
 
             <View style={styles.infoDivider} />
 
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Account ID</Text>
-              <Text style={styles.infoValue}>{profileData.id}</Text>
+              <Text style={styles.infoValue}>{profile.id}</Text>
             </View>
 
             <View style={styles.infoDivider} />
@@ -262,6 +328,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9fafb',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  errorText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#ef4444',
+    fontWeight: '600',
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: '#3b82f6',
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   header: {
     backgroundColor: '#1f2937',
@@ -295,6 +388,12 @@ const styles = StyleSheet.create({
   profileAvatar: {
     marginBottom: 16,
   },
+  profileImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 16,
+  },
   profileInfo: {
     alignItems: 'center',
     marginBottom: 16,
@@ -313,6 +412,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
     marginTop: 2,
+  },
+  profileId: {
+    fontSize: 11,
+    color: '#3b82f6',
+    marginTop: 4,
+    fontWeight: '600',
   },
   editButton: {
     position: 'absolute',
