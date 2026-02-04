@@ -282,4 +282,5 @@ export const mockProfileData: PassengerProfile = {
   totalSpent: 12500,
   averageRating: 4.5,
   memberSince: '2023-06-15',
+  passengerId: 'passenger1',
 };
