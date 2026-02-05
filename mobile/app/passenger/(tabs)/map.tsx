@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,14 @@ import {
   Modal,
   TextInput,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { usePassenger, type Route } from '../context/PassengerContext';
 import { mockRoutesData, mockBusesData } from '../utils/mockData';
+import PassengerMap from '../components/PassengerMap';
+import { useDriverTracking } from '../hooks/useDriverTracking';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -24,11 +27,19 @@ interface Location {
 
 const MapTab = () => {
   const router = useRouter();
-  const { setSelectedRoute, routes } = usePassenger();
+  const { setSelectedRoute, routes, selectedBus } = usePassenger();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [locationModal, setLocationModal] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'nearby'>('nearby');
+  const [selectedRouteForMap, setSelectedRouteForMap] = useState<Route | null>(null);
+  const [showMap, setShowMap] = useState(false);
+
+  // Enable tracking when a bus is selected
+  const { driverLocation, isConnected, error: trackingError } = useDriverTracking({
+    busId: selectedBus?.id || null,
+    enabled: !!selectedBus && showMap,
+  });
 
   const commonLocations = [
     { id: 1, name: 'Kathmandu City Center', category: 'hub' },
@@ -50,11 +61,67 @@ const MapTab = () => {
 
   const handleRoutePress = (route: Route) => {
     setSelectedRoute(route);
-    router.push({
-      pathname: '../screens/route-map',
-      params: { routeId: route.id },
-    });
+    setSelectedRouteForMap(route);
+    setShowMap(true);
   };
+
+  const handleBackToList = () => {
+    setShowMap(false);
+    setSelectedRouteForMap(null);
+  };
+
+  useEffect(() => {
+    if (trackingError) {
+      Alert.alert('Tracking Error', trackingError);
+    }
+  }, [trackingError]);
+
+  if (showMap && selectedRouteForMap) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleBackToList} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>{selectedRouteForMap.name}</Text>
+            <Text style={styles.headerSubtitle}>
+              {isConnected ? '🟢 Live Tracking' : '⚪ Not Connected'}
+            </Text>
+          </View>
+        </View>
+
+        <PassengerMap
+          busStops={selectedRouteForMap.stops}
+          routePolyline={selectedRouteForMap.stops.map(stop => ({
+            latitude: stop.latitude,
+            longitude: stop.longitude,
+          }))}
+          busLocation={driverLocation ? {
+            busId: driverLocation.busId,
+            latitude: driverLocation.latitude,
+            longitude: driverLocation.longitude,
+            heading: driverLocation.heading,
+          } : null}
+          showUserLocation={false}
+        />
+
+        {driverLocation && (
+          <View style={styles.trackingInfo}>
+            <View style={styles.trackingBadge}>
+              <Ionicons name="location" size={16} color="#ef4444" />
+              <Text style={styles.trackingText}>
+                Speed: {Math.round(driverLocation.speed)} km/h
+              </Text>
+            </View>
+            <Text style={styles.trackingTime}>
+              Updated: {new Date(driverLocation.timestamp).toLocaleTimeString()}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -63,13 +130,13 @@ const MapTab = () => {
         <Text style={styles.headerSubtitle}>Find routes near you</Text>
       </View>
 
-      {/* Map Area */}
+      {/* Map Preview Area */}
       <View style={styles.mapArea}>
         <View style={styles.mapPlaceholder}>
           <Ionicons name="map" size={64} color="#d1d5db" />
-          <Text style={styles.mapPlaceholderText}>Interactive Map View</Text>
+          <Text style={styles.mapPlaceholderText}>Select a route to view map</Text>
           <Text style={styles.mapPlaceholderSubtext}>
-            Select a location to see available routes
+            Live bus tracking available
           </Text>
 
           {selectedLocation && (
@@ -261,6 +328,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 20,
     paddingTop: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    marginRight: 12,
+    padding: 8,
+  },
+  headerContent: {
+    flex: 1,
   },
   headerTitle: {
     fontSize: 28,
@@ -427,6 +503,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9ca3af',
     marginTop: 8,
+  },
+  trackingInfo: {
+    position: 'absolute',
+    top: 100,
+    right: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  trackingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  trackingText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginLeft: 6,
+  },
+  trackingTime: {
+    fontSize: 10,
+    color: '#6b7280',
   },
   modalContainer: {
     flex: 1,
