@@ -24,9 +24,38 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
   
+  // Admin room
   socket.on('join-admin', () => {
     socket.join('admin-room');
     console.log('Admin joined room');
+  });
+  
+  // Driver location broadcasting
+  socket.on('driver:share-location', (data) => {
+    const { busId, driverId, latitude, longitude, heading, speed } = data;
+    console.log(`📍 Driver ${driverId} location:`, { latitude, longitude });
+    
+    // Broadcast to all passengers tracking this bus
+    io.to(`bus:${busId}`).emit('driver:location-update', {
+      busId,
+      driverId,
+      latitude,
+      longitude,
+      heading: heading || 0,
+      speed: speed || 0,
+      timestamp: new Date().toISOString(),
+    });
+  });
+  
+  // Passenger tracking
+  socket.on('passenger:track-bus', ({ busId }) => {
+    console.log(`🚌 Passenger ${socket.id} tracking bus ${busId}`);
+    socket.join(`bus:${busId}`);
+  });
+  
+  socket.on('passenger:stop-tracking', ({ busId }) => {
+    console.log(`🛑 Passenger ${socket.id} stopped tracking bus ${busId}`);
+    socket.leave(`bus:${busId}`);
   });
   
   socket.on('disconnect', () => {
