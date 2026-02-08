@@ -1,31 +1,19 @@
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import Header from '../src/components/Header';
-import Sidebar, { MenuKey } from '../src/components/Sidebar';
-import { Buses } from '../src/components/pages/Buses';
-import { Drivers } from '../src/components/pages/Drivers';
-import Routes from '../src/components/pages/Routes';
-import Schedules from '../src/components/pages/Schedules';
-import Settings from '../src/components/pages/Settings';
-import Analytics from '../src/components/pages/Analytics';
-import Notifications from '../src/components/pages/Notifications';
-import Dashboard from '../src/components/pages/Dashboard';
 import { Stack } from 'expo-router';
-import RequireAuth from '../src/components/RequireAuth';
+import { RequireAuth } from '../components/auth';
+import { DashboardLayout, type MenuKey } from '../components/layout';
+import { Buses } from '../src/mainPages/Buses';
+import  Drivers  from '../src/mainPages/Drivers';
+import Routes from '../src/mainPages/Routes';
+import Schedules from '../src/mainPages/Schedules';
+import Settings from '../src/mainPages/Settings';
+import Analytics from '../src/mainPages/Analytics';
+import Notifications from '../src/mainPages/Notifications';
+import Dashboard from '../src/mainPages/Dashboard';
 
 export default function DashboardPage() {
   const [selected, setSelected] = useState<MenuKey>('dashboard');
-
-  const pageTitleMap: Record<MenuKey, string> = {
-    dashboard: 'Dashboard',
-    buses: 'Buses',
-    drivers: 'Drivers',
-    routes: 'Routes',
-    schedules: 'Schedules',
-    settings: 'Settings',
-    analytics: 'Analytics',
-    notifications: 'Notifications'
-  };
 
   const renderContent = () => {
     switch (selected) {
@@ -46,7 +34,7 @@ export default function DashboardPage() {
       case 'settings':
         return <Settings />;
       default:
-        return <Buses />;
+        return <Dashboard />;
     }
   };
 
@@ -55,13 +43,12 @@ export default function DashboardPage() {
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.page}>
-          <View style={styles.body}>
-            <Sidebar onSelect={(k) => setSelected(k)} />
-            <View style={styles.content}>
-              <Header title={pageTitleMap[selected] ?? 'Dashboard'} onSelect={(k) => setSelected(k)} />
-              <View style={styles.innerContent}>{renderContent()}</View>
-            </View>
-          </View>
+          <DashboardLayout
+            selectedPage={selected}
+            onPageChange={setSelected}
+          >
+            {renderContent()}
+          </DashboardLayout>
         </View>
       </>
     </RequireAuth>
@@ -73,16 +60,4 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc'
   },
-  body: {
-    flex: 1,
-    flexDirection: 'row'
-  },
-  content: {
-    flex: 1,
-    backgroundColor: '#fff'
-  }
-  ,innerContent: {
-    flex: 1,
-    padding: 12
-  }
 });

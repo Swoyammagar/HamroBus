@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { Text, View, Image, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Stack, router } from "expo-router";
+import { useAuth } from "../context/AuthContext";
+import { AuthLayout, AuthHeader } from "../components/auth";
+import { Input, Button } from "../components/ui";
 import mainLogo from "../utils/MainLogo.png";
 import ResetPassword_icon from "../utils/Resetpassword.png";
-import { useAuth } from "../src/context/AuthContext";
 
 const ResetPassword: React.FC = () => {
   const { passwordResetEmail } = useAuth();
@@ -39,79 +41,71 @@ const ResetPassword: React.FC = () => {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={{ flexGrow: 1, backgroundColor: "#f9f9f9" }}>
-        <View className="flex-1 min-h-screen bg-[#f9f9f9] items-center px-6 py-10">
-          
-          {/* Content Wrapper */}
-          <View className="w-full mt-6 flex-col lg:flex-row items-center justify-between max-w-[1200px]">
-            
-            {/* Left Side */}
-            <View style={{ width: "100%", maxWidth: 510 }}>
-              
-              {/* Logo above Forgot Password */}
-              <View style={{ marginBottom: 40 }}>
-                <Image
-                  source={mainLogo}
-                  style={{ width: 180, height: 80, resizeMode: "contain" }}
-                />
-              </View>
+      <AuthLayout illustration={ResetPassword_icon}>
+        <AuthHeader
+          logo={mainLogo}
+          title="Forgot Your Password?"
+          highlightedWord="Password?"
+        />
 
-              {/* Heading */}
-              <View className="flex-row mb-4">
-                <Text className="text-4xl font-medium text-black">Forgot Your</Text>
-                <Text className="text-4xl font-medium text-[#27AE60] ml-2">Password?</Text>
-              </View>
+        {error && <Text style={styles.error}>{error}</Text>}
+        {success && <Text style={styles.success}>{success}</Text>}
 
-              {error ? <Text className="text-red-500 text-sm mb-4">{error}</Text> : null}
-              {success ? <Text className="text-green-500 text-sm mb-4">{success}</Text> : null}
+        <Input
+          label="Email Address"
+          type="email"
+          placeholder="Enter your email address"
+          value={email}
+          onChangeText={setEmail}
+          editable={!isLoading}
+          error={error && !email ? "Email is required" : undefined}
+        />
 
-              <Text className="text-lg font-medium text-[#333] mt-3 mb-1">Email Address</Text>
-              <TextInput
-                value={email}
-                onChangeText={(text) => setEmail(text)}
-                placeholder="Enter your email address"
-                keyboardType="email-address"
-                editable={!isLoading}
-                className="w-full border border-gray-400 rounded-md p-3 bg-white text-black"
-              />
+        <Button
+          onPress={handleResetPassword}
+          disabled={isLoading}
+          loading={isLoading}
+          fullWidth
+          size="lg"
+          style={styles.button}
+        >
+          Send Reset Link
+        </Button>
 
-              <View className="flex-col items-center mt-5 space-y-4">
-                <TouchableOpacity
-                  onPress={handleResetPassword}
-                  disabled={isLoading}
-                  className="w-full h-[50px] bg-[#27AE60] rounded-lg justify-center items-center"
-                >
-                  {isLoading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text className="text-white font-medium text-lg">Send Reset Link</Text>
-                  )}
-                </TouchableOpacity>
-
-                <Text className="text-sm text-[#333]">
-                  Remember your password?{" "}
-                  <Text
-                    onPress={() => router.push("/pages/login")}
-                    className="text-[#27AE60] underline"
-                  >
-                    Login
-                  </Text>
-                </Text>
-              </View>
-            </View>
-
-            {/* Right Side Illustration */}
-            <View style={{ marginTop: 10, marginLeft: -40 }}>
-              <Image
-                source={ResetPassword_icon}
-                style={{ width: 460, height: 500, resizeMode: "contain" }} // bigger size
-              />
-            </View>
-          </View>
-        </View>
-      </ScrollView>
+        <Text style={styles.footer}>
+          Remember your password?{" "}
+          <TouchableOpacity onPress={() => router.push("/pages/login")}>
+            <Text style={styles.link}>Login</Text>
+          </TouchableOpacity>
+        </Text>
+      </AuthLayout>
     </>
   );
 };
+
+const styles = StyleSheet.create({
+  error: {
+    color: '#ef4444',
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  success: {
+    color: '#10b981',
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  button: {
+    marginBottom: 16,
+  },
+  footer: {
+    fontSize: 14,
+    color: '#333333',
+    textAlign: 'center',
+  },
+  link: {
+    color: '#27AE60',
+    textDecorationLine: 'underline',
+  },
+});
 
 export default ResetPassword;

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { drivers } from '../data/dummyData';
+import { SearchBar, Card, StatusBadge } from '../../components/ui';
 
 const Analytics = () => {
     const [query, setQuery] = React.useState<string>('');
@@ -49,7 +50,7 @@ const Analytics = () => {
           <Text style={styles.sectionTitle}>🏆 Driver Leaderboard</Text>
           <ScrollView showsVerticalScrollIndicator={false}>
             {sortedDrivers.map((driver, index) => (
-              <View key={driver._id} style={[styles.card, index < 3 && styles.topRank]}>
+              <Card key={driver._id} padding="md" style={[styles.driverCard, index < 3 && styles.topRank].filter(Boolean)}>
                 <View style={styles.rankBadge}>
                   <Text style={styles.rankText}>{index + 1}</Text>
                 </View>
@@ -57,10 +58,8 @@ const Analytics = () => {
                   <Text style={styles.driverName}>{driver.name}</Text>
                   <Text style={styles.driverRating}>⭐ {driver.rating.toFixed(1)}</Text>
                 </View>
-                <View style={styles.rideBadge}>
-                  <Text style={styles.rideText}>{driver.totalReviews} Rides</Text>
-                </View>
-              </View>
+                <StatusBadge label={`${driver.totalReviews} Rides`} variant="info" />
+              </Card>
             ))}
           </ScrollView>
         </View>
@@ -68,26 +67,23 @@ const Analytics = () => {
         {/* RIGHT PANE — LATEST REVIEWS */}
         <View style={styles.rightPane}>
           <Text style={styles.sectionTitle}>🗒️ Latest Reviews</Text>
-            <TextInput
-                style={styles.searchInput}
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Search reviews..."
-                placeholderTextColor="#9ca3af"
-            />
+          <SearchBar
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search reviews..."
+            onClear={() => setQuery('')}
+          />
           <ScrollView showsVerticalScrollIndicator={false}>
             {sortedReviews.map((review, index) => (
-              <View key={index} style={styles.reviewCard}>
+              <Card key={index} padding="md" style={styles.reviewCard}>
                 <Text style={styles.reviewDriver}>{review.driverName}</Text>
                 <Text style={styles.reviewText}>"{review.comment}"</Text>
                 <Text style={styles.reviewerName}>— {review.passengerName || 'Anonymous'}</Text>
                 <View style={styles.reviewFooter}>
-                  <View style={styles.ratingBadge}>
-                    <Text style={styles.ratingText}>⭐ {review.rating}</Text>
-                  </View>
+                  <StatusBadge label={`⭐ ${review.rating}`} variant="info" />
                   <Text style={styles.dateText}>{formatDate(review.date)}</Text>
                 </View>
-              </View>
+              </Card>
             ))}
           </ScrollView>
         </View>
@@ -97,7 +93,6 @@ const Analytics = () => {
 };
 
 const styles = StyleSheet.create({
-  // Layout
   container: {
     flex: 1,
     padding: 16,
@@ -108,18 +103,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
   },
-
-  // Left Pane (Leaderboard)
   leftPane: {
     flex: 1,
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
     height: 560,
   },
   sectionTitle: {
@@ -128,17 +116,10 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 12,
   },
-  card: {
+  driverCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    borderRadius: 10,
-    padding: 12,
     marginBottom: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 1,
   },
   topRank: {
     backgroundColor: '#ecfdf5',
@@ -167,35 +148,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
-  rideBadge: {
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  rideText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-
-  // Right Pane (Reviews)
   rightPane: {
     width: 360,
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
     height: 560,
   },
   reviewCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 10,
-    padding: 12,
     marginBottom: 10,
     borderLeftWidth: 4,
     borderLeftColor: '#3b82f6',
@@ -221,24 +181,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  ratingBadge: {
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 6,
-  },
-  ratingText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 13,
-  },
   dateText: {
     color: '#6b7280',
     fontSize: 12,
     fontStyle: 'italic',
   },
-  searchInput:{ marginBottom: 12, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, color: '#111827' },
-
 });
 
 export default Analytics;

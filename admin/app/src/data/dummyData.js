@@ -431,7 +431,14 @@ export const notifications = [
   { _id: 'ntf_6', sentby:'driver', title: 'Safety Protocols', message: 'Please adhere to the new safety protocols while on duty', target: 'admin', createdAt: new Date().toISOString() },
   { _id: 'ntf_7', sentby:'admin', title: 'Feedback Request', message: 'Please provide feedback on your recent ride experience', target: 'passengers', createdAt: new Date().toISOString() },
   { _id: 'ntf_8', sentby:'admin', title: 'Holiday Schedule', message: 'Check out the special holiday schedule for buses during the festive season', target: 'all', createdAt: new Date().toISOString() },
+  { _id: 'ntf_9', sentby:'admin', title: 'Route Change', message: 'Route R2 will be temporarily changed due to road work', target: 'passengers', createdAt: new Date().toISOString() },
+  { _id: 'ntf_10', sentby:'admin', title: 'New Feature', message: 'We have added a new feature to track bus locations in real-time', target: 'all', createdAt: new Date().toISOString() },
+  { _id: 'ntf_11', sentby:'driver', title: 'Delay Alert', message: 'Bus BA 3 KHA 1234 is delayed by 15 minutes due to traffic', target: 'passengers', createdAt: new Date().toISOString() },
+  { _id: 'ntf_12', sentby:'driver', title: 'Safety Protocols', message: 'Please adhere to the new safety protocols while on duty', target: 'admin', createdAt: new Date().toISOString() },
+  { _id: 'ntf_13', sentby:'admin', title: 'Feedback Request', message: 'Please provide feedback on your recent ride experience', target: 'passengers', createdAt: new Date().toISOString() },
+  { _id: 'ntf_14', sentby:'admin', title: 'Holiday Schedule', message: 'Check out the special holiday schedule for buses during the festive season', target: 'all', createdAt: new Date().toISOString() },
 ];
+
 
 export function findDriverById(id) {
   return drivers.find(d => d._id === id) || null;

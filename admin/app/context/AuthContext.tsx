@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import axios from 'axios';
-import type { AdminUser, ApiResponse, LoginResponse } from '../types/auth.d';
+import type { AdminUser, ApiResponse, LoginResponse } from '../src/types/auth';
 
 type AuthContextValue = {
   user: AdminUser | null;

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
-import { useAuth } from "./src/context/AuthContext";
+import { useAuth } from "./context/AuthContext";
 
 export default function Index() {
   const { validateToken } = useAuth();

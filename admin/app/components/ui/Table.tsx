@@ -93,60 +93,101 @@ export function Table<T>({
   );
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      <View style={styles.table}>
-        {renderHeader()}
-        <FlatList
-          data={data}
-          renderItem={renderRow}
-          keyExtractor={keyExtractor}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          ListEmptyComponent={renderEmpty}
-          scrollEnabled={false}
-        />
-      </View>
-    </ScrollView>
+    <View style={styles.tableWrapper}>
+      <ScrollView 
+        showsVerticalScrollIndicator={true}
+        scrollEnabled={true}
+        contentContainerStyle={styles.verticalScrollContent}
+      >
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.horizontalScroll}
+          contentContainerStyle={styles.horizontalScrollContent}
+        >
+          <View style={styles.tableContainer}>
+            {renderHeader()}
+            <FlatList
+              data={data}
+              renderItem={renderRow}
+              keyExtractor={keyExtractor}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              ListEmptyComponent={renderEmpty}
+              scrollEnabled={false}
+            />
+          </View>
+        </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  table: {
+  tableWrapper: {
+    flex: 1,
+    width: '100%',
+  },
+  verticalScrollContent: {
+    flexGrow: 1,
+  },
+  horizontalScroll: {
+    width: '100%',
+  },
+  horizontalScrollContent: {
     minWidth: '100%',
   },
+  tableContainer: {
+    flex: 1,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+  },
+
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 48,
-  },
-  headerRow: {
-    backgroundColor: '#f9fafb',
-    borderBottomWidth: 2,
-    borderBottomColor: '#e5e7eb',
-  },
-  cell: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    justifyContent: 'center',
-  },
-  headerText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  cellText: {
-    fontSize: 14,
-    color: '#111827',
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#e5e7eb',
-  },
-  emptyContainer: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#9ca3af',
-  },
+  flexDirection: 'row',
+  alignItems: 'center',
+  minHeight: 52,
+},
+
+headerRow: {
+  backgroundColor: '#f9fafb',
+  borderBottomWidth: 1,
+  borderBottomColor: '#e5e7eb',
+},
+
+cell: {
+  paddingHorizontal: 14,
+  paddingVertical: 10,
+  justifyContent: 'center',
+},
+
+headerText: {
+  fontSize: 14,
+  fontWeight: '600',
+  color: '#374151',
+},
+
+cellText: {
+  fontSize: 14,
+  color: '#111827',
+},
+
+separator: {
+  height: 1,
+  backgroundColor: '#f1f5f9',
+},
+
+emptyContainer: {
+  padding: 40,
+  alignItems: 'center',
+},
+
+emptyText: {
+  fontSize: 14,
+  color: '#9ca3af',
+},
 });
+

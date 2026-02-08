@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { Text, View, Image, TouchableOpacity, TextInput, ScrollView, ActivityIndicator } from "react-native";
+import { Text, TouchableOpacity, StyleSheet } from "react-native";
+import { router, Stack } from "expo-router";
+import { useAuth } from "../context/AuthContext";
+import type { ApiResponse } from "../src/types/auth";
+import { AuthLayout, AuthHeader } from "../components/auth";
+import { Input, Button, Card } from "../components/ui";
 import LoginImage from "../utils/Login.png";
 import MainLogo from "../utils/MainLogo.png";
-import { router, Stack } from "expo-router";
-import { useAuth } from "../src/context/AuthContext";
-import type { ApiResponse } from "../src/types/auth";
-import { Eye, EyeOff } from "lucide-react-native";
 
 const Login = () => {
   const [email, setEmail] = useState<string>("");
@@ -13,16 +14,13 @@ const Login = () => {
   const [error, setError] = useState<string>("");
   const { login, loading } = useAuth();
   const [submitting, setSubmitting] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
-
     setError("");
     try {
       setSubmitting(true);
       const res: ApiResponse = await login(email, password);
       if (res.success) {
-        // navigate to dashboard on successful login
         router.push("/pages/dashboard");
       } else {
         setError(res.message || 'Login failed');
@@ -37,75 +35,77 @@ const Login = () => {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={{ flexGrow: 1, backgroundColor: "white" }}>
-        <View className="flex-1 min-h-screen justify-center items-center p-5" style={{ backgroundColor: "white" }}>
-          {/* Desktop Row Layout */}
-          <View className="flex-row justify-center items-center" style={{ maxWidth: 1000 }}>
-            
-            {/* Left Image */}
-            <View style={{ width: 450, justifyContent: "center", alignItems: "center" }}>
-              <Image source={LoginImage} resizeMode="contain" style={{ width: "100%", height: 400 }} />
-            </View>
+      <AuthLayout
+        illustration={LoginImage}
+        illustrationSize={{ width: 450, height: 400 }}
+      >
+        <Card style={styles.formCard}>
+          <AuthHeader
+            logo={MainLogo}
+            title="Login to Your Account"
+            highlightedWord="Account"
+          />
 
-            {/* Login Form */}
-            <View style={{ width: 400, marginLeft: 50, backgroundColor: "white", padding: 30, borderRadius: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 }}>
-              <View className="items-center mb-6">
-                <Image source={MainLogo} resizeMode="contain" style={{ width: 150, height: 70 }} />
-              </View>
+          {error && <Text style={styles.error}>{error}</Text>}
 
-              <Text className="text-3xl font-medium mb-6 text-center">
-                Login to Your <Text className="text-[#27AE60]">Account</Text>
-              </Text>
+          <Input
+            label="Email"
+            type="email"
+            placeholder="Enter your email"
+            value={email}
+            onChangeText={setEmail}
+            error={error && !email ? "Email is required" : undefined}
+          />
 
-              {error ? <Text className="text-red-500 mb-4 text-center">{error}</Text> : null}
+          <Input
+            label="Password"
+            type="password"
+            placeholder="Enter your password"
+            value={password}
+            onChangeText={setPassword}
+            error={error && !password ? "Password is required" : undefined}
+          />
 
-              <Text className="text-gray-700 mb-1">Email</Text>
-              <TextInput
-                className="rounded-lg shadow p-3 mb-4 border border-gray-300 w-full"
-                placeholder="Enter your email"
-                keyboardType="email-address"
-                value={email}
-                onChangeText={(text) => setEmail(text)}
-              />
-            
-              <View className="flex-row justify-between items-center mb-1">
-                <Text className="text-gray-700">Password</Text>
-                <Text onPress={()=>router.push("/pages/resetPassword")} className="text-gray-400 text-xs">Forgot Password?</Text>
-              </View>
-              <View className="relative">
-                <TextInput
-                  secureTextEntry={!showPassword}
-                  className="rounded-lg shadow p-3 mb-4 border border-gray-300 w-full"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChangeText={(text) => setPassword(text)}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={{ position: "absolute", right: 10, top: 15 }}
-                >
-                  {showPassword ? <EyeOff size={20} color="gray" /> : <Eye size={20} color="gray" />}
-                </TouchableOpacity>
-              </View>
+          <TouchableOpacity
+            onPress={() => router.push("/pages/resetPassword")}
+            style={styles.forgotPassword}
+          >
+            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+          </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={handleLogin}
-                disabled={submitting || loading}
-                className="bg-green-500 rounded-lg p-3 items-center mb-4"
-                style={{ opacity: submitting || loading ? 0.6 : 1 }}
-              >
-                {submitting || loading ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text className="text-white font-medium text-lg">Login</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </ScrollView>
+          <Button
+            onPress={handleLogin}
+            disabled={submitting || loading}
+            loading={submitting || loading}
+            fullWidth
+            size="lg"
+          >
+            Login
+          </Button>
+        </Card>
+      </AuthLayout>
     </>
   );
 };
+
+const styles = StyleSheet.create({
+  formCard: {
+    padding: 30,
+  },
+  error: {
+    color: '#ef4444',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  forgotPassword: {
+    alignSelf: 'flex-end',
+    marginBottom: 20,
+    marginTop: -8,
+  },
+  forgotPasswordText: {
+    color: '#6b7280',
+    fontSize: 12,
+  },
+});
 
 export default Login;
