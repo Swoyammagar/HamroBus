@@ -50,20 +50,6 @@ const busSchema = new mongoose.Schema({
         type: Date,
         required: true
     },
-    owner: {
-        ownerName: {
-            type: String,
-            required: false
-        },
-        ownerContact: {
-            type: String,
-            required: false
-        },
-        ownerAddress: {
-            type: String,
-            required: false
-        }
-    },
 }, {
     timestamps: true
 });

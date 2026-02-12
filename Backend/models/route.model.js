@@ -28,6 +28,39 @@ const stopSchema = new mongoose.Schema({
     }
 }, { _id: false });
 
+const scheduleSchema = new mongoose.Schema({
+    dayOfWeek: {
+        type: String,
+        enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+        required: true
+    },
+    driverId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Driver',
+        required: true
+    },
+    busId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Bus',
+        required: true
+    },
+    startTime: {
+        type: String,
+        required: true,
+        description: "Format: HH:MM (24-hour)"
+    },
+    endTime: {
+        type: String,
+        required: true,
+        description: "Format: HH:MM (24-hour)"
+    },
+    notes: {
+        type: String,
+        required: false,
+        trim: true
+    }
+}, { timestamps: true });
+
 const routeSchema = new mongoose.Schema({
     routeNumber: {
         type: String,
@@ -94,6 +127,7 @@ const routeSchema = new mongoose.Schema({
         required: true,
         description: "Interval in minutes between buses"
     },
+    schedules: [scheduleSchema],
     fareInfo: {
         baseFare: {
             type: Number,
