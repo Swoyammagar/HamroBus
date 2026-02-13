@@ -7,11 +7,6 @@ const busSchema = new mongoose.Schema({
         unique: true,
         trim: true
     },
-    busId: {
-        type: String,
-        required: true,
-        unique: true
-    },
     model: {
         type: String,
         required: true,

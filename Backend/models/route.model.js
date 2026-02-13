@@ -73,11 +73,6 @@ const routeSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
-    routeId: {
-        type: String,
-        required: true,
-        unique: true
-    },
     source: {
         type: String,
         required: true,

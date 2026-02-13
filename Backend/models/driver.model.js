@@ -1,17 +1,47 @@
 const mongoose = require("mongoose");
 
 const driverSchema = new mongoose.Schema({
-    userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-        unique: true
+    // Personal Information
+    firstName: {
+        type: String,
+        required: true
     },
-    driverId: {
+    lastName: {
+        type: String,
+        required: true
+    },
+    email: {
         type: String,
         required: true,
         unique: true
     },
+    password: {
+        type: String,
+        required: true
+    },
+    phoneNumber: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    address: {
+        type: String,
+        required: false
+    },
+    gender: {
+        type: String,
+        required: false
+    },
+    dob: {
+        type: Date,
+        required: false
+    },
+    profileImgUrl: {
+        type: String,
+        required: false
+    },
+    
+    // Driver-specific Information
     licenseNo: {
         type: String,
         required: true,
@@ -22,11 +52,13 @@ const driverSchema = new mongoose.Schema({
         required: false
     },
     assignedBus: {
-        type: String,
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Bus',
         required: false
     },
     assignedRoute: {
-        type: String,
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Route',
         required: false
     },
     validationStatus: {
@@ -35,6 +67,28 @@ const driverSchema = new mongoose.Schema({
         default: 'pending'
     },
     isActive: {
+        type: Boolean,
+        default: false
+    },
+    
+    // Authentication & Security
+    otp: {
+        type: String,
+        required: false
+    },
+    otpExpiresAt: {
+        type: Date,
+        index: { expireAfterSeconds: 0 }
+    },
+    refreshToken: {
+        type: String,
+        default: null
+    },
+    isEmailVerified: {
+        type: Boolean,
+        default: false
+    },
+    passwordResetVerified: {
         type: Boolean,
         default: false
     }
