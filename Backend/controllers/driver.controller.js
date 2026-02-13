@@ -1,9 +1,10 @@
-const User = require('../models/user.model');
 const Driver = require('../models/driver.model');
 const Location = require('../models/location.model');
 const bcrypt = require('bcrypt');
 const { generateToken, generateRefreshToken } = require('../utils/authutils');
 const { sendEmail } = require('../utils/sendEmail');
+const { generateOTP } = require('../utils/OTPutils');
+const { sendVerificationEmail } = require('../utils/OTPutils');
 
 // Driver Registration
 const registerDriver = async (req, res) => {
@@ -17,8 +18,8 @@ const registerDriver = async (req, res) => {
         email,
         password,
         licenseNo,
-        profileImgUrl,   // ✅ NEW (Cloudinary URL)
-        licenseImgUrl    // ✅ NEW (Cloudinary URL)
+        profileImgUrl,
+        licenseImgUrl
     } = req.body;
 
     console.log("👉 DRIVER REGISTER HIT");
@@ -30,91 +31,59 @@ const registerDriver = async (req, res) => {
             return res.status(400).json({ message: "Missing required fields" });
         }
 
-        // ✅ NEW: Check if email is verified before registration
-        const existingUserForEmail = await User.findOne({ email });
-        if (!existingUserForEmail || !existingUserForEmail.isEmailVerified) {
+        // Check if email already exists
+        const existingDriver = await Driver.findOne({ email });
+        if (existingDriver) {
             return res.status(400).json({ 
-                message: "Email must be verified before registration",
-                error: 'EMAIL_NOT_VERIFIED'
+                message: "Driver with this email already exists"
             });
         }
 
-        // 1️⃣ Check if license already exists
+        // Check if phone number already exists
+        const existingPhone = await Driver.findOne({ phoneNumber });
+        if (existingPhone) {
+            return res.status(400).json({ message: "Phone number already in use" });
+        }
+
+        // Check if license already exists
         const existingLicense = await Driver.findOne({ licenseNo });
         if (existingLicense) {
             return res.status(400).json({ message: "License number already registered" });
         }
 
-        // 2️⃣ Use the verified user
-        let user = existingUserForEmail;
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        // ✅ Allow existing users (e.g., passengers) to add driver role
-        if (user.roles.includes('driver')) {
-            return res.status(400).json({
-                message: "Driver with this email already exists",
-            });
-        }
-
-        // 3️⃣ Check if driver profile already exists
-        const existingDriverProfile = await Driver.findOne({ userId: user._id });
-        if (existingDriverProfile) {
-            return res.status(400).json({ message: "Driver profile already exists for this user" });
-        }
-
-        // 2a. Add driver role to user
-        user.roles.push('driver');
-
-        // Update user details (only update if not already set or if explicitly provided)
-        if (!user.firstName || firstName) user.firstName = firstName;
-        if (!user.lastName || lastName) user.lastName = lastName;
-        if (!user.address || address) user.address = address;
-        if (!user.phoneNumber || phoneNumber) {
-            // Check if phone number is already taken by another user
-            const existingPhone = await User.findOne({ phoneNumber, _id: { $ne: user._id } });
-            if (existingPhone) {
-                return res.status(400).json({ message: "Phone number already in use" });
-            }
-            user.phoneNumber = phoneNumber;
-        }
-        if (!user.gender || gender) user.gender = gender;
-        if (!user.dob || dob) user.dob = dob;
-        if (!user.profileImgUrl || profileImgUrl) user.profileImgUrl = profileImgUrl || '';
-        
-        // Update password only if provided and user doesn't already have one
-        if (!user.password || password) {
-            const hashedPassword = await bcrypt.hash(password, 10);
-            user.password = hashedPassword;
-        }
-
-        user.otp = null; // Clear OTP after successful registration
-        
-        await user.save();
-
-        // 4️⃣ Generate unique driver ID
-        const driverId = `DRV${Date.now()}${Math.floor(Math.random() * 1000)}`;
-
-        // 5️⃣ Create Driver profile
+        // Create new driver
         const newDriver = new Driver({
-            userId: user._id,
-            driverId,
+            firstName,
+            lastName,
+            email,
+            password: hashedPassword,
+            phoneNumber,
+            address: address || '',
+            gender: gender || '',
+            dob: dob || null,
+            profileImgUrl: profileImgUrl || '',
             licenseNo,
-            licenseImgUrl: licenseImgUrl || '', // ✅ URL from mobile
+            licenseImgUrl: licenseImgUrl || '',
             validationStatus: 'pending',
-            isActive: false
+            isActive: false,
+            isEmailVerified: true // Since they completed OTP verification during signup
         });
 
         await newDriver.save();
 
-        // 6️⃣ Socket logic (UNCHANGED)
+        // Socket logic for admin notification
         const io = req.app.get('io');
         if (io) {
             io.to('admin-room').emit('new-driver-request', {
-                driverId: newDriver.driverId,
-                name: `${user.firstName} ${user.lastName}`,
-                email: user.email,
-                phoneNumber: user.phoneNumber,
+                driverId: newDriver._id.toString(),
+                name: `${newDriver.firstName} ${newDriver.lastName}`,
+                email: newDriver.email,
+                phoneNumber: newDriver.phoneNumber,
                 licenseNo: newDriver.licenseNo,
-                profileImg: user.profileImgUrl,
+                profileImg: newDriver.profileImgUrl,
                 licenseImg: newDriver.licenseImgUrl,
                 timestamp: new Date(),
             });
@@ -123,13 +92,12 @@ const registerDriver = async (req, res) => {
         res.status(201).json({
             message: "Driver registered successfully. Awaiting validation.",
             driver: {
-                id: user._id,
-                driverId,
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                phoneNumber: user.phoneNumber,
-                profileImgUrl: user.profileImgUrl,
+                id: newDriver._id,
+                email: newDriver.email,
+                firstName: newDriver.firstName,
+                lastName: newDriver.lastName,
+                phoneNumber: newDriver.phoneNumber,
+                profileImgUrl: newDriver.profileImgUrl,
                 validationStatus: 'pending',
                 licenseImgUrl: newDriver.licenseImgUrl
             }
@@ -151,22 +119,16 @@ const loginDriver = async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        // Find user with driver role
-        const user = await User.findOne({ email, roles: { $in: ['driver'] } });
-        if (!user) {
+        // Find driver by email
+        const driver = await Driver.findOne({ email });
+        if (!driver) {
             return res.status(404).json({ message: "Driver not found" });
         }
 
         // Verify password
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        const isPasswordValid = await bcrypt.compare(password, driver.password);
         if (!isPasswordValid) {
             return res.status(401).json({ message: "Invalid password" });
-        }
-
-        // Get driver profile
-        const driver = await Driver.findOne({ userId: user._id });
-        if (!driver) {
-            return res.status(404).json({ message: "Driver profile not found" });
         }
 
         // Check validation status
@@ -178,27 +140,27 @@ const loginDriver = async (req, res) => {
         }
 
         // Generate tokens
-        const accessToken = generateToken(user);
-        const refreshToken = generateRefreshToken(user);
+        const accessToken = generateToken(driver);
+        const refreshToken = generateRefreshToken(driver);
 
         // Save refresh token
-        user.refreshToken = refreshToken;
-        await user.save();
+        driver.refreshToken = refreshToken;
+        await driver.save();
 
         res.status(200).json({
             message: "Login successful",
             accessToken,
             refreshToken,
             user: {
-                id: user._id,
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                phoneNumber: user.phoneNumber,
-                roles: user.roles
+                id: driver._id,
+                email: driver.email,
+                firstName: driver.firstName,
+                lastName: driver.lastName,
+                phoneNumber: driver.phoneNumber,
+                profileImgUrl: driver.profileImgUrl
             },
             driver: {
-                driverId: driver.driverId,
+                id: driver._id,
                 licenseNo: driver.licenseNo,
                 assignedBus: driver.assignedBus,
                 assignedRoute: driver.assignedRoute,
@@ -216,13 +178,13 @@ const loginDriver = async (req, res) => {
 // Update Driver Location
 const updateDriverLocation = async (req, res) => {
     const { longitude, latitude, tripId } = req.body;
-    const userId = req.user.id; // From JWT middleware
+    const driverId = req.user.id; // From JWT middleware (now driver._id)
 
     try {
-        // Get driver profile
-        const driver = await Driver.findOne({ userId });
+        // Get driver
+        const driver = await Driver.findById(driverId);
         if (!driver) {
-            return res.status(404).json({ message: "Driver profile not found" });
+            return res.status(404).json({ message: "Driver not found" });
         }
 
         // Create location entry
@@ -239,7 +201,7 @@ const updateDriverLocation = async (req, res) => {
         res.status(200).json({
             message: "Location updated successfully",
             location: {
-                driverId: driver.driverId,
+                driverId: driver._id,
                 longitude,
                 latitude,
                 timestamp: location.timestamp
@@ -258,7 +220,7 @@ const getDriverLocationHistory = async (req, res) => {
     const { limit = 100 } = req.query;
 
     try {
-        const driver = await Driver.findOne({ driverId });
+        const driver = await Driver.findById(driverId);
         if (!driver) {
             return res.status(404).json({ message: "Driver not found" });
         }
@@ -268,7 +230,7 @@ const getDriverLocationHistory = async (req, res) => {
             .limit(parseInt(limit));
 
         res.status(200).json({
-            driverId: driver.driverId,
+            driverId: driver._id,
             locations
         });
 
@@ -280,19 +242,38 @@ const getDriverLocationHistory = async (req, res) => {
 
 // Get Driver Profile
 const getDriverProfile = async (req, res) => {
-    const userId = req.user.id; 
+    const driverId = req.user.id; // From JWT middleware
 
     try {
-        const user = await User.findById(userId).select('-password -refreshToken');
-        const driver = await Driver.findOne({ userId });
+        const driver = await Driver.findById(driverId).select('-password -refreshToken');
 
-        if (!user || !driver) {
-            return res.status(404).json({ message: "Driver profile not found" });
+        if (!driver) {
+            return res.status(404).json({ message: "Driver not found" });
         }
 
         res.status(200).json({
-            user,
-            driver
+            user: {
+                id: driver._id,
+                firstName: driver.firstName,
+                lastName: driver.lastName,
+                email: driver.email,
+                phoneNumber: driver.phoneNumber,
+                address: driver.address,
+                gender: driver.gender,
+                dob: driver.dob,
+                profileImgUrl: driver.profileImgUrl,
+                isEmailVerified: driver.isEmailVerified,
+                passwordResetVerified: driver.passwordResetVerified
+            },
+            driver: {
+                id: driver._id,
+                licenseNo: driver.licenseNo,
+                licenseImgUrl: driver.licenseImgUrl,
+                assignedBus: driver.assignedBus,
+                assignedRoute: driver.assignedRoute,
+                validationStatus: driver.validationStatus,
+                isActive: driver.isActive
+            }
         });
 
     } catch (error) {
@@ -305,7 +286,7 @@ const getDriverProfile = async (req, res) => {
 const getPendingDrivers = async (req, res) => {
     try {
         const pendingDrivers = await Driver.find({ validationStatus: 'pending' })
-            .populate('userId', 'firstName lastName email phoneNumber address profileImgUrl');
+            .select('-password -refreshToken');
 
         res.status(200).json({ drivers: pendingDrivers });
     } catch (error) {
@@ -319,24 +300,21 @@ const approveDriver = async (req, res) => {
     const { driverId } = req.params;
 
     try {
-        const driver = await Driver.findOne({ driverId }).populate('userId');
+        const driver = await Driver.findById(driverId);
         if (!driver) {
             return res.status(404).json({ message: 'Driver not found' });
         }
 
         driver.validationStatus = 'approved';
         driver.isActive = true;
+        driver.isEmailVerified = true;
         await driver.save();
 
-        if (driver.userId) {
-            driver.userId.isEmailVerified = true;
-            await driver.userId.save();
-        }
-
-        if (driver.userId?.email) {
+        // Send approval email
+        if (driver.email) {
             await sendEmail(
-                driver.userId.email,
-                `<p>Hello ${driver.userId.firstName},</p><p>Your driver signup request has been approved. You can now log in to the app.</p>`,
+                driver.email,
+                `<p>Hello ${driver.firstName},</p><p>Your driver signup request has been approved. You can now log in to the app.</p>`,
                 'Driver Verification Approved'
             );
         }
@@ -344,8 +322,7 @@ const approveDriver = async (req, res) => {
         const io = req.app.get('io');
         if (io) {
             io.to('admin-room').emit('driver-approved', {
-                driverId: driver.driverId,
-                userId: driver.userId?._id,
+                driverId: driver._id.toString(),
             });
         }
 
@@ -361,7 +338,7 @@ const rejectDriver = async (req, res) => {
     const { driverId } = req.params;
 
     try {
-        const driver = await Driver.findOne({ driverId }).populate('userId');
+        const driver = await Driver.findById(driverId);
         if (!driver) {
             return res.status(404).json({ message: 'Driver not found' });
         }
@@ -369,10 +346,11 @@ const rejectDriver = async (req, res) => {
         driver.validationStatus = 'rejected';
         await driver.save();
 
-        if (driver.userId?.email) {
+        // Send rejection email
+        if (driver.email) {
             await sendEmail(
-                driver.userId.email,
-                `<p>Hello ${driver.userId.firstName},</p><p>Your driver signup request was not approved. Please contact support for details.</p>`,
+                driver.email,
+                `<p>Hello ${driver.firstName},</p><p>Your driver signup request was not approved. Please contact support for details.</p>`,
                 'Driver Verification Update'
             );
         }
@@ -380,8 +358,7 @@ const rejectDriver = async (req, res) => {
         const io = req.app.get('io');
         if (io) {
             io.to('admin-room').emit('driver-rejected', {
-                driverId: driver.driverId,
-                userId: driver.userId?._id,
+                driverId: driver._id.toString(),
             });
         }
 
@@ -395,7 +372,7 @@ const rejectDriver = async (req, res) => {
 // List all drivers (admin)
 const getAllDrivers = async (req, res) => {
     try {
-        const drivers = await Driver.find().populate('userId', 'firstName lastName email phoneNumber address profileImgUrl');
+        const drivers = await Driver.find().select('-password -refreshToken');
         res.status(200).json({ drivers });
     } catch (error) {
         console.error('Error fetching drivers:', error);

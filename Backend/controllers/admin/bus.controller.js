@@ -1,7 +1,6 @@
 const Bus = require("../../models/bus.model");
 
 const createBus = async (req, res) => {
-    const busId = `BUS${Date.now()}${Math.floor(Math.random() * 1000)}`;
     const { 
         busNumber,
         model,
@@ -19,7 +18,6 @@ const createBus = async (req, res) => {
         }
         const newBus = new Bus({
             busNumber,
-            busId,
             model,
             capacity,
             assignedDriverId,
@@ -85,10 +83,10 @@ const getAllBuses = async (req, res) => {
         const buses = await Bus.find()
             .populate({
                 path: 'assignedDriverId',
-                select: 'driverId userId',
+                select: 'userId licenseNo',
                 populate: { path: 'userId', select: 'firstName lastName' }
             })
-            .populate('assignedRouteId', 'routeName');
+            .populate('assignedRouteId', 'routeName routeNumber');
         return res.status(200).json({ buses });
     } catch (error) {
         return res.status(500).json({ message: "Server error", error });

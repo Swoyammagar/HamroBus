@@ -1,4 +1,3 @@
-const User = require('../models/user.model');
 const Passenger = require('../models/passenger.model');
 const bcrypt = require('bcrypt');
 const { generateToken, generateRefreshToken } = require('../utils/authutils');
@@ -11,64 +10,35 @@ const registerPassenger = async (req, res) => {
             return res.status(400).json({ message: "Missing required fields" });
         }
 
-        // ✅ NEW: Check if email is verified
-        const tempUser = await User.findOne({ email });
-        if (!tempUser || !tempUser.isEmailVerified) {
+        // Check if email already exists
+        const existingPassenger = await Passenger.findOne({ email });
+        if (existingPassenger) {
             return res.status(400).json({ 
-                message: "Email must be verified before registration",
-                error: 'EMAIL_NOT_VERIFIED'
+                message: "Passenger with this email already exists"
             });
         }
 
-        // 1️⃣ Check if user already exists
-        let user = tempUser; // Use the verified temporary user
-
-        // ✅ Allow existing users (e.g., drivers) to add passenger role
-        if (user.roles.includes('passenger')) {
-            // User already has passenger role - cannot register twice
-            return res.status(400).json({ message: "Passenger with this email already exists" });
+        // Check if phone number already exists
+        const existingPhone = await Passenger.findOne({ phoneNumber });
+        if (existingPhone) {
+            return res.status(400).json({ message: "Phone number already in use" });
         }
 
-        // Check if passenger profile already exists for this user
-        const existingPassengerProfile = await Passenger.findOne({ userId: user._id });
-        if (existingPassengerProfile) {
-            return res.status(400).json({ message: "Passenger profile already exists" });
-        }
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Add passenger role to user
-        user.roles.push('passenger');
-
-        // Update user details (only update if not already set or if explicitly provided)
-        if (!user.firstName || firstName) user.firstName = firstName;
-        if (!user.lastName || lastName) user.lastName = lastName;
-        if (!user.address || address) user.address = address;
-        if (!user.phoneNumber || phoneNumber) {
-            // Check if phone number is already taken by another user
-            const existingPhone = await User.findOne({ phoneNumber, _id: { $ne: user._id } });
-            if (existingPhone) {
-                return res.status(400).json({ message: "Phone number already in use" });
-            }
-            user.phoneNumber = phoneNumber;
-        }
-        if (!user.gender || gender) user.gender = gender;
-        if (!user.dob || dob) user.dob = dob;
-        if (!user.profileImgUrl || profileImgUrl) user.profileImgUrl = profileImgUrl || '';
-        
-        // Update password only if provided and user doesn't already have one
-        if (!user.password || password) {
-            const hashedPassword = await bcrypt.hash(password, 10);
-            user.password = hashedPassword;
-        }
-
-        await user.save();
-
-        // 5️⃣ Generate unique passenger ID
-        const passengerId = `PSG${Date.now()}${Math.floor(Math.random() * 1000)}`;
-
-        // 6️⃣ Create Passenger profile
+        // Create new passenger
         const newPassenger = new Passenger({
-            userId: user._id,
-            passengerId
+            firstName,
+            lastName,
+            email,
+            password: hashedPassword,
+            phoneNumber,
+            address: address || '',
+            gender: gender || '',
+            dob: dob || null,
+            profileImgUrl: profileImgUrl || '',
+            isEmailVerified: true // Since they completed OTP verification during signup
         });
 
         await newPassenger.save();
@@ -76,18 +46,19 @@ const registerPassenger = async (req, res) => {
         res.status(201).json({
             message: "Passenger registered successfully",
             passenger: {
-                id: user._id,
-                passengerId: passengerId,
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName
+                id: newPassenger._id,
+                email: newPassenger.email,
+                firstName: newPassenger.firstName,
+                lastName: newPassenger.lastName,
+                phoneNumber: newPassenger.phoneNumber
             }
         });
 
     } catch (error) {
         console.error("Error registering passenger:", error);
         if (error.code === 11000) {
-            return res.status(400).json({ message: "Duplicate key error" });
+            const field = Object.keys(error.keyPattern)[0];
+            return res.status(400).json({ message: `${field} already exists` });
         }
         res.status(500).json({ message: "Internal server error" });
     }
@@ -98,46 +69,40 @@ const loginPassenger = async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        // Find user with passenger role
-        const user = await User.findOne({ email, roles: { $in: ['passenger'] } });
-        if (!user) {
+        // Find passenger by email
+        const passenger = await Passenger.findOne({ email });
+        if (!passenger) {
             return res.status(404).json({ message: "Passenger not found" });
         }
 
         // Verify password
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        const isPasswordValid = await bcrypt.compare(password, passenger.password);
         if (!isPasswordValid) {
             return res.status(401).json({ message: "Invalid password" });
         }
 
-        // Get passenger profile
-        const passenger = await Passenger.findOne({ userId: user._id });
-        if (!passenger) {
-            return res.status(404).json({ message: "Passenger profile not found" });
-        }
-
         // Generate tokens
-        const accessToken = generateToken(user);
-        const refreshToken = generateRefreshToken(user);
+        const accessToken = generateToken(passenger);
+        const refreshToken = generateRefreshToken(passenger);
 
         // Save refresh token
-        user.refreshToken = refreshToken;
-        await user.save();
+        passenger.refreshToken = refreshToken;
+        await passenger.save();
 
         res.status(200).json({
             message: "Login successful",
             accessToken,
             refreshToken,
             user: {
-                id: user._id,
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                phoneNumber: user.phoneNumber,
-                roles: user.roles
+                id: passenger._id,
+                email: passenger.email,
+                firstName: passenger.firstName,
+                lastName: passenger.lastName,
+                phoneNumber: passenger.phoneNumber,
+                profileImgUrl: passenger.profileImgUrl
             },
             passenger: {
-                passengerId: passenger.passengerId
+                id: passenger._id
             }
         });
 
@@ -149,19 +114,32 @@ const loginPassenger = async (req, res) => {
 
 // Get Passenger Profile
 const getPassengerProfile = async (req, res) => {
-    const userId = req.user.id; // From JWT middleware
+    const passengerId = req.user.id; // From JWT middleware
 
     try {
-        const user = await User.findById(userId).select('-password -refreshToken');
-        const passenger = await Passenger.findOne({ userId });
+        const passenger = await Passenger.findById(passengerId).select('-password -refreshToken');
 
-        if (!user || !passenger) {
-            return res.status(404).json({ message: "Passenger profile not found" });
+        if (!passenger) {
+            return res.status(404).json({ message: "Passenger not found" });
         }
 
         res.status(200).json({
-            user,
-            passenger
+            user: {
+                id: passenger._id,
+                firstName: passenger.firstName,
+                lastName: passenger.lastName,
+                email: passenger.email,
+                phoneNumber: passenger.phoneNumber,
+                address: passenger.address,
+                gender: passenger.gender,
+                dob: passenger.dob,
+                profileImgUrl: passenger.profileImgUrl,
+                isEmailVerified: passenger.isEmailVerified,
+                passwordResetVerified: passenger.passwordResetVerified
+            },
+            passenger: {
+                id: passenger._id
+            }
         });
 
     } catch (error) {
@@ -172,39 +150,39 @@ const getPassengerProfile = async (req, res) => {
 
 // Update Passenger Profile
 const updatePassengerProfile = async (req, res) => {
-    const userId = req.user.id; // From JWT middleware
+    const passengerId = req.user.id; // From JWT middleware
     const { firstName, lastName, address, phoneNumber } = req.body;
 
     try {
-        const user = await User.findById(userId);
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
+        const passenger = await Passenger.findById(passengerId);
+        if (!passenger) {
+            return res.status(404).json({ message: "Passenger not found" });
         }
 
         // Update fields if provided
-        if (firstName) user.firstName = firstName;
-        if (lastName) user.lastName = lastName;
-        if (address) user.address = address;
+        if (firstName) passenger.firstName = firstName;
+        if (lastName) passenger.lastName = lastName;
+        if (address) passenger.address = address;
         if (phoneNumber) {
-            // Check if phone number is already taken by another user
-            const existingUser = await User.findOne({ phoneNumber, _id: { $ne: userId } });
-            if (existingUser) {
+            // Check if phone number is already taken by another passenger
+            const existingPassenger = await Passenger.findOne({ phoneNumber, _id: { $ne: passengerId } });
+            if (existingPassenger) {
                 return res.status(400).json({ message: "Phone number already in use" });
             }
-            user.phoneNumber = phoneNumber;
+            passenger.phoneNumber = phoneNumber;
         }
 
-        await user.save();
+        await passenger.save();
 
         res.status(200).json({
             message: "Profile updated successfully",
             user: {
-                id: user._id,
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                phoneNumber: user.phoneNumber,
-                address: user.address
+                id: passenger._id,
+                email: passenger.email,
+                firstName: passenger.firstName,
+                lastName: passenger.lastName,
+                phoneNumber: passenger.phoneNumber,
+                address: passenger.address
             }
         });
 

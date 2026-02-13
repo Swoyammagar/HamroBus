@@ -1,5 +1,6 @@
 const Admin = require('../models/admin.model');
-const User = require('../models/user.model');
+const Driver = require('../models/driver.model');
+const Passenger = require('../models/passenger.model');
 const { generateToken, generateRefreshToken, verifyRefreshToken } = require('../utils/authutils');
 
 // Accepts a refresh token and issues a new access token
@@ -10,14 +11,12 @@ const refreshAccessToken = async (req, res) => {
   const payload = verifyRefreshToken(refreshToken);
   if (!payload) return res.status(403).json({ message: 'Invalid refresh token' });
 
-  // Check both admins and users for the token (depends on which route called it)
+  // Check admins, drivers, and passengers for the token
   const userId = payload.id;
   let user = await Admin.findById(userId);
-  let isAdmin = true;
-  if (!user) {
-    user = await User.findById(userId);
-    isAdmin = false;
-  }
+  if (!user) user = await Driver.findById(userId);
+  if (!user) user = await Passenger.findById(userId);
+  
   if (!user || user.refreshToken !== refreshToken) {
     return res.status(403).json({ message: 'Refresh token not recognized' });
   }
@@ -44,7 +43,8 @@ const logout = async (req, res) => {
     if (payload) {
       const userId = payload.id;
       let user = await Admin.findById(userId);
-      if (!user) user = await User.findById(userId);
+      if (!user) user = await Driver.findById(userId);
+      if (!user) user = await Passenger.findById(userId);
       if (user) {
         user.refreshToken = null;
         await user.save();
@@ -82,11 +82,8 @@ const refreshAccessTokenMobile = async (req, res) => {
 
     const userId = payload.id;
     let user = await Admin.findById(userId);
-    let isAdmin = true;
-    if (!user) {
-      user = await User.findById(userId);
-      isAdmin = false;
-    }
+    if (!user) user = await Driver.findById(userId);
+    if (!user) user = await Passenger.findById(userId);
 
     if (!user || user.refreshToken !== refreshToken) {
       return res.status(403).json({ success: false, message: 'Refresh token not recognized' });
@@ -127,9 +124,8 @@ const logoutMobile = async (req, res) => {
 
     const userId = payload.id;
     let user = await Admin.findById(userId);
-    if (!user) {
-      user = await User.findById(userId);
-    }
+    if (!user) user = await Driver.findById(userId);
+    if (!user) user = await Passenger.findById(userId);
 
     if (user) {
       // Clear the refresh token from database
