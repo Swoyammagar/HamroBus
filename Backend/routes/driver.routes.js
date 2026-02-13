@@ -12,7 +12,7 @@ const {
   getAllDrivers
 } = require('../controllers/driver.controller');
 const { authenticateAdmin } = require('../middlewares/admin.auth.middleware'); // ✅ Updated import
-const { authenticateMobileUser, isDriver } = require('../middlewares/mobile.auth.middleware');
+const { authenticateDriver } = require('../middlewares/mobile.auth.middleware');
 
 // Public routes
 router.post('/register', registerDriver);
@@ -25,8 +25,8 @@ router.post('/approve/:driverId', authenticateAdmin, approveDriver);
 router.post('/reject/:driverId', authenticateAdmin, rejectDriver);
 
 // Driver-only routes
-router.get('/profile', authenticateMobileUser, isDriver, getDriverProfile);
-router.post('/location', authenticateMobileUser, isDriver, updateDriverLocation);
+router.get('/profile', authenticateDriver, getDriverProfile);
+router.post('/location', authenticateDriver, updateDriverLocation);
 
 // Public route (you might want to protect this too)
 router.get('/location/:driverId', getDriverLocationHistory);
