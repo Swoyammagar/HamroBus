@@ -8,7 +8,7 @@ import axios from 'axios';
 // Physical device: your machine's local IP (192.168.x.x) on port 5000
 const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://10.0.2.2:3000/api' ;
 interface Driver {
-  driverId: string;
+  id: string; // MongoDB _id
   licenseNo: string;
   assignedBus: any;
   assignedRoute: any;
@@ -17,7 +17,7 @@ interface Driver {
 }
 
 interface Passenger {
-  passengerId: string;
+  id: string; // MongoDB _id
 }
 
 /* =======================
@@ -38,7 +38,6 @@ interface User {
   lastName: string;
   email: string;
   phoneNumber: string;
-  roles: string[];
   profileImgUrl?: string;
   passwordResetVerified: boolean;
   isEmailVerified: boolean;
@@ -76,13 +75,15 @@ interface AuthContextType {
     type: 'profile' | 'license'
   ) => Promise<string | null>;
   passwordResetEmail: (
-    email: string
+    email: string,
+    role: 'driver' | 'passenger'
   ) => Promise<{ success: boolean; message?: string }>;
   resetPassword: (
     email: string,
-    newPassword: string
+    newPassword: string,
+    role: 'driver' | 'passenger'
   ) => Promise<{ success: boolean; message?: string }>;
-  verifyOTP: (email: string, otp: string) => Promise<ApiResponse>;
+  verifyOTP: (email: string, otp: string, role: 'driver' | 'passenger') => Promise<ApiResponse>;
   requestSignupOTP: (email: string, role: 'driver' | 'passenger') => Promise<{ success: boolean; message?: string }>;
   verifySignupOTP: (email: string, otp: string) => Promise<{ success: boolean; message?: string }>;
   checkPhoneExists: (phoneNumber: string, email: string) => Promise<{ exists: boolean; message?: string }>;
@@ -445,11 +446,11 @@ const uploadImageToCloudinary = async (
   /**
    * Password reset email
    */
-  const passwordResetEmail = async (email: string) => {
+  const passwordResetEmail = async (email: string, role: 'driver' | 'passenger') => {
     try {
       const { data } = await axios.post<{ success: boolean; message?: string }>(
         `${API_URL}/users/request-password-reset`,
-        { email }
+        { email, role }
       );
       return { success: !!data.success, message: data.message || '' };
     } catch (err: any) {
@@ -463,11 +464,11 @@ const uploadImageToCloudinary = async (
   /**
    * Reset password
    */
-  const resetPassword = async (email: string, newPassword: string) => {
+  const resetPassword = async (email: string, newPassword: string, role: 'driver' | 'passenger') => {
     try {
       const { data } = await axios.post<{ success: boolean; message?: string }>(
         `${API_URL}/users/reset-password`,
-        { email, newPassword }
+        { email, newPassword, role }
       );
       return { success: !!data.success, message: data.message || '' };
     } catch (err: any) {
@@ -481,11 +482,11 @@ const uploadImageToCloudinary = async (
   /**
    * Verify OTP
    */
-  const verifyOTP = async (email: string, otp: string) => {
+  const verifyOTP = async (email: string, otp: string, role: 'driver' | 'passenger') => {
     try {
       const { data } = await axios.post<ApiResponse & { status?: string }>(
         `${API_URL}/users/verify-otp`,
-        { email, otp }
+        { email, otp, role }
       );
       return {
         success: data.status === 'success',
