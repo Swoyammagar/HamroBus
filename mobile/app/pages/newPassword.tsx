@@ -18,6 +18,7 @@ const NewPassword: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
+  const role = (searchParams.get("role") || 'passenger') as 'driver' | 'passenger';
 
   const { resetPassword } = useAuth();
   const [password, setPassword] = useState("");
@@ -28,6 +29,8 @@ const NewPassword: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [isConfirmPasswordFocused, setIsConfirmPasswordFocused] = useState(false);
+
+  const accentColor = role === 'driver' ? '#2563EB' : '#27AE60';
 
   const validatePassword = (password: string) => {
     const minLength = 5;
@@ -65,7 +68,7 @@ const NewPassword: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const result = await resetPassword(email, password);
+      const result = await resetPassword(email, password, role);
       if (result.success) {
         router.push("/pages/mobilelogin");
       } else {
@@ -97,7 +100,7 @@ const NewPassword: React.FC = () => {
               {/* Heading */}
               <View className="flex-row mb-4 justify-center">
                 <Text className="text-3xl font-medium text-black">Reset Your</Text>
-                <Text className="text-3xl font-medium text-[#27AE60] ml-2">Password</Text>
+                <Text style={{ color: accentColor }} className="text-3xl font-medium ml-2">Password</Text>
               </View>
 
               {error ? <Text className="text-red-500 text-sm mb-4">{error}</Text> : null}
@@ -161,7 +164,8 @@ const NewPassword: React.FC = () => {
                     <TouchableOpacity
                     onPress={handleResetPassword}
                     disabled={isLoading}
-                    className="w-full h-[50px] bg-[#27AE60] rounded-lg justify-center items-center mb-4"
+                    style={{ backgroundColor: accentColor }}
+                    className="w-full h-[50px] rounded-lg justify-center items-center mb-4"
                     >
                     {isLoading ? (
                         <ActivityIndicator color="#fff" />
@@ -174,7 +178,8 @@ const NewPassword: React.FC = () => {
                     Remember your password?{" "}
                     <Text
                         onPress={() => router.push("/pages/mobilelogin")}
-                        className="text-[#27AE60] underline"
+                        style={{ color: accentColor }}
+                        className="underline"
                     >
                         Login
                     </Text>

@@ -21,6 +21,7 @@ const VerifyOTP: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
+  const role = (searchParams.get("role") || 'passenger') as 'driver' | 'passenger';
 
   const { verifyOTP, passwordResetEmail } = useAuth();
   const [otp, setOtp] = useState("");
@@ -29,6 +30,8 @@ const VerifyOTP: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [isOtpFocused, setIsOtpFocused] = useState(false);
+
+  const accentColor = role === 'driver' ? '#2563EB' : '#27AE60';
 
   const handleVerifyOTP = async () => {
     setError("");
@@ -41,9 +44,9 @@ const VerifyOTP: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const result = await verifyOTP(email, otp);
+      const result = await verifyOTP(email, otp, role);
       if (result.success) {
-        router.push(`/pages/newPassword?email=${encodeURIComponent(email)}`);
+        router.push(`/pages/newPassword?email=${encodeURIComponent(email)}&role=${role}`);
       } else {
         setError(result.message || "Invalid OTP. Please try again.");
       }
@@ -64,7 +67,7 @@ const VerifyOTP: React.FC = () => {
 
     setIsResending(true);
     try {
-      const res = await passwordResetEmail(email);
+      const res = await passwordResetEmail(email, role);
       if (res.success) {
         setSuccess(res.message || "OTP resent successfully");
       } else {
@@ -90,7 +93,7 @@ const VerifyOTP: React.FC = () => {
 
           {/* Heading */}
           <Text style={styles.heading}>
-            Verify Your <Text style={styles.highlight}>OTP</Text>
+            Verify Your <Text style={[styles.highlight, { color: accentColor }]}>OTP</Text>
           </Text>
 
           {/* Messages */}
@@ -116,7 +119,7 @@ const VerifyOTP: React.FC = () => {
           <TouchableOpacity
             onPress={handleVerifyOTP}
             disabled={isLoading}
-            style={[styles.button, isLoading && styles.disabledButton]}
+            style={[styles.button, { backgroundColor: accentColor }, isLoading && styles.disabledButton]}
           >
             {isLoading ? (
               <ActivityIndicator color="#fff" />
@@ -130,9 +133,9 @@ const VerifyOTP: React.FC = () => {
             <Text style={styles.resendText}>Didn’t receive OTP?</Text>
             <TouchableOpacity onPress={handleResendOTP} disabled={isResending}>
               {isResending ? (
-                <ActivityIndicator color="#27AE60" />
+                <ActivityIndicator color={accentColor} />
               ) : (
-                <Text style={styles.resendLink}> Resend OTP</Text>
+                <Text style={[styles.resendLink, { color: accentColor }]}> Resend OTP</Text>
               )}
             </TouchableOpacity>
           </View>

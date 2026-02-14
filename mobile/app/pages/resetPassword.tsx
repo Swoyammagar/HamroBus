@@ -20,10 +20,13 @@ const ResetPassword: React.FC = () => {
 
   const { passwordResetEmail } = useAuth();
   const [email, setEmail] = useState<string>("");
+  const [role, setRole] = useState<'driver' | 'passenger'>('passenger');
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [isEmailFocused, setIsEmailFocused] = useState(false);
+
+  const accentColor = role === 'driver' ? '#2563EB' : '#27AE60';
 
   const handleResetPassword = async () => {
     setError("");
@@ -36,10 +39,10 @@ const ResetPassword: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const result = await passwordResetEmail(email);
+      const result = await passwordResetEmail(email, role);
       if (result.success) {
         setSuccess("Password reset email sent. Please check your inbox.");
-        router.push(`/pages/otpPassword?email=${encodeURIComponent(email)}`);
+        router.push(`/pages/otpPassword?email=${encodeURIComponent(email)}&role=${role}`);
       } else {
         setError(result.message || "Failed to send reset email. Please try again.");
       }
@@ -83,6 +86,32 @@ const ResetPassword: React.FC = () => {
             <Text className="text-green-500 text-sm mb-2">{success}</Text>
           ) : null}
 
+          {/* Role Selector */}
+          <View className="w-80 mb-4">
+            <Text className="text-base font-medium text-[#333] mb-2">
+              I am a
+            </Text>
+            <View className="flex-row gap-3">
+              {['passenger', 'driver'].map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  onPress={() => setRole(option as 'passenger' | 'driver')}
+                  style={{ backgroundColor: role === option ? accentColor : 'transparent' }}
+                  className={`flex-1 py-3 rounded-lg border ${
+                    role === option ? 'border-transparent' : 'border-gray-300'
+                  }`}
+                >
+                  <Text
+                    style={{ color: role === option ? 'white' : '#6B7280' }}
+                    className="text-center font-medium capitalize"
+                  >
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           {/* Email Field */}
           <View className="w-80">
             <Text className="text-base font-medium text-[#333] mb-2 self-start">
@@ -106,9 +135,8 @@ const ResetPassword: React.FC = () => {
             <TouchableOpacity
               onPress={handleResetPassword}
               disabled={isLoading}
-              className={`h-12 rounded-lg justify-center items-center w-full ${
-                isLoading ? "bg-[#27AE60]/70" : "bg-[#27AE60]"
-              }`}
+              style={{ backgroundColor: isLoading ? `${accentColor}b3` : accentColor }}
+              className="h-12 rounded-lg justify-center items-center w-full"
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
@@ -124,7 +152,7 @@ const ResetPassword: React.FC = () => {
           <View className="mt-5 flex-row items-center">
             <Text className="text-sm text-[#333]">Remember your password?</Text>
             <TouchableOpacity onPress={() => router.push("/pages/mobilelogin")}>
-              <Text className="text-[#27AE60] underline text-sm ml-1">Login</Text>
+              <Text style={{ color: accentColor }} className="underline text-sm ml-1">Login</Text>
             </TouchableOpacity>
           </View>
         </View>
