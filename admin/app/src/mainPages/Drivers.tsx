@@ -24,7 +24,7 @@ import {
 } from "../../components/ui";
 
 type DisplayDriver = {
-  driverId: string;
+  driverId: string; // This is actually the _id from backend
   name: string;
   phone: string;
   email: string;
@@ -53,17 +53,16 @@ const Drivers: React.FC = () => {
   const [editingDriver, setEditingDriver] = useState<DisplayDriver | null>(null);
 
   const toDisplayDriver = (drv: DriverRecord): DisplayDriver => {
-    const user = typeof drv.userId === "object" ? drv.userId : undefined;
-    const fullName = `${user?.firstName || ""} ${user?.lastName || ""}`.trim();
+    const fullName = `${drv.firstName || ""} ${drv.lastName || ""}`.trim();
     return {
-      driverId: drv.driverId,
-      name: fullName || user?.email || drv.driverId,
-      phone: user?.phoneNumber || "-",
-      email: user?.email || "-",
+      driverId: drv._id || '', // Using _id as the identifier
+      name: fullName || drv.email || drv._id || 'Unknown',
+      phone: drv.phoneNumber || "-",
+      email: drv.email || "-",
       licenseNo: drv.licenseNo || "-",
       validationStatus: drv.validationStatus,
       isActive: drv.isActive,
-      profileImgUrl: user?.profileImgUrl,
+      profileImgUrl: drv.profileImgUrl,
       raw: drv,
     };
   };

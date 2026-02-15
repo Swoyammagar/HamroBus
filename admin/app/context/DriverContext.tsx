@@ -1,7 +1,7 @@
 import axios from 'axios';
 import React, { createContext, useContext, useState } from 'react';
 
-export type DriverUserSummary = {
+export type DriverRecord = {
   _id?: string;
   firstName?: string;
   lastName?: string;
@@ -9,15 +9,10 @@ export type DriverUserSummary = {
   phoneNumber?: string;
   address?: string;
   profileImgUrl?: string;
-};
-
-export type DriverRecord = {
-  _id?: string;
-  driverId: string;
   licenseNo?: string;
   validationStatus?: 'pending' | 'approved' | 'rejected';
   isActive?: boolean;
-  userId?: DriverUserSummary | string;
+  licenseImgUrl?: string;
 };
 
 type ActionResult = { success: boolean; message: string };
@@ -90,10 +85,10 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({
       );
 
       const updated = data?.driver;
-      setPendingDrivers((prev) => prev.filter((drv) => drv.driverId !== driverId));
+      setPendingDrivers((prev) => prev.filter((drv) => drv._id !== driverId));
       if (updated) {
         setDrivers((prev) => {
-          const existingIndex = prev.findIndex((drv) => drv.driverId === driverId);
+          const existingIndex = prev.findIndex((drv) => drv._id === driverId);
           if (existingIndex !== -1) {
             const next = [...prev];
             next[existingIndex] = {
@@ -124,10 +119,10 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({
       );
 
       const updated = data?.driver;
-      setPendingDrivers((prev) => prev.filter((drv) => drv.driverId !== driverId));
+      setPendingDrivers((prev) => prev.filter((drv) => drv._id !== driverId));
       if (updated) {
         setDrivers((prev) => {
-          const existingIndex = prev.findIndex((drv) => drv.driverId === driverId);
+          const existingIndex = prev.findIndex((drv) => drv._id === driverId);
           if (existingIndex !== -1) {
             const next = [...prev];
             next[existingIndex] = {
