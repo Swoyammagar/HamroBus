@@ -45,7 +45,7 @@ const Profile = () => {
 
       // Map to PassengerProfile format
       const profileData = {
-        id: userData._id,
+        id: passengerData._id || userData._id,
         name: `${userData.firstName} ${userData.lastName}`,
         email: userData.email,
         phone: userData.phoneNumber || 'N/A',
@@ -54,7 +54,6 @@ const Profile = () => {
         totalSpent: 0,
         averageRating: 0,
         memberSince: userData.createdAt || new Date().toISOString(),
-        passengerId: passengerData.passengerId,
       };
 
       setProfile(profileData);
@@ -128,8 +127,8 @@ const Profile = () => {
             <Text style={styles.profileName}>{profile.name}</Text>
             <Text style={styles.profileEmail}>{profile.email}</Text>
             <Text style={styles.profilePhone}>{profile.phone}</Text>
-            {profile.passengerId && (
-              <Text style={styles.profileId}>ID: {profile.passengerId}</Text>
+            {profile.id && (
+              <Text style={styles.profileId}>ID: {profile.id.slice(-8)}</Text>
             )}
           </View>
 

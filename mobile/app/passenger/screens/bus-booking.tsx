@@ -107,7 +107,7 @@ const BusBooking = () => {
       const newBooking: Booking = {
         id: bookingId,
         bookingId,
-        passengerId: 'passenger1',
+        passengerId: 'mock_passenger_id', // TODO: Replace with actual passenger ID from auth context
         busId: bus!.id,
         routeId: route!.id,
         seatNumber: selectedSeats.map((_, i) => `Seat ${i + 1}`).join(', '),

@@ -38,7 +38,7 @@ export interface Bus {
 export interface Booking {
   id: string;
   bookingId: string;
-  passengerId: string;
+  passengerId: string; // Kept for compatibility with other parts
   busId: string;
   routeId: string;
   seatNumber: string;
@@ -81,8 +81,7 @@ export interface Review {
 }
 
 export interface PassengerProfile {
-  id: string;
-  passengerId: string;
+  id: string; // MongoDB _id
   name: string;
   email: string;
   phone: string;
