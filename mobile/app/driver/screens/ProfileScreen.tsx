@@ -51,7 +51,7 @@ export default function ProfileScreen() {
 
   const initials = user ? getInitials(user.firstName, user.lastName) : '?';
   const fullName = user ? `${user.firstName} ${user.lastName}` : 'Unknown Driver';
-  const driverId = driver?.driverId || 'Not assigned';
+  const driverId = driver?.id || 'Not assigned';
   const profileImage = user?.profileImgUrl;
   const licenseImage = driver?.licenseImgUrl;
 
