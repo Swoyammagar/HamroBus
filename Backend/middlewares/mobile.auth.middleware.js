@@ -10,18 +10,44 @@ async function authenticateDriver(req, res, next) {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: "Access token missing" });
+      return res.status(401).json({ 
+        success: false,
+        error: "Access token missing",
+        code: "NO_TOKEN"
+      });
     }
 
     const token = authHeader.split(' ')[1];
 
     // Verify token
-    const data = jwt.verify(token, process.env.JWT_SECRET);
+    let data;
+    try {
+      data = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({ 
+          success: false,
+          error: "Token expired",
+          code: "TOKEN_EXPIRED",
+          message: "Please refresh your token using /auth/refresh-mobile"
+        });
+      }
+      return res.status(403).json({ 
+        success: false,
+        error: "Invalid token",
+        code: "INVALID_TOKEN"
+      });
+    }
+
     req.userId = data.id;
 
     const driver = await Driver.findById(req.userId);
     if (!driver) {
-      return res.status(401).json({ error: "Driver not found" });
+      return res.status(401).json({ 
+        success: false,
+        error: "Driver not found",
+        code: "DRIVER_NOT_FOUND"
+      });
     }
 
     req.user = {
@@ -33,7 +59,12 @@ async function authenticateDriver(req, res, next) {
 
     next();
   } catch (err) {
-    return res.status(403).json({ error: "Invalid or expired token" });
+    console.error("Driver auth error:", err);
+    return res.status(403).json({ 
+      success: false,
+      error: "Authentication failed",
+      code: "AUTH_FAILED"
+    });
   }
 }
 
@@ -45,18 +76,44 @@ async function authenticatePassenger(req, res, next) {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: "Access token missing" });
+      return res.status(401).json({ 
+        success: false,
+        error: "Access token missing",
+        code: "NO_TOKEN"
+      });
     }
 
     const token = authHeader.split(' ')[1];
 
     // Verify token
-    const data = jwt.verify(token, process.env.JWT_SECRET);
+    let data;
+    try {
+      data = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({ 
+          success: false,
+          error: "Token expired",
+          code: "TOKEN_EXPIRED",
+          message: "Please refresh your token using /auth/refresh-mobile"
+        });
+      }
+      return res.status(403).json({ 
+        success: false,
+        error: "Invalid token",
+        code: "INVALID_TOKEN"
+      });
+    }
+
     req.userId = data.id;
 
     const passenger = await Passenger.findById(req.userId);
     if (!passenger) {
-      return res.status(401).json({ error: "Passenger not found" });
+      return res.status(401).json({ 
+        success: false,
+        error: "Passenger not found",
+        code: "PASSENGER_NOT_FOUND"
+      });
     }
 
     req.user = {
@@ -68,7 +125,12 @@ async function authenticatePassenger(req, res, next) {
 
     next();
   } catch (err) {
-    return res.status(403).json({ error: "Invalid or expired token" });
+    console.error("Passenger auth error:", err);
+    return res.status(403).json({ 
+      success: false,
+      error: "Authentication failed",
+      code: "AUTH_FAILED"
+    });
   }
 }
 
