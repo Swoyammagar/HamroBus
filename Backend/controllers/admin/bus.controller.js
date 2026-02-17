@@ -83,8 +83,7 @@ const getAllBuses = async (req, res) => {
         const buses = await Bus.find()
             .populate({
                 path: 'assignedDriverId',
-                select: 'userId licenseNo',
-                populate: { path: 'userId', select: 'firstName lastName' }
+                select: 'firstName lastName licenseNo'
             })
             .populate('assignedRouteId', 'routeName routeNumber');
         return res.status(200).json({ buses });
