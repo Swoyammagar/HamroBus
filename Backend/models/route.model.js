@@ -18,14 +18,6 @@ const stopSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
-    estimatedArrivalTime: {
-        type: String,
-        required: false
-    },
-    estimatedDepartureTime: {
-        type: String,
-        required: false
-    }
 }, { _id: false });
 
 const scheduleSchema = new mongoose.Schema({
@@ -117,41 +109,11 @@ const routeSchema = new mongoose.Schema({
         required: true,
         description: "Format: HH:MM (24-hour)"
     },
-    frequencyInterval: {
-        type: Number,
-        required: true,
-        description: "Interval in minutes between buses"
-    },
     schedules: [scheduleSchema],
     fareInfo: {
-        baseFare: {
-            type: Number,
-            required: false
-        },
-        farePerKilometer: {
-            type: Number,
-            required: false
-        }
-    },
-    description: {
-        type: String,
-        required: false
-    },
-    announcements: {
-        type: String,
-        required: false,
-        description: "Any special announcements for this route"
-    },
-    averageRating: {
         type: Number,
-        default: 0,
-        min: 0,
-        max: 5
+        required: true,
     },
-    totalReviews: {
-        type: Number,
-        default: 0
-    }
 }, {
     timestamps: true
 });

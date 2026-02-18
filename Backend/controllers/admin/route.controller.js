@@ -75,14 +75,11 @@ const createRoute = async (req, res) => {
         operatingDays,
         firstBusTiming,
         lastBusTiming,
-        frequencyInterval,
-        fareInfo,
-        description,
-        announcements
+        fareInfo
     } = req.body;
 
     try {
-        if (!routeNumber || !routeName || !source || !destination || !distance || !operatingDays || !firstBusTiming || !lastBusTiming || !frequencyInterval) {
+        if (!routeNumber || !routeName || !source || !destination || !distance || !operatingDays || !firstBusTiming || !lastBusTiming || !fareInfo) {
             return res.status(400).json({ message: "Missing required fields" });
         }
 
@@ -105,10 +102,7 @@ const createRoute = async (req, res) => {
             operatingDays,
             firstBusTiming,
             lastBusTiming,
-            frequencyInterval,
-            fareInfo,
-            description,
-            announcements
+            fareInfo
         });
 
         await newRoute.save();
@@ -122,16 +116,8 @@ const getAllRoutes = async (req, res) => {
     try {
         const routes = await Route.find()
             .populate('assignedBusIds', 'busNumber model')
-            .populate({
-                path: 'assignedDriverIds',
-                select: 'userId licenseNo',
-                populate: { path: 'userId', select: 'firstName lastName' }
-            })
-            .populate({
-                path: 'schedules.driverId',
-                select: 'userId licenseNo',
-                populate: { path: 'userId', select: 'firstName lastName' }
-            })
+            .populate('assignedDriverIds', 'firstName lastName email licenseNo')
+            .populate('schedules.driverId', 'firstName lastName email licenseNo')
             .populate('schedules.busId', 'busNumber model');
         return res.status(200).json({ routes });
     } catch (error) {
@@ -145,16 +131,8 @@ const getRouteById = async (req, res) => {
     try {
         const route = await Route.findById(routeId)
             .populate('assignedBusIds', 'busNumber model')
-            .populate({
-                path: 'assignedDriverIds',
-                select: 'userId licenseNo',
-                populate: { path: 'userId', select: 'firstName lastName' }
-            })
-            .populate({
-                path: 'schedules.driverId',
-                select: 'userId licenseNo',
-                populate: { path: 'userId', select: 'firstName lastName' }
-            })
+            .populate('assignedDriverIds', 'firstName lastName email licenseNo')
+            .populate('schedules.driverId', 'firstName lastName email licenseNo')
             .populate('schedules.busId', 'busNumber model');
 
         if (!route) {
@@ -182,10 +160,7 @@ const updateRoute = async (req, res) => {
         operatingDays,
         firstBusTiming,
         lastBusTiming,
-        frequencyInterval,
-        fareInfo,
-        description,
-        announcements
+        fareInfo
     } = req.body;
 
     try {
@@ -206,10 +181,7 @@ const updateRoute = async (req, res) => {
         if (operatingDays) route.operatingDays = operatingDays;
         if (firstBusTiming) route.firstBusTiming = firstBusTiming;
         if (lastBusTiming) route.lastBusTiming = lastBusTiming;
-        if (frequencyInterval !== undefined) route.frequencyInterval = frequencyInterval;
-        if (fareInfo) route.fareInfo = fareInfo;
-        if (description !== undefined) route.description = description;
-        if (announcements !== undefined) route.announcements = announcements;
+        if (fareInfo !== undefined) route.fareInfo = fareInfo;
 
         await route.save();
         return res.status(200).json({ message: "Route updated successfully", route });
@@ -235,11 +207,7 @@ const getRouteSchedules = async (req, res) => {
     const { routeId } = req.params;
     try {
         const route = await Route.findById(routeId)
-            .populate({
-                path: 'schedules.driverId',
-                select: 'userId licenseNo',
-                populate: { path: 'userId', select: 'firstName lastName' }
-            })
+            .populate('schedules.driverId', 'firstName lastName email licenseNo')
             .populate('schedules.busId', 'busNumber model');
 
         if (!route) {

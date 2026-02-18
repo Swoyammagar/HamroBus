@@ -4,7 +4,7 @@ const cookieParser = require('cookie-parser');
 const http = require('http');
 const { Server } = require('socket.io');
 const app = express();
-const connectDB = require('./config/db');
+const { connectDB, dropOldBusIndex } = require('./config/db');
 const mainRoute = require('./routes/index.routes');
 require('dotenv').config();
 const initializeAdmin = require('./config/initializeAdmin');
@@ -79,10 +79,19 @@ app.use(cookieParser());
 
 app.use('/api', mainRoute); // Handles /api/users
 
-connectDB();
-initializeAdmin();
+// Initialize database and drop old indexes
+const startServer = async () => {
+  await connectDB();
+  await dropOldBusIndex();
+  await initializeAdmin();
+  
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server running at http://localhost:${PORT}`);
+  });
+};
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT,'0.0.0.0', () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+startServer().catch(error => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
 });
