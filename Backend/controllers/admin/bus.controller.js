@@ -1,4 +1,5 @@
 const Bus = require("../../models/bus.model");
+const Driver = require("../../models/driver.model");
 
 const createBus = async (req, res) => {
     const { 
@@ -16,6 +17,18 @@ const createBus = async (req, res) => {
         if (existingBus) {
             return res.status(400).json({ message: "Bus with this number already exists" });
         }
+        
+        // If driver is assigned, check if they're already assigned to another bus
+        if (assignedDriverId) {
+            const driver = await Driver.findById(assignedDriverId);
+            if (!driver) {
+                return res.status(404).json({ message: "Driver not found" });
+            }
+            if (driver.assignedBus) {
+                return res.status(400).json({ message: "Driver is already assigned to another bus" });
+            }
+        }
+        
         const newBus = new Bus({
             busNumber,
             model,
@@ -25,6 +38,13 @@ const createBus = async (req, res) => {
             assignedRouteId: assignedRouteId || null
         });
         await newBus.save();
+        
+        // Update driver's assignedBus field if driver is assigned
+        if (assignedDriverId) {
+            await Driver.findByIdAndUpdate(assignedDriverId, {
+                assignedBus: newBus._id
+            });
+        }
         
         // Build populate query dynamically to avoid null reference issues
         let query = Bus.findById(newBus._id);
@@ -56,6 +76,14 @@ const deleteBus = async (req, res) => {
         if (!bus) {
             return res.status(404).json({ message: "Bus not found" });
         }
+        
+        // Clear the assignedBus field from the driver if one is assigned
+        if (bus.assignedDriverId) {
+            await Driver.findByIdAndUpdate(bus.assignedDriverId, {
+                assignedBus: null
+            });
+        }
+        
         await bus.deleteOne();
         return res.status(200).json({ message: "Bus deleted successfully" });
     } catch (error) {
@@ -80,10 +108,44 @@ const updateBus = async (req, res) => {
         if (!bus) {
             return res.status(404).json({ message: "Bus not found" });
         }
+        
+        // Handle driver reassignment
+        if (assignedDriverId !== undefined) {
+            const oldDriverId = bus.assignedDriverId;
+            const newDriverId = assignedDriverId || null;
+            
+            // If driver is changing
+            if (String(oldDriverId) !== String(newDriverId)) {
+                // Clear old driver's assignedBus
+                if (oldDriverId) {
+                    await Driver.findByIdAndUpdate(oldDriverId, {
+                        assignedBus: null
+                    });
+                }
+                
+                // Assign new driver
+                if (newDriverId) {
+                    const driver = await Driver.findById(newDriverId);
+                    if (!driver) {
+                        return res.status(404).json({ message: "Driver not found" });
+                    }
+                    // Check if new driver is already assigned to another bus
+                    if (driver.assignedBus && String(driver.assignedBus) !== String(busId)) {
+                        return res.status(400).json({ message: "Driver is already assigned to another bus" });
+                    }
+                    // Update new driver's assignedBus
+                    await Driver.findByIdAndUpdate(newDriverId, {
+                        assignedBus: busId
+                    });
+                }
+                
+                bus.assignedDriverId = newDriverId;
+            }
+        }
+        
         if (busNumber) bus.busNumber = busNumber;
         if (model) bus.model = model;
         if (capacity) bus.capacity = capacity;
-        if (assignedDriverId !== undefined) bus.assignedDriverId = assignedDriverId || null;
         if (assignedRouteId !== undefined) bus.assignedRouteId = assignedRouteId || null;
         if (status) bus.status = status;
         if (crowdLevel) bus.crowdLevel = crowdLevel;
