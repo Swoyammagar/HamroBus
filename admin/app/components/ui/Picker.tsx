@@ -8,7 +8,7 @@ import {
   Modal,
   ViewStyle,
 } from 'react-native';
-import { ChevronDown } from 'lucide-react-native';
+import { ChevronDown, X } from 'lucide-react-native';
 
 export interface PickerOption {
   label: string;
@@ -24,6 +24,8 @@ interface PickerProps {
   error?: string;
   containerStyle?: ViewStyle;
   disabled?: boolean;
+  allowClear?: boolean; // NEW: Allow clearing the selection
+  onClear?: () => void; // NEW: Callback when cleared
 }
 
 export const Picker: React.FC<PickerProps> = ({
@@ -35,15 +37,27 @@ export const Picker: React.FC<PickerProps> = ({
   error,
   containerStyle,
   disabled = false,
+  allowClear = false,
+  onClear,
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
 
   const selectedOption = options.find((opt) => opt.value === value);
   const displayValue = selectedOption?.label || placeholder;
+  const hasValue = !!selectedOption;
 
   const handleSelect = (optionValue: string | number) => {
     onSelect(optionValue);
     setIsOpen(false);
+  };
+
+  const handleClear = (e: any) => {
+    e?.stopPropagation?.();
+    if (onClear) {
+      onClear();
+    } else {
+      onSelect('');
+    }
   };
 
   return (
@@ -67,7 +81,18 @@ export const Picker: React.FC<PickerProps> = ({
         >
           {displayValue}
         </Text>
-        <ChevronDown size={20} color="#6b7280" />
+        <View style={styles.iconContainer}>
+          {allowClear && hasValue && !disabled && (
+            <TouchableOpacity 
+              onPress={handleClear}
+              style={styles.clearButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <X size={18} color="#6b7280" />
+            </TouchableOpacity>
+          )}
+          <ChevronDown size={20} color="#6b7280" />
+        </View>
       </TouchableOpacity>
 
       {error && <Text style={styles.errorText}>{error}</Text>}
@@ -144,9 +169,18 @@ const styles = StyleSheet.create({
   triggerText: {
     fontSize: 16,
     color: '#111827',
+    flex: 1,
   },
   placeholderText: {
     color: '#9ca3af',
+  },
+  iconContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  clearButton: {
+    padding: 2,
   },
   errorText: {
     color: '#ef4444',
@@ -181,12 +215,21 @@ const styles = StyleSheet.create({
   optionSelected: {
     backgroundColor: '#ecfdf5',
   },
+  clearOption: {
+    backgroundColor: '#fef2f2',
+    borderBottomWidth: 2,
+    borderBottomColor: '#dc2626',
+  },
   optionText: {
     fontSize: 16,
     color: '#111827',
   },
   optionTextSelected: {
     color: '#059669',
+    fontWeight: '500',
+  },
+  clearOptionText: {
+    color: '#dc2626',
     fontWeight: '500',
   },
 });
