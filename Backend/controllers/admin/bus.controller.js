@@ -20,14 +20,32 @@ const createBus = async (req, res) => {
             busNumber,
             model,
             capacity,
-            assignedDriverId,
+            assignedDriverId: assignedDriverId || null,
             registrationDate: new Date(),
-            assignedRouteId
+            assignedRouteId: assignedRouteId || null
         });
         await newBus.save();
-        return res.status(201).json({ message: "Bus created successfully", bus: newBus });
+        
+        // Build populate query dynamically to avoid null reference issues
+        let query = Bus.findById(newBus._id);
+        
+        if (newBus.assignedDriverId) {
+            query = query.populate({
+                path: 'assignedDriverId',
+                select: 'firstName lastName licenseNo'
+            });
+        }
+        
+        if (newBus.assignedRouteId) {
+            query = query.populate('assignedRouteId', 'routeName routeNumber');
+        }
+        
+        const populatedBus = await query.exec();
+        
+        return res.status(201).json({ message: "Bus created successfully", bus: populatedBus });
     } catch (error) {
-        return res.status(500).json({ message: "Server error", error });
+        console.error('Create bus error:', error);
+        return res.status(500).json({ message: "Server error", error: error.message });
     }
 }
 
@@ -65,16 +83,34 @@ const updateBus = async (req, res) => {
         if (busNumber) bus.busNumber = busNumber;
         if (model) bus.model = model;
         if (capacity) bus.capacity = capacity;
-        if (assignedDriverId) bus.assignedDriverId = assignedDriverId;
-        if (assignedRouteId) bus.assignedRouteId = assignedRouteId;
+        if (assignedDriverId !== undefined) bus.assignedDriverId = assignedDriverId || null;
+        if (assignedRouteId !== undefined) bus.assignedRouteId = assignedRouteId || null;
         if (status) bus.status = status;
         if (crowdLevel) bus.crowdLevel = crowdLevel;
         if (currentPassengers !== undefined) bus.currentPassengers = currentPassengers;
         await bus.save();
-        return res.status(200).json({ message: "Bus updated successfully", bus });
+        
+        // Build populate query dynamically
+        let query = Bus.findById(busId);
+        
+        if (bus.assignedDriverId) {
+            query = query.populate({
+                path: 'assignedDriverId',
+                select: 'firstName lastName licenseNo'
+            });
+        }
+        
+        if (bus.assignedRouteId) {
+            query = query.populate('assignedRouteId', 'routeName routeNumber');
+        }
+        
+        const updatedBus = await query.exec();
+        
+        return res.status(200).json({ message: "Bus updated successfully", bus: updatedBus });
     }
     catch (error) {
-        return res.status(500).json({ message: "Server error", error });
+        console.error('Update bus error:', error);
+        return res.status(500).json({ message: "Server error", error: error.message });
     }
 }
 
@@ -83,12 +119,18 @@ const getAllBuses = async (req, res) => {
         const buses = await Bus.find()
             .populate({
                 path: 'assignedDriverId',
-                select: 'firstName lastName licenseNo'
+                select: 'firstName lastName licenseNo',
+                options: { strictPopulate: false }
             })
-            .populate('assignedRouteId', 'routeName routeNumber');
+            .populate({
+                path: 'assignedRouteId',
+                select: 'routeName routeNumber',
+                options: { strictPopulate: false }
+            });
         return res.status(200).json({ buses });
     } catch (error) {
-        return res.status(500).json({ message: "Server error", error });
+        console.error('Get all buses error:', error);
+        return res.status(500).json({ message: "Server error", error: error.message });
     }
 }
 
