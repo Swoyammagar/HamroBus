@@ -13,6 +13,21 @@ const connectDB = async () => {
         process.exit(1); // Exit process with failure
     }   
 }
-module.exports = connectDB; 
+
+// Drop old busId index after models are loaded
+const dropOldBusIndex = async () => {
+    try {
+        const Bus = require("../models/bus.model");
+        await Bus.collection.dropIndex('busId_1');
+        console.log("✅ Dropped old busId index");
+    } catch (error) {
+        if (error.message && error.message.includes('index not found')) {
+            console.log("ℹ️ No old busId index to drop");
+        }
+        // Ignore other errors
+    }
+};
+
+module.exports = { connectDB, dropOldBusIndex }; 
 
 
