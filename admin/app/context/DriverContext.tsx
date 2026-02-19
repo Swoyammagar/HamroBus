@@ -1,5 +1,5 @@
 import axios from 'axios';
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export type DriverRecord = {
   _id?: string;
@@ -13,6 +13,8 @@ export type DriverRecord = {
   validationStatus?: 'pending' | 'approved' | 'rejected';
   isActive?: boolean;
   licenseImgUrl?: string;
+  assignedBus?: string | { _id?: string; busNumber?: string; model?: string; };  // <-- Add this
+  assignedRoute?: string | { _id?: string; routeName?: string; routeNumber?: string; };  // <-- And maybe this too
 };
 
 type ActionResult = { success: boolean; message: string };
@@ -42,6 +44,11 @@ export const DriverProvider: React.FC<{ children: React.ReactNode }> = ({
   const [pendingDrivers, setPendingDrivers] = useState<DriverRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch drivers on mount
+  useEffect(() => {
+    fetchAllDrivers();
+  }, []);
 
   const fetchAllDrivers = async () => {
     setLoading(true);
