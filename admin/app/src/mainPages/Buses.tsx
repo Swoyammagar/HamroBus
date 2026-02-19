@@ -1,12 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import {
-  buses as initialBuses,
-  findDriverById,
-  findRouteById,
-  drivers as allDrivers,
-  routes as allRoutes,
-} from '../data/dummyData';
+import React, { useMemo, useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { useBus, type BusRecord } from '../../context/BusContext';
+import { useDriver } from '../../context/DriverContext';
+import { useRoute } from '../../context/RouteContext';
 import {
   Tabs,
   SearchBar,
@@ -20,15 +16,7 @@ import {
   type PickerOption,
 } from '../../components/ui';
 
-type Bus = {
-  _id: string;
-  busNumber: string;
-  capacity: number;
-  model: string;
-  status: string;
-  assignedDriverId?: string | null;
-  assignedRouteId?: string | null;
-};
+type Bus = BusRecord;
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -43,16 +31,17 @@ const getStatusVariant = (status: string) => {
   }
 };
 
-
 const Buses: React.FC = () => {
+  const { buses, loading, error, fetchAllBuses, createBus, updateBus, deleteBus } = useBus();
+  const { drivers } = useDriver();
+  const { routes } = useRoute();
+  
   const [activeTab, setActiveTab] = useState<'all' | 'add'>('all');
   const [query, setQuery] = useState<string>('');
-  const [buses, setBuses] = useState<Bus[]>(initialBuses as Bus[]);
-
-  // Edit modal state
   const [editingBus, setEditingBus] = useState<Bus | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editFields, setEditFields] = useState<Partial<Bus>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Add form state
   const [addFields, setAddFields] = useState<Partial<Bus>>({
@@ -60,22 +49,34 @@ const Buses: React.FC = () => {
     model: '',
     capacity: 0,
     status: 'active',
-    assignedDriverId: null,
-    assignedRouteId: null,
+    assignedDriverId: undefined,
+    assignedRouteId: undefined,
   });
+
+  // Fetch buses on mount
+  useEffect(() => {
+    fetchAllBuses();
+  }, []);
 
   // Filter buses
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return buses;
     return buses.filter((b: Bus) => {
+      const driverName = typeof b.assignedDriverId === 'object' 
+        ? `${b.assignedDriverId?.firstName} ${b.assignedDriverId?.lastName}`
+        : '';
+      const routeName = typeof b.assignedRouteId === 'object' 
+        ? (b.assignedRouteId?.routeName || '') 
+        : '';
+      
       return (
         (b.busNumber || '').toLowerCase().includes(q) ||
         String(b.capacity).toLowerCase().includes(q) ||
         (b.status || '').toLowerCase().includes(q) ||
         (b.model || '').toLowerCase().includes(q) ||
-        (findDriverById(b.assignedDriverId || '')?.name || '').toLowerCase().includes(q) ||
-        (findRouteById(b.assignedRouteId || '')?.name || '').toLowerCase().includes(q)
+        driverName.toLowerCase().includes(q) ||
+        routeName.toLowerCase().includes(q)
       );
     });
   }, [query, buses]);
@@ -103,8 +104,8 @@ const Buses: React.FC = () => {
       flex: 1,
       render: (item) => (
         <StatusBadge
-          label={item.status}
-          variant={getStatusVariant(item.status)}
+          label={item.status || 'unknown'}
+          variant={getStatusVariant(item.status || '')}
         />
       ),
     },
@@ -113,8 +114,14 @@ const Buses: React.FC = () => {
       header: 'Assigned Driver',
       flex: 1.5,
       render: (item) => {
-        const driver = findDriverById(item.assignedDriverId || '');
-        return driver ? driver.name : '-';
+        if (typeof item.assignedDriverId === 'object' && item.assignedDriverId) {
+          const firstName = item.assignedDriverId?.firstName || '';
+          const lastName = item.assignedDriverId?.lastName || '';
+          if (firstName || lastName) {
+            return `${firstName} ${lastName}`.trim();
+          }
+        }
+        return '-';
       },
     },
     {
@@ -122,8 +129,10 @@ const Buses: React.FC = () => {
       header: 'Assigned Route',
       flex: 1.5,
       render: (item) => {
-        const route = findRouteById(item.assignedRouteId || '');
-        return route ? route.name : '-';
+        if (typeof item.assignedRouteId === 'object' && item.assignedRouteId) {
+          return item.assignedRouteId?.routeName || '-';
+        }
+        return '-';
       },
     },
     {
@@ -143,7 +152,11 @@ const Buses: React.FC = () => {
           >
             View
           </Button>
-          <Button onPress={() => handleDelete(item._id)} variant="danger" size="sm">
+          <Button 
+            onPress={() => handleDelete(item._id || '')} 
+            variant="danger" 
+            size="sm"
+          >
             Delete
           </Button>
         </View>
@@ -158,52 +171,109 @@ const Buses: React.FC = () => {
     { label: 'Inactive', value: 'inactive' },
   ];
 
-  const driverOptions: PickerOption[] = allDrivers.map((d) => ({
-    label: d.name,
-    value: d._id,
+  const driverOptions: PickerOption[] = drivers.map((d) => ({
+    label: `${d.firstName} ${d.lastName}`,
+    value: d._id || '',
   }));
 
-  const routeOptions: PickerOption[] = allRoutes.map((r) => ({
-    label: r.name,
-    value: r._id,
+  const routeOptions: PickerOption[] = routes.map((r) => ({
+    label: r.routeName || '',
+    value: r._id || '',
   }));
 
-  const handleDelete = (id: string) => {
-    setBuses((prev) => prev.filter((b) => b._id !== id));
+  // Helper to extract ID from object or return string ID
+  const getIdValue = (value: any): string => {
+    if (typeof value === 'string') return value;
+    if (value && typeof value === 'object' && value._id) return value._id;
+    return '';
   };
 
-  const handleSaveEdit = () => {
-    if (!editingBus) return;
-    setBuses((prev) =>
-      prev.map((b) => (b._id === editingBus._id ? { ...b, ...editFields } : b))
-    );
+  const handleDelete = async (busId: string) => {
+    if (!confirm('Are you sure you want to delete this bus?')) return;
+    
+    setIsSubmitting(true);
+    const result = await deleteBus(busId);
+    setIsSubmitting(false);
+    
+    if (!result.success) {
+      alert(`Error: ${result.message}`);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+  if (!editingBus?._id) return;
+  
+  // Extract IDs if they are objects, or use empty string for undefined/null
+  let driverId: string | undefined = undefined;
+  let routeId: string | undefined = undefined;
+
+  if (editFields.assignedDriverId !== undefined) {
+    if (typeof editFields.assignedDriverId === 'object') {
+      driverId = editFields.assignedDriverId?._id || '';
+    } else {
+      driverId = editFields.assignedDriverId || '';
+    }
+  }
+
+  if (editFields.assignedRouteId !== undefined) {
+    if (typeof editFields.assignedRouteId === 'object') {
+      routeId = editFields.assignedRouteId?._id || '';
+    } else {
+      routeId = editFields.assignedRouteId || '';
+    }
+  }
+
+  const updatePayload: any = {
+    ...editFields,
+  };
+
+  // Only include driver/route if they were explicitly modified
+  if (driverId !== undefined) {
+    updatePayload.assignedDriverId = driverId;
+  }
+  
+  if (routeId !== undefined) {
+    updatePayload.assignedRouteId = routeId;
+  }
+  
+  setIsSubmitting(true);
+  const result = await updateBus(editingBus._id, updatePayload);
+  setIsSubmitting(false);
+  
+  if (result.success) {
     setModalVisible(false);
     setEditingBus(null);
-  };
+    setEditFields({});
+  } else {
+    alert(`Error: ${result.message}`);
+  }
+};
 
-  const handleAddBus = () => {
+  const handleAddBus = async () => {
     if (!addFields.busNumber || !addFields.model || !addFields.capacity) {
+      alert('Please fill in all required fields');
       return;
     }
-    const newBus: Bus = {
-      _id: `bus_${Date.now()}`,
+
+    const driverId = getIdValue(addFields.assignedDriverId);
+    const routeId = getIdValue(addFields.assignedRouteId);
+
+    setIsSubmitting(true);
+    const result = await createBus({
       busNumber: String(addFields.busNumber),
       model: String(addFields.model),
       capacity: Number(addFields.capacity),
-      status: String(addFields.status ?? 'active'),
-      assignedDriverId: addFields.assignedDriverId ?? null,
-      assignedRouteId: addFields.assignedRouteId ?? null,
-    };
-    setBuses((s) => [newBus, ...s]);
-    setAddFields({
-      busNumber: '',
-      model: '',
-      capacity: 0,
-      status: 'active',
-      assignedDriverId: null,
-      assignedRouteId: null,
+      assignedDriverId: driverId || undefined,
+      assignedRouteId: routeId || undefined,
     });
-    setActiveTab('all');
+    setIsSubmitting(false);
+
+    if (result.success) {
+      resetAddForm();
+      setActiveTab('all');
+    } else {
+      alert(`Error: ${result.message}`);
+    }
   };
 
   const resetAddForm = () => {
@@ -212,10 +282,18 @@ const Buses: React.FC = () => {
       model: '',
       capacity: 0,
       status: 'active',
-      assignedDriverId: null,
-      assignedRouteId: null,
+      assignedDriverId: undefined,
+      assignedRouteId: undefined,
     });
   };
+
+  if (loading && buses.length === 0) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#0066cc" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -240,7 +318,7 @@ const Buses: React.FC = () => {
           <Table
             data={filtered}
             columns={columns}
-            keyExtractor={(item) => item._id}
+            keyExtractor={(item) => item._id || ''}
             emptyMessage="No buses found"
           />
         </>
@@ -248,21 +326,21 @@ const Buses: React.FC = () => {
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.form}>
             <Input
-              label="Bus Number"
+              label="Bus Number *"
               placeholder="Enter bus number"
               value={String(addFields.busNumber ?? '')}
               onChangeText={(t) => setAddFields((s) => ({ ...s, busNumber: t }))}
             />
 
             <Input
-              label="Model"
+              label="Model *"
               placeholder="Enter bus model"
               value={String(addFields.model ?? '')}
               onChangeText={(t) => setAddFields((s) => ({ ...s, model: t }))}
             />
 
             <Input
-              label="Capacity"
+              label="Capacity *"
               type="number"
               placeholder="Number of seats"
               value={addFields.capacity ? String(addFields.capacity) : ''}
@@ -281,30 +359,42 @@ const Buses: React.FC = () => {
 
             <Picker
               label="Assigned Driver"
-              value={addFields.assignedDriverId ?? ''}
+              value={typeof addFields.assignedDriverId === 'string' ? addFields.assignedDriverId : ''}
               onSelect={(val) =>
-                setAddFields((s) => ({ ...s, assignedDriverId: String(val) }))
+                setAddFields((s) => ({ ...s, assignedDriverId: String(val) || undefined }))
               }
               options={driverOptions}
               placeholder="Select driver (optional)"
+              allowClear={true}
+              onClear={() => setAddFields((s) => ({ ...s, assignedDriverId: undefined }))}
             />
 
             <Picker
               label="Assigned Route"
-              value={addFields.assignedRouteId ?? ''}
+              value={typeof addFields.assignedRouteId === 'string' ? addFields.assignedRouteId : ''}
               onSelect={(val) =>
-                setAddFields((s) => ({ ...s, assignedRouteId: String(val) }))
+                setAddFields((s) => ({ ...s, assignedRouteId: String(val) || undefined }))
               }
               options={routeOptions}
               placeholder="Select route (optional)"
+              allowClear={true}
+              onClear={() => setAddFields((s) => ({ ...s, assignedRouteId: undefined }))}
             />
 
             <View style={styles.formActions}>
-              <Button onPress={resetAddForm} variant="secondary">
+              <Button 
+                onPress={resetAddForm} 
+                variant="secondary"
+                disabled={isSubmitting}
+              >
                 Reset
               </Button>
-              <Button onPress={handleAddBus} variant="primary">
-                Add Bus
+              <Button 
+                onPress={handleAddBus} 
+                variant="primary"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Adding...' : 'Add Bus'}
               </Button>
             </View>
           </View>
@@ -328,11 +418,16 @@ const Buses: React.FC = () => {
                 setEditingBus(null);
               }}
               variant="secondary"
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button onPress={handleSaveEdit} variant="primary">
-              Save Changes
+            <Button 
+              onPress={handleSaveEdit} 
+              variant="primary"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
             </Button>
           </>
         }
@@ -367,22 +462,25 @@ const Buses: React.FC = () => {
 
         <Picker
           label="Assigned Driver"
-          value={editFields.assignedDriverId ?? ''}
+          value={getIdValue(editFields.assignedDriverId)}
           onSelect={(val) =>
-            setEditFields((s) => ({ ...s, assignedDriverId: String(val) }))
+            setEditFields((s) => ({ ...s, assignedDriverId: String(val) || '' }))
           }
           options={driverOptions}
           placeholder="Select driver"
+          allowClear={true}
+          onClear={() => setEditFields((s) => ({ ...s, assignedDriverId: '' }))}
         />
-
         <Picker
           label="Assigned Route"
-          value={editFields.assignedRouteId ?? ''}
+          value={getIdValue(editFields.assignedRouteId)}
           onSelect={(val) =>
-            setEditFields((s) => ({ ...s, assignedRouteId: String(val) }))
+            setEditFields((s) => ({ ...s, assignedRouteId: String(val) || '' }))
           }
           options={routeOptions}
           placeholder="Select route"
+          allowClear={true}
+          onClear={() => setEditFields((s) => ({ ...s, assignedRouteId: '' }))}
         />
       </Modal>
     </View>
@@ -393,6 +491,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorBanner: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#fca5a5',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
   },
   actionButtons: {
     flexDirection: 'row',
