@@ -29,7 +29,7 @@ export default function DashboardOverview() {
 			}
 		}, []);
 
-	const WebMap: React.FC = () => {
+const WebMap: React.FC = () => {
   const mapRef = React.useRef<any>(null);
   const [leaflet, setLeaflet] = useState<any>(null);
 
