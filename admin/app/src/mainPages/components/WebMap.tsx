@@ -73,25 +73,23 @@ const WebMap: React.FC<WebMapProps> = ({ route, routes, selectedRouteId, onSelec
 
   return (
     <View style={s.container}>
-      <View style={s.header}>
-        <Text style={s.title}>Route Map</Text>
-      </View>
-
       {/* Route Dropdown */}
-      <ScrollView style={s.dropdown} nestedScrollEnabled={true}>
-        {(routes ?? []).map(r => (
-          <Button
-            key={r._id}
-            onPress={() => onSelectRoute(r._id)}
-            variant={selectedRouteId === r._id ? 'primary' : 'outline'}
-            style={[s.routeButton, selectedRouteId === r._id && s.routeButtonActive]}
-          >
-            <Text style={[s.routeButtonText, selectedRouteId === r._id && { color: '#fff' }]}>
+      <View style={s.dropdownContainer}>
+        <select
+          value={selectedRouteId ?? ''}
+          onChange={(e) => onSelectRoute(e.target.value)}
+          style={s.webSelect as any}
+        >
+          <option value="" disabled>
+            Select a Route
+          </option>
+          {(routes ?? []).map((r) => (
+            <option key={r._id} value={r._id}>
               {r.routeName} ({r.routeNumber})
-            </Text>
-          </Button>
-        ))}
-      </ScrollView>
+            </option>
+          ))}
+        </select>
+      </View>
 
       {/* Map */}
       <View style={s.mapContainer}>
@@ -135,14 +133,25 @@ const WebMap: React.FC<WebMapProps> = ({ route, routes, selectedRouteId, onSelec
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column' },
-  header: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-  title: { fontWeight: '700', fontSize: 14, color: '#1f2937' },
   dropdown: { maxHeight: 120, borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
   routeButton: { marginHorizontal: 8, marginVertical: 4, paddingVertical: 8 },
   routeButtonActive: { backgroundColor: '#10b981' },
   routeButtonText: { fontSize: 12, fontWeight: '500', color: '#1f2937' },
   mapContainer: { flex: 1, position: 'relative' },
   mapPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  dropdownContainer: {
+  padding: 12,
+  borderBottomWidth: 1,
+  borderBottomColor: '#e5e7eb',
+},
+
+webSelect: {
+  width: '100%',
+  padding: '8px',
+  fontSize: '14px',
+  borderRadius: '6px',
+  border: '1px solid #d1d5db',
+},
   mapLoadingOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
 });
 
