@@ -66,7 +66,7 @@ const WebMap: React.FC<WebMapProps> = ({ route, routes, selectedRouteId, onSelec
 
   if (!leaflet) return <View style={s.mapPlaceholder}><Text style={{ color: '#6b7280' }}>Loading map...</Text></View>;
 
-  const { MapContainer, TileLayer, Marker, Popup, Polyline } = leaflet;
+  const { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip } = leaflet;
 
   const center = route && route.stops && route.stops.length ? [route.stops[0].latitude, route.stops[0].longitude] : [27.7172, 85.3240];
   const positions = (route?.stops?.map((s: any) => [s.latitude, s.longitude]) ?? []) as any[];
@@ -113,7 +113,13 @@ const WebMap: React.FC<WebMapProps> = ({ route, routes, selectedRouteId, onSelec
           />
           {route && positions.length > 0 && positions.map((pos: any, idx: number) => (
             <Marker key={idx} position={pos}>
-              <Popup>{route.stops[idx]?.stopName || `Stop ${idx + 1}`}</Popup>
+              <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent={false}>
+                {route.stops[idx]?.stopName || `Stop ${idx + 1}`}
+              </Tooltip>
+
+              <Popup>
+                {route.stops[idx]?.stopName || `Stop ${idx + 1}`}
+              </Popup>
             </Marker>
           ))}
           {positions.length > 1 && (
