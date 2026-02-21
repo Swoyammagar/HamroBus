@@ -1,5 +1,6 @@
 const Bus = require("../../models/bus.model");
 const Driver = require("../../models/driver.model");
+const Route = require("../../models/route.model");
 
 const createBus = async (req, res) => {
     const { 
@@ -28,6 +29,14 @@ const createBus = async (req, res) => {
                 return res.status(400).json({ message: "Driver is already assigned to another bus" });
             }
         }
+
+        // If route is assigned, verify it exists
+        if (assignedRouteId) {
+            const route = await Route.findById(assignedRouteId);
+            if (!route) {
+                return res.status(404).json({ message: "Route not found" });
+            }
+        }
         
         const newBus = new Bus({
             busNumber,
@@ -45,6 +54,13 @@ const createBus = async (req, res) => {
                 assignedBus: newBus._id
             });
         }
+
+        // Add bus to route's assignedBusIds if route is assigned
+        if (assignedRouteId) {
+            await Route.findByIdAndUpdate(assignedRouteId, {
+                $addToSet: { assignedBusIds: newBus._id }
+            });
+        }
         
         // Build populate query dynamically to avoid null reference issues
         let query = Bus.findById(newBus._id);
@@ -57,7 +73,7 @@ const createBus = async (req, res) => {
         }
         
         if (newBus.assignedRouteId) {
-            query = query.populate('assignedRouteId', 'routeName routeNumber');
+            query = query.populate('assignedRouteId', 'routeName');
         }
         
         const populatedBus = await query.exec();
@@ -81,6 +97,13 @@ const deleteBus = async (req, res) => {
         if (bus.assignedDriverId) {
             await Driver.findByIdAndUpdate(bus.assignedDriverId, {
                 assignedBus: null
+            });
+        }
+
+        // Remove bus from route's assignedBusIds if assigned to a route
+        if (bus.assignedRouteId) {
+            await Route.findByIdAndUpdate(bus.assignedRouteId, {
+                $pull: { assignedBusIds: busId }
             });
         }
         
@@ -142,11 +165,39 @@ const updateBus = async (req, res) => {
                 bus.assignedDriverId = newDriverId;
             }
         }
+
+        // Handle route reassignment
+        if (assignedRouteId !== undefined) {
+            const oldRouteId = bus.assignedRouteId;
+            const newRouteId = assignedRouteId || null;
+
+            // If route is changing
+            if (String(oldRouteId) !== String(newRouteId)) {
+                // Remove bus from old route's assignedBusIds
+                if (oldRouteId) {
+                    await Route.findByIdAndUpdate(oldRouteId, {
+                        $pull: { assignedBusIds: busId }
+                    });
+                }
+
+                // Add bus to new route's assignedBusIds
+                if (newRouteId) {
+                    const route = await Route.findById(newRouteId);
+                    if (!route) {
+                        return res.status(404).json({ message: "Route not found" });
+                    }
+                    await Route.findByIdAndUpdate(newRouteId, {
+                        $addToSet: { assignedBusIds: busId }
+                    });
+                }
+
+                bus.assignedRouteId = newRouteId;
+            }
+        }
         
         if (busNumber) bus.busNumber = busNumber;
         if (model) bus.model = model;
         if (capacity) bus.capacity = capacity;
-        if (assignedRouteId !== undefined) bus.assignedRouteId = assignedRouteId || null;
         if (status) bus.status = status;
         if (crowdLevel) bus.crowdLevel = crowdLevel;
         if (currentPassengers !== undefined) bus.currentPassengers = currentPassengers;
@@ -163,7 +214,7 @@ const updateBus = async (req, res) => {
         }
         
         if (bus.assignedRouteId) {
-            query = query.populate('assignedRouteId', 'routeName routeNumber');
+            query = query.populate('assignedRouteId', 'routeName');
         }
         
         const updatedBus = await query.exec();
@@ -186,7 +237,7 @@ const getAllBuses = async (req, res) => {
             })
             .populate({
                 path: 'assignedRouteId',
-                select: 'routeName routeNumber',
+                select: 'routeName',
                 options: { strictPopulate: false }
             });
         return res.status(200).json({ buses });
