@@ -352,12 +352,19 @@ const getCurrentUser = async () => {
     
     const userData = JSON.parse(storedUser);
     const roles = userData.roles || [];
+    const storedDriver = await AsyncStorage.getItem('driverProfile');
+    const storedPassenger = await AsyncStorage.getItem('passengerProfile');
     
-    let endpoint = '/profile';
-    if (roles.includes('driver')) {
+    let endpoint: string | null = null;
+    if (roles.includes('driver') || storedDriver) {
       endpoint = '/driver/profile';
-    } else if (roles.includes('passenger')) {
+    } else if (roles.includes('passenger') || storedPassenger) {
       endpoint = '/passenger/profile';
+    }
+
+    if (!endpoint) {
+      console.warn('Get current user skipped: missing role information');
+      return;
     }
     
     const response = await axios.get(`${API_URL}${endpoint}`, {
