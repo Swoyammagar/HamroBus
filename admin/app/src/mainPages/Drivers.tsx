@@ -1,13 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {useMemo, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   Image,
-  Alert,
   ToastAndroid,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useDriver, DriverRecord } from "../../context/DriverContext";
@@ -51,6 +50,13 @@ const Drivers: React.FC = () => {
   const [query, setQuery] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [editingDriver, setEditingDriver] = useState<DisplayDriver | null>(null);
+  const [processingDriverId, setProcessingDriverId] = useState<string | null>(null);
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{
+    type: 'approve' | 'reject';
+    driverId: string;
+    driverName: string;
+  } | null>(null);
 
   const toDisplayDriver = (drv: DriverRecord): DisplayDriver => {
     const fullName = `${drv.firstName || ""} ${drv.lastName || ""}`.trim();
@@ -81,6 +87,30 @@ const Drivers: React.FC = () => {
         .some((field) => field.toLowerCase().includes(q))
     );
   }, [normalizedDrivers, query]);
+
+  const confirmApprove = (driverId: string, driverName: string) => {
+    setConfirmAction({ type: 'approve', driverId, driverName });
+    setConfirmModalVisible(true);
+  };
+
+  const confirmReject = (driverId: string, driverName: string) => {
+    setConfirmAction({ type: 'reject', driverId, driverName });
+    setConfirmModalVisible(true);
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+
+    setConfirmModalVisible(false);
+    
+    if (confirmAction.type === 'approve') {
+      await handleApprove(confirmAction.driverId);
+    } else {
+      await handleReject(confirmAction.driverId);
+    }
+    
+    setConfirmAction(null);
+  };
 
   // Table columns for all drivers
   const driverColumns: TableColumn<DisplayDriver>[] = [
@@ -173,66 +203,102 @@ const Drivers: React.FC = () => {
       width: 180,
       render: (item) => (
         <View style={styles.actionButtons}>
-          <Button
-            onPress={() => handleApprove(item.driverId)}
-            variant="success"
-            size="sm"
-          >
-            Accept
-          </Button>
-          <Button
-            onPress={() => handleReject(item.driverId)}
-            variant="danger"
-            size="sm"
-          >
-            Reject
-          </Button>
+          {processingDriverId === item.driverId ? (
+            <ActivityIndicator size="small" />
+          ) : (
+            <>
+              <Button
+                onPress={() => confirmApprove(item.driverId, item.name)}
+                variant="success"
+                size="sm"
+                disabled={processingDriverId !== null}
+              >
+                Accept
+              </Button>
+              <Button
+                onPress={() => confirmReject(item.driverId, item.name)}
+                variant="danger"
+                size="sm"
+                disabled={processingDriverId !== null}
+              >
+                Reject
+              </Button>
+            </>
+          )}
         </View>
       ),
     },
   ];
 
+
+
   const handleApprove = async (driverId: string) => {
+  try {
+    setProcessingDriverId(driverId);
+
     const result = await approveDriver(driverId);
+
     if (result.success) {
       if (Platform.OS === 'android') {
         ToastAndroid.show(
           result.message || "Driver approved successfully!",
           ToastAndroid.SHORT
         );
+      } else {
+        console.log(result.message || "Driver approved successfully!");
       }
-      Alert.alert("Driver approved", result.message || "The driver can now access the app.");
     } else {
+      console.error("Error:", result.message || "Failed to approve driver");
       if (Platform.OS === 'android') {
         ToastAndroid.show(
           result.message || "Failed to approve driver",
-          ToastAndroid.SHORT
+          ToastAndroid.LONG
         );
       }
-      Alert.alert("Approval failed", result.message || "Please try again.");
     }
-  };
+  } catch (err) {
+    console.error("Error:", "Something went wrong");
+    if (Platform.OS === 'android') {
+      ToastAndroid.show("Something went wrong", ToastAndroid.LONG);
+    }
+  } finally {
+    setProcessingDriverId(null);
+  }
+};
 
-  const handleReject = async (driverId: string) => {
+const handleReject = async (driverId: string) => {
+  try {
+    setProcessingDriverId(driverId);
+
     const result = await rejectDriver(driverId);
+
     if (result.success) {
       if (Platform.OS === 'android') {
         ToastAndroid.show(
           result.message || "Driver rejected successfully!",
           ToastAndroid.SHORT
         );
+      } else {
+        console.log(result.message || "Driver rejected successfully!");
       }
-      Alert.alert("Driver rejected", result.message || "The driver has been notified.");
     } else {
+      console.error("Error:", result.message || "Failed to reject driver");
       if (Platform.OS === 'android') {
         ToastAndroid.show(
           result.message || "Failed to reject driver",
-          ToastAndroid.SHORT
+          ToastAndroid.LONG
         );
       }
-      Alert.alert("Rejection failed", result.message || "Please try again.");
     }
-  };
+  } catch (err) {
+    console.error("Error:", "Something went wrong");
+    if (Platform.OS === 'android') {
+      ToastAndroid.show("Something went wrong", ToastAndroid.LONG);
+    }
+  } finally {
+    setProcessingDriverId(null);
+  }
+};
 
   useFocusEffect(
     React.useCallback(() => {
@@ -385,6 +451,42 @@ const Drivers: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Confirmation Modal */}
+      <Modal
+        visible={confirmModalVisible}
+        onClose={() => {
+          setConfirmModalVisible(false);
+          setConfirmAction(null);
+        }}
+        title={confirmAction?.type === 'approve' ? 'Approve Driver' : 'Reject Driver'}
+        size="sm"
+        footer={
+          <View style={styles.confirmFooter}>
+            <Button
+              onPress={() => {
+                setConfirmModalVisible(false);
+                setConfirmAction(null);
+              }}
+              variant="secondary"
+            >
+              Cancel
+            </Button>
+            <Button
+              onPress={handleConfirmAction}
+              variant={confirmAction?.type === 'approve' ? 'success' : 'danger'}
+            >
+              {confirmAction?.type === 'approve' ? 'Approve' : 'Reject'}
+            </Button>
+          </View>
+        }
+      >
+        <Text style={styles.confirmText}>
+          {confirmAction?.type === 'approve'
+            ? `Are you sure you want to approve ${confirmAction?.driverName}?`
+            : `Are you sure you want to reject ${confirmAction?.driverName}?`}
+        </Text>
+      </Modal>
     </View>
   );
 };
@@ -408,6 +510,16 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+  },
+  confirmFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'flex-end',
+  },
+  confirmText: {
+    fontSize: 15,
+    color: '#374151',
+    lineHeight: 22,
   },
   avatar: {
     width: 80,
