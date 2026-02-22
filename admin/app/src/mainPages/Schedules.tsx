@@ -1,103 +1,144 @@
-import React, {useMemo, useState} from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
 } from "react-native";
-import { schedules as allSchedules, findBusById, findDriverById, findRouteById, buses as allBuses, drivers as allDrivers, routes as allRoutes } from "../data/dummyData";
-import type { Schedule } from "../types/schedules";
 import { Tabs, SearchBar, Table, Modal, Picker, Button, Input, type TableColumn } from '../../components/ui';
+import { useRoute, DayOfWeek, ScheduleRecord } from '../../context/RouteContext';
+import { useBus } from '../../context/BusContext';
+import { useDriver } from '../../context/DriverContext';
 
-const BusesDesignOnly: React.FC = () => {
+const Schedules: React.FC = () => {
+  const { routes, fetchAllRoutes, addSchedule, updateSchedule, deleteSchedule, getRouteSchedules } = useRoute();
+  const { buses, fetchAllBuses } = useBus();
+  const { drivers, fetchAllDrivers } = useDriver();
+
   const [activeTab, setActiveTab] = useState<"all" | "add">("all");
   const [query, setQuery] = useState<string>("");
-  const [schedules, setSchedules] = useState<Schedule[]>(allSchedules as Schedule[]);
+  const [selectedRouteId, setSelectedRouteId] = useState<string>("");
+  const [schedules, setSchedules] = useState<ScheduleRecord[]>([]);
 
-  // modal / edit state
-  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+  // Modal / edit state
+  const [editingSchedule, setEditingSchedule] = useState<ScheduleRecord | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [editFields, setEditFields] = useState<Partial<Schedule>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Form fields - use proper typing for form state where IDs are always strings
+  interface ScheduleFormFields {
+    dayOfWeek?: DayOfWeek;
+    busId?: string;
+    driverId?: string;
+    startTime?: string;
+    endTime?: string;
+    notes?: string;
+  }
+  
+  const [editFields, setEditFields] = useState<ScheduleFormFields>({});
 
-  const formatTimeForInput = (val?: string | null) => {
-    if (!val) return '';
-    try {
-      if (val.includes('T')) {
-        const d = new Date(val);
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-      }
-      return val;
-    } catch (e) {
-      return String(val);
+  // Load schedules when route is selected
+  useEffect(() => {
+    if (selectedRouteId) {
+      const route = routes.find(r => r._id === selectedRouteId);
+      setSchedules(route?.schedules || []);
+    } else {
+      setSchedules([]);
     }
-  };
+  }, [selectedRouteId, routes]);
 
-
-
+  // Auto-populate driver when bus is selected (both add and edit modes)
+  useEffect(() => {
+    if (editFields.busId) {
+      const selectedBus = buses.find(b => b._id === editFields.busId);
+      if (selectedBus?.assignedDriverId) {
+        const driverId = typeof selectedBus.assignedDriverId === 'string' 
+          ? selectedBus.assignedDriverId 
+          : selectedBus.assignedDriverId._id;
+        setEditFields(prev => ({ ...prev, driverId }));
+      }
+    }
+  }, [editFields.busId, buses]);
 
   const filteredSchedules = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return schedules;
     return schedules.filter((s) => {
-      const bus = findBusById(s.busId);
-      const driver = findDriverById(s.driverId);
-      const route = findRouteById(s.routeId);
+      const bus = buses.find(b => b._id === (typeof s.busId === 'string' ? s.busId : s.busId?._id));
+      const driver = drivers.find(d => d._id === (typeof s.driverId === 'string' ? s.driverId : s.driverId?._id));
       return (
         (bus?.busNumber || '').toLowerCase().includes(q) ||
-        (driver?.name || '').toLowerCase().includes(q) ||
-        (route?.name || '').toLowerCase().includes(q) ||
-        (s.date || '').toLowerCase().includes(q)
+        ((driver?.firstName || '') + ' ' + (driver?.lastName || '')).toLowerCase().includes(q) ||
+        (s.dayOfWeek || '').toLowerCase().includes(q)
       );
     });
-  }, [query, schedules]);
+  }, [query, schedules, buses, drivers]);
 
-  // Bus, Driver, Route options for pickers
-  const busOptions = allBuses.map(b => ({ label: b.busNumber, value: b._id }));
-  const driverOptions = allDrivers.map(d => ({ label: d.name, value: d._id }));
-  const routeOptions = allRoutes.map(r => ({ label: r.name, value: r._id }));
+  // Options for pickers - filter out undefined values
+  const routeOptions = routes
+    .filter(r => r._id)
+    .map(r => ({ label: r.routeName || r.routeNumber || 'Unknown', value: r._id! }));
+  
+  const busOptions = buses
+    .filter(b => b._id)
+    .map(b => ({ label: b.busNumber || 'Unknown', value: b._id! }));
+  
+  const driverOptions = drivers
+    .filter(d => d._id)
+    .map(d => ({ label: `${d.firstName || ''} ${d.lastName || ''}`.trim() || 'Unknown', value: d._id! }));
+  
+  const dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => ({ label: d, value: d }));
 
   // Table columns
-  const columns: TableColumn<Schedule>[] = [
+  const columns: TableColumn<ScheduleRecord>[] = [
     {
-      key: 'routeId',
-      header: 'Route',
-      flex: 2,
-      render: (item) => findRouteById(item.routeId)?.name ?? '-',
+      key: 'dayOfWeek',
+      header: 'Day',
+      flex: 1,
+      render: (item) => item.dayOfWeek ?? '-',
     },
     {
       key: 'busId',
-      header: 'Bus Number',
+      header: 'Bus',
       flex: 1.5,
-      render: (item) => findBusById(item.busId)?.busNumber ?? '-',
+      render: (item) => {
+        const busId = typeof item.busId === 'string' ? item.busId : item.busId?._id;
+        const bus = buses.find(b => b._id === busId);
+        return bus?.busNumber ?? '-';
+      },
     },
     {
       key: 'driverId',
       header: 'Driver',
       flex: 1.5,
-      render: (item) => findDriverById(item.driverId)?.name ?? '-',
+      render: (item) => {
+        const driverId = typeof item.driverId === 'string' ? item.driverId : item.driverId?._id;
+        const driver = drivers.find(d => d._id === driverId);
+        return `${driver?.firstName || ''} ${driver?.lastName || ''}`.trim() || '-';
+      },
     },
     {
-      key: 'date',
-      header: 'Date',
+      key: 'startTime',
+      header: 'Start Time',
       flex: 1,
+      render: (item) => item.startTime ?? '-',
     },
     {
-      key: 'departureTime',
-      header: 'Departure',
-      flex: 1.2,
-      render: (item) => formatTimeForInput(item.departureTime),
+      key: 'endTime',
+      header: 'End Time',
+      flex: 1,
+      render: (item) => item.endTime ?? '-',
     },
     {
-      key: 'arrivalTime',
-      header: 'Arrival',
+      key: 'notes',
+      header: 'Notes',
       flex: 1.2,
-      render: (item) => formatTimeForInput(item.arrivalTime),
+      render: (item) => item.notes ?? '-',
     },
     {
       key: 'actions',
       header: 'Actions',
-      width: 180,
+      width: 160,
       render: (item) => (
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Button
@@ -106,9 +147,12 @@ const BusesDesignOnly: React.FC = () => {
             onPress={() => {
               setEditingSchedule(item);
               setEditFields({
-                ...item,
-                departureTime: item.departureTime ? formatTimeForInput(item.departureTime) : item.departureTime,
-                arrivalTime: item.arrivalTime ? formatTimeForInput(item.arrivalTime) : item.arrivalTime,
+                dayOfWeek: item.dayOfWeek,
+                busId: typeof item.busId === 'string' ? item.busId : item.busId?._id,
+                driverId: typeof item.driverId === 'string' ? item.driverId : item.driverId?._id,
+                startTime: item.startTime,
+                endTime: item.endTime,
+                notes: item.notes,
               });
               setModalVisible(true);
             }}
@@ -118,7 +162,7 @@ const BusesDesignOnly: React.FC = () => {
           <Button
             variant="danger"
             size="sm"
-            onPress={() => setSchedules(s => s.filter(x => x._id !== item._id))}
+            onPress={() => handleDeleteSchedule(item._id)}
           >
             Delete
           </Button>
@@ -127,44 +171,127 @@ const BusesDesignOnly: React.FC = () => {
     },
   ];
 
-  const handleSaveEdit = () => {
-    if (!editingSchedule) return;
-    const merged: Schedule = {
-      ...editingSchedule,
-      ...(editFields as Schedule),
-      departureTime: editFields.departureTime ?? editingSchedule.departureTime,
-      arrivalTime: editFields.arrivalTime ?? editingSchedule.arrivalTime,
-    } as Schedule;
-    setSchedules(s => s.map(x => x._id === editingSchedule._id ? merged : x));
-    setModalVisible(false);
-    setEditingSchedule(null);
-    setEditFields({});
+  // Load initial data
+  useEffect(() => {
+    fetchAllRoutes();
+    fetchAllBuses?.();
+    fetchAllDrivers?.();
+  }, []);
+
+  const handleDeleteSchedule = async (scheduleId?: string) => {
+    if (!scheduleId || !selectedRouteId) return;
+    if (!confirm('Are you sure you want to delete this schedule?')) return;
+
+    try {
+      const result = await deleteSchedule(selectedRouteId, scheduleId);
+      if (result.success) {
+        // Refresh schedules for this route
+        const route = routes.find(r => r._id === selectedRouteId);
+        if (route?.schedules) {
+          setSchedules(route.schedules);
+        }
+        alert('Schedule deleted successfully');
+      } else {
+        alert(`Error: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Error deleting schedule:', error);
+      alert('Failed to delete schedule');
+    }
   };
 
-  const handleAddSchedule = () => {
-    const busId = editFields.busId as string | undefined;
-    const driverId = editFields.driverId as string | undefined;
-    const routeId = editFields.routeId as string | undefined;
-    const date = editFields.date as string | undefined;
-    const departureTime = editFields.departureTime as string | undefined;
-    const arrivalTime = editFields.arrivalTime as string | undefined;
-    if (!busId || !driverId || !routeId || !date || !departureTime || !arrivalTime) {
-      // @ts-ignore
-      alert('Please fill all fields');
+  const handleSaveEdit = async () => {
+    if (!editingSchedule || !selectedRouteId) return;
+    
+    if (!editFields.dayOfWeek || !editFields.busId || !editFields.startTime || !editFields.endTime) {
+      alert('Please fill all required fields');
       return;
     }
-    const newSchedule: Schedule = {
-      _id: 'sch_' + Math.random().toString(36).slice(2, 9),
-      busId,
-      driverId,
-      routeId,
-      date,
-      departureTime,
-      arrivalTime,
-    } as Schedule;
-    setSchedules(s => [newSchedule, ...s]);
-    setEditFields({});
-    setActiveTab('all');
+
+    // Verify that driver was auto-populated from bus
+    if (!editFields.driverId) {
+      alert('Selected bus must have an assigned driver');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await updateSchedule(selectedRouteId, editingSchedule._id!, {
+        dayOfWeek: editFields.dayOfWeek as DayOfWeek,
+        busId: editFields.busId as string,
+        driverId: editFields.driverId as string,
+        startTime: editFields.startTime as string,
+        endTime: editFields.endTime as string,
+        notes: editFields.notes as string | undefined,
+      });
+
+      if (result.success) {
+        // Refresh schedules for this route
+        const route = routes.find(r => r._id === selectedRouteId);
+        if (route?.schedules) {
+          setSchedules(route.schedules);
+        }
+        setModalVisible(false);
+        setEditingSchedule(null);
+        setEditFields({});
+        alert('Schedule updated successfully');
+      } else {
+        alert(`Error: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Error updating schedule:', error);
+      alert('Failed to update schedule');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddSchedule = async () => {
+    if (!selectedRouteId) {
+      alert('Please select a route first');
+      return;
+    }
+
+    if (!editFields.dayOfWeek || !editFields.busId || !editFields.startTime || !editFields.endTime) {
+      alert('Please fill all required fields (Route, Day, Bus, Start Time, End Time)');
+      return;
+    }
+
+    // Verify that driver was auto-populated from bus
+    if (!editFields.driverId) {
+      alert('Selected bus must have an assigned driver');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await addSchedule(selectedRouteId, {
+        dayOfWeek: editFields.dayOfWeek as DayOfWeek,
+        busId: editFields.busId as string,
+        driverId: editFields.driverId as string,
+        startTime: editFields.startTime as string,
+        endTime: editFields.endTime as string,
+        notes: editFields.notes as string | undefined,
+      });
+
+      if (result.success) {
+        // Refresh schedules for this route
+        const route = routes.find(r => r._id === selectedRouteId);
+        if (route?.schedules) {
+          setSchedules(route.schedules);
+        }
+        setEditFields({});
+        setActiveTab('all');
+        alert('Schedule added successfully');
+      } else {
+        alert(`Error: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Error adding schedule:', error);
+      alert('Failed to add schedule');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -180,20 +307,45 @@ const BusesDesignOnly: React.FC = () => {
 
       {activeTab === "all" ? (
         <>
-          <SearchBar
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search by bus number, driver or route..."
-            onClear={() => setQuery('')}
-          />
+          <View style={styles.routeSelector}>
+            <Text style={styles.label}>Select Route</Text>
+            <Picker
+              options={routeOptions}
+              value={selectedRouteId}
+              onSelect={(value) => setSelectedRouteId(String(value))}
+              placeholder="Choose a route..."
+            />
+          </View>
 
-          <Table
-            data={filteredSchedules}
-            columns={columns}
-            keyExtractor={(item) => item._id}
-            emptyMessage="No schedules found"
-          />
+          {selectedRouteId ? (
+            <>
+              <SearchBar
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search schedules..."
+                onClear={() => setQuery('')}
+              />
 
+              {schedules.length > 0 ? (
+                <Table
+                  data={filteredSchedules}
+                  columns={columns}
+                  keyExtractor={(item) => item._id || ''}
+                  emptyMessage="No schedules found for this route"
+                />
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No schedules for this route yet</Text>
+                </View>
+              )}
+            </>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Please select a route to view schedules</Text>
+            </View>
+          )}
+
+          {/* Edit Modal */}
           <Modal
             visible={modalVisible}
             onClose={() => {
@@ -215,7 +367,12 @@ const BusesDesignOnly: React.FC = () => {
                 >
                   Cancel
                 </Button>
-                <Button variant="success" onPress={handleSaveEdit}>
+                <Button 
+                  variant="success" 
+                  onPress={handleSaveEdit}
+                  loading={isSubmitting}
+                  disabled={isSubmitting}
+                >
                   Save
                 </Button>
               </View>
@@ -223,51 +380,72 @@ const BusesDesignOnly: React.FC = () => {
           >
             <View style={{ gap: 12 }}>
               <Picker
+                label="Day of Week"
+                options={dayOptions}
+                value={editFields.dayOfWeek ?? editingSchedule?.dayOfWeek ?? ''}
+                onSelect={(value) => setEditFields(s => ({ ...s, dayOfWeek: String(value) as DayOfWeek }))}
+                placeholder="Select day"
+              />
+
+              <Picker
                 label="Bus"
                 options={busOptions}
-                value={editFields.busId ?? editingSchedule?.busId ?? ''}
+                value={
+                  editFields.busId ||
+                  (typeof editingSchedule?.busId === 'string' 
+                    ? editingSchedule.busId 
+                    : (editingSchedule?.busId as any)?._id) ||
+                  ''
+                }
                 onSelect={(value) => setEditFields(s => ({ ...s, busId: String(value) }))}
                 placeholder="Select bus"
               />
 
-              <Picker
-                label="Driver"
-                options={driverOptions}
-                value={editFields.driverId ?? editingSchedule?.driverId ?? ''}
-                onSelect={(value) => setEditFields(s => ({ ...s, driverId: String(value) }))}
-                placeholder="Select driver"
-              />
+              {/* Display assigned driver automatically */}
+              {(editFields.busId || (typeof editingSchedule?.busId === 'string' 
+                ? editingSchedule.busId 
+                : (editingSchedule?.busId as any)?._id)) && (
+                <View style={{ padding: 12, backgroundColor: '#f3f4f6', borderRadius: 6 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 4 }}>Assigned Driver</Text>
+                  <Text style={{ fontSize: 14, color: '#1f2937', fontWeight: '500' }}>
+                    {(() => {
+                      const busId = editFields.busId || (typeof editingSchedule?.busId === 'string' 
+                        ? editingSchedule.busId 
+                        : (editingSchedule?.busId as any)?._id);
+                      const selectedBus = buses.find(b => b._id === busId);
+                      if (!selectedBus?.assignedDriverId) return 'No driver assigned to this bus';
+                      const driverId = typeof selectedBus.assignedDriverId === 'string' 
+                        ? selectedBus.assignedDriverId 
+                        : selectedBus.assignedDriverId._id;
+                      const driver = drivers.find(d => d._id === driverId);
+                      return `${driver?.firstName || ''} ${driver?.lastName || ''}`.trim() || 'Unknown';
+                    })()}
+                  </Text>
+                </View>
+              )}
 
-              <Picker
-                label="Route"
-                options={routeOptions}
-                value={editFields.routeId ?? editingSchedule?.routeId ?? ''}
-                onSelect={(value) => setEditFields(s => ({ ...s, routeId: String(value) }))}
-                placeholder="Select route"
+              <Input
+                label="Start Time (HH:MM)"
+                type="text"
+                value={editFields.startTime ?? editingSchedule?.startTime ?? ''}
+                onChangeText={(t) => setEditFields(s => ({ ...s, startTime: t }))}
+                placeholder="e.g. 06:00"
               />
 
               <Input
-                label="Date"
+                label="End Time (HH:MM)"
                 type="text"
-                value={editFields.date ?? editingSchedule?.date ?? ''}
-                onChangeText={(t) => setEditFields(s => ({ ...s, date: t }))}
-                placeholder="YYYY-MM-DD"
+                value={editFields.endTime ?? editingSchedule?.endTime ?? ''}
+                onChangeText={(t) => setEditFields(s => ({ ...s, endTime: t }))}
+                placeholder="e.g. 08:30"
               />
 
               <Input
-                label="Departure Time"
+                label="Notes (Optional)"
                 type="text"
-                value={String(editFields.departureTime ?? (editingSchedule?.departureTime ? formatTimeForInput(editingSchedule.departureTime) : ''))}
-                onChangeText={(t) => setEditFields(s => ({ ...s, departureTime: t }))}
-                placeholder="e.g. 08:30 AM"
-              />
-
-              <Input
-                label="Arrival Time"
-                type="text"
-                value={String(editFields.arrivalTime ?? (editingSchedule?.arrivalTime ? formatTimeForInput(editingSchedule.arrivalTime) : ''))}
-                onChangeText={(t) => setEditFields(s => ({ ...s, arrivalTime: t }))}
-                placeholder="e.g. 09:45 AM"
+                value={editFields.notes ?? editingSchedule?.notes ?? ''}
+                onChangeText={(t) => setEditFields(s => ({ ...s, notes: t }))}
+                placeholder="Add any notes..."
               />
             </View>
           </Modal>
@@ -276,6 +454,22 @@ const BusesDesignOnly: React.FC = () => {
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.addContainer}>
             <Picker
+              label="Route"
+              options={routeOptions}
+              value={selectedRouteId}
+              onSelect={(value: string | number) => setSelectedRouteId(String(value))}
+              placeholder="Select route"
+            />
+
+            <Picker
+              label="Day of Week"
+              options={dayOptions}
+              value={editFields.dayOfWeek ?? ''}
+              onSelect={(value: string | number) => setEditFields(s => ({ ...s, dayOfWeek: String(value) as DayOfWeek }))}
+              placeholder="Select day"
+            />
+
+            <Picker
               label="Bus"
               options={busOptions}
               value={editFields.busId ?? ''}
@@ -283,51 +477,64 @@ const BusesDesignOnly: React.FC = () => {
               placeholder="Select bus"
             />
 
-            <Picker
-              label="Driver"
-              options={driverOptions}
-              value={editFields.driverId ?? ''}
-              onSelect={(value: string | number) => setEditFields(s => ({ ...s, driverId: String(value) }))}
-              placeholder="Select driver"
-            />
+            {/* Display assigned driver automatically */}
+            {editFields.busId && (
+              <View style={{ padding: 12, backgroundColor: '#f3f4f6', borderRadius: 6 }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 4 }}>Assigned Driver</Text>
+                <Text style={{ fontSize: 14, color: '#1f2937', fontWeight: '500' }}>
+                  {(() => {
+                    const selectedBus = buses.find(b => b._id === editFields.busId);
+                    if (!selectedBus?.assignedDriverId) return 'No driver assigned to this bus';
+                    const driverId = typeof selectedBus.assignedDriverId === 'string' 
+                      ? selectedBus.assignedDriverId 
+                      : selectedBus.assignedDriverId._id;
+                    const driver = drivers.find(d => d._id === driverId);
+                    return `${driver?.firstName || ''} ${driver?.lastName || ''}`.trim() || 'Unknown';
+                  })()}
+                </Text>
+              </View>
+            )}
 
-            <Picker
-              label="Route"
-              options={routeOptions}
-              value={editFields.routeId ?? ''}
-              onSelect={(value: string | number) => setEditFields(s => ({ ...s, routeId: String(value) }))}
-              placeholder="Select route"
+            <Input
+              label="Start Time (HH:MM)"
+              type="text"
+              value={String(editFields.startTime ?? '')}
+              onChangeText={(t) => setEditFields(s => ({ ...s, startTime: t }))}
+              placeholder="e.g. 06:00"
             />
 
             <Input
-              label="Date"
+              label="End Time (HH:MM)"
               type="text"
-              value={editFields.date ?? ''}
-              onChangeText={(t) => setEditFields(s => ({ ...s, date: t }))}
-              placeholder="YYYY-MM-DD"
+              value={String(editFields.endTime ?? '')}
+              onChangeText={(t) => setEditFields(s => ({ ...s, endTime: t }))}
+              placeholder="e.g. 08:30"
             />
 
             <Input
-              label="Departure Time"
+              label="Notes (Optional)"
               type="text"
-              value={String(editFields.departureTime ?? '')}
-              onChangeText={(t) => setEditFields(s => ({ ...s, departureTime: t }))}
-              placeholder="e.g. 08:30 AM"
-            />
-
-            <Input
-              label="Arrival Time"
-              type="text"
-              value={String(editFields.arrivalTime ?? '')}
-              onChangeText={(t) => setEditFields(s => ({ ...s, arrivalTime: t }))}
-              placeholder="e.g. 09:45 AM"
+              value={String(editFields.notes ?? '')}
+              onChangeText={(t) => setEditFields(s => ({ ...s, notes: t }))}
+              placeholder="Add any notes..."
             />
 
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16, gap: 8 }}>
-              <Button variant="secondary" onPress={() => setEditFields({})}>
+              <Button 
+                variant="secondary" 
+                onPress={() => {
+                  setEditFields({});
+                  setSelectedRouteId('');
+                }}
+              >
                 Reset
               </Button>
-              <Button variant="success" onPress={handleAddSchedule}>
+              <Button 
+                variant="success" 
+                onPress={handleAddSchedule}
+                loading={isSubmitting}
+                disabled={isSubmitting}
+              >
                 Add Schedule
               </Button>
             </View>
@@ -340,6 +547,20 @@ const BusesDesignOnly: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
+  routeSelector: { 
+    backgroundColor: '#fff', 
+    borderRadius: 8, 
+    borderWidth: 1, 
+    borderColor: '#e5e7eb',
+    padding: 12,
+    marginBottom: 16,
+  },
+  label: { 
+    fontSize: 14, 
+    fontWeight: '600', 
+    color: '#374151', 
+    marginBottom: 8 
+  },
   addContainer: {
     padding: 16,
     backgroundColor: '#fff',
@@ -349,6 +570,16 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 16,
   },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
 });
 
-export default BusesDesignOnly;
+export default Schedules;
