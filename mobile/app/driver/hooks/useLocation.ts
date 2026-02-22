@@ -49,7 +49,7 @@ export const useLocation = (): UseLocationReturn => {
           const userData = JSON.parse(user);
           
           driverDataRef.current = {
-            driverId: driver.driverId,
+            driverId: driver.id,
             busId: driver.assignedBus?._id || driver.assignedBus || '',
           };
 
