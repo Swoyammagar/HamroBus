@@ -61,7 +61,7 @@ const Home = () => {
   const handleRouteSelect = (route: Route) => {
     setSelectedRoute(route);
     router.push({
-      pathname: '../screens/route-map',
+      pathname: './map',
       params: { routeId: route.id },
     });
   };
