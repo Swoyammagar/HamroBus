@@ -6,11 +6,29 @@ const {
     getPassengerProfile,
     updatePassengerProfile 
 } = require('../controllers/passenger.controller');
+const {
+    getPublicRoutes,
+    getPublicRouteById,
+    searchPublicRoutes,
+    getPublicRouteSchedules,
+    getPublicBuses,
+    getPublicBusesByRoute,
+    getPublicBusById,
+    getPublicDriverById,
+} = require('../controllers/passenger/publicData.controller');
 const { authenticatePassenger } = require('../middlewares/mobile.auth.middleware');
 
 // Public routes
 router.post('/register', registerPassenger);
 router.post('/login', loginPassenger);
+router.get('/routes', getPublicRoutes);
+router.get('/routes/search', searchPublicRoutes);
+router.get('/routes/:routeId', getPublicRouteById);
+router.get('/routes/:routeId/schedules', getPublicRouteSchedules);
+router.get('/buses', getPublicBuses);
+router.get('/buses/route/:routeId', getPublicBusesByRoute);
+router.get('/buses/:busId', getPublicBusById);
+router.get('/drivers/:driverId', getPublicDriverById);
 
 // Protected routes (require authentication)
 router.get('/profile', authenticatePassenger, getPassengerProfile);
