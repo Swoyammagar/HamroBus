@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { routeService, Route } from '../services/routeService';
 
 export const useRoutes = () => {
@@ -7,7 +7,7 @@ export const useRoutes = () => {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchRoutes = async () => {
+  const fetchRoutes = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -20,14 +20,14 @@ export const useRoutes = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
-  const refreshRoutes = async () => {
+  const refreshRoutes = useCallback(async () => {
     setRefreshing(true);
     await fetchRoutes();
-  };
+  }, [fetchRoutes]);
 
-  const searchRoutes = async (query: string) => {
+  const searchRoutes = useCallback(async (query: string) => {
     try {
       setLoading(true);
       setError(null);
@@ -38,11 +38,11 @@ export const useRoutes = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchRoutes();
-  }, []);
+  }, [fetchRoutes]);
 
   return {
     routes,
