@@ -57,9 +57,14 @@ const createBus = async (req, res) => {
 
         // Add bus to route's assignedBusIds if route is assigned
         if (assignedRouteId) {
-            await Route.findByIdAndUpdate(assignedRouteId, {
-                $addToSet: { assignedBusIds: newBus._id }
-            });
+            const routeUpdate = { $addToSet: { assignedBusIds: newBus._id } };
+            
+            // Also add driver to route's assignedDriverIds if driver is assigned
+            if (assignedDriverId) {
+                routeUpdate.$addToSet.assignedDriverIds = assignedDriverId;
+            }
+            
+            await Route.findByIdAndUpdate(assignedRouteId, routeUpdate);
         }
         
         // Build populate query dynamically to avoid null reference issues
@@ -102,9 +107,14 @@ const deleteBus = async (req, res) => {
 
         // Remove bus from route's assignedBusIds if assigned to a route
         if (bus.assignedRouteId) {
-            await Route.findByIdAndUpdate(bus.assignedRouteId, {
-                $pull: { assignedBusIds: busId }
-            });
+            const routeUpdate = { $pull: { assignedBusIds: busId } };
+            
+            // Also remove driver from route's assignedDriverIds if driver is assigned
+            if (bus.assignedDriverId) {
+                routeUpdate.$pull.assignedDriverIds = bus.assignedDriverId;
+            }
+            
+            await Route.findByIdAndUpdate(bus.assignedRouteId, routeUpdate);
         }
         
         await bus.deleteOne();
@@ -144,6 +154,13 @@ const updateBus = async (req, res) => {
                     await Driver.findByIdAndUpdate(oldDriverId, {
                         assignedBus: null
                     });
+                    
+                    // Remove old driver from route's assignedDriverIds if bus has a route
+                    if (bus.assignedRouteId) {
+                        await Route.findByIdAndUpdate(bus.assignedRouteId, {
+                            $pull: { assignedDriverIds: oldDriverId }
+                        });
+                    }
                 }
                 
                 // Assign new driver
@@ -160,6 +177,13 @@ const updateBus = async (req, res) => {
                     await Driver.findByIdAndUpdate(newDriverId, {
                         assignedBus: busId
                     });
+                    
+                    // Add new driver to route's assignedDriverIds if bus has a route
+                    if (bus.assignedRouteId) {
+                        await Route.findByIdAndUpdate(bus.assignedRouteId, {
+                            $addToSet: { assignedDriverIds: newDriverId }
+                        });
+                    }
                 }
                 
                 bus.assignedDriverId = newDriverId;
@@ -175,9 +199,14 @@ const updateBus = async (req, res) => {
             if (String(oldRouteId) !== String(newRouteId)) {
                 // Remove bus from old route's assignedBusIds
                 if (oldRouteId) {
-                    await Route.findByIdAndUpdate(oldRouteId, {
-                        $pull: { assignedBusIds: busId }
-                    });
+                    const oldRouteUpdate = { $pull: { assignedBusIds: busId } };
+                    
+                    // Also remove driver from old route's assignedDriverIds if driver is assigned
+                    if (bus.assignedDriverId) {
+                        oldRouteUpdate.$pull.assignedDriverIds = bus.assignedDriverId;
+                    }
+                    
+                    await Route.findByIdAndUpdate(oldRouteId, oldRouteUpdate);
                 }
 
                 // Add bus to new route's assignedBusIds
@@ -186,9 +215,15 @@ const updateBus = async (req, res) => {
                     if (!route) {
                         return res.status(404).json({ message: "Route not found" });
                     }
-                    await Route.findByIdAndUpdate(newRouteId, {
-                        $addToSet: { assignedBusIds: busId }
-                    });
+                    
+                    const newRouteUpdate = { $addToSet: { assignedBusIds: busId } };
+                    
+                    // Also add driver to new route's assignedDriverIds if driver is assigned
+                    if (bus.assignedDriverId) {
+                        newRouteUpdate.$addToSet.assignedDriverIds = bus.assignedDriverId;
+                    }
+                    
+                    await Route.findByIdAndUpdate(newRouteId, newRouteUpdate);
                 }
 
                 bus.assignedRouteId = newRouteId;
