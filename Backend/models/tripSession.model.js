@@ -1,0 +1,77 @@
+const mongoose = require("mongoose");
+
+const tripSessionSchema = new mongoose.Schema({
+    driverId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Driver',
+        required: true
+    },
+    routeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Route',
+        required: true
+    },
+    busId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Bus',
+        required: false
+    },
+    scheduleId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: false
+    },
+    status: {
+        type: String,
+        enum: ['scheduled', 'in-progress', 'on-break', 'completed', 'cancelled'],
+        default: 'scheduled'
+    },
+    startTime: {
+        type: Date,
+        required: false
+    },
+    endTime: {
+        type: Date,
+        required: false
+    },
+    breakHistory: [{
+        breakStartTime: {
+            type: Date,
+            required: true
+        },
+        breakEndTime: {
+            type: Date,
+            required: false
+        },
+        duration: {
+            type: Number,
+            description: "Break duration in minutes"
+        }
+    }],
+    totalBreakTime: {
+        type: Number,
+        default: 0,
+        description: "Total break time in minutes"
+    },
+    passengerCount: {
+        type: Number,
+        default: 0
+    },
+    completedStops: [{
+        stopId: mongoose.Schema.Types.ObjectId,
+        completionTime: Date,
+        passengersBoarded: Number,
+        passengersAlighted: Number
+    }],
+    currentStop: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: false
+    },
+    notes: {
+        type: String,
+        required: false
+    }
+}, {
+    timestamps: true
+});
+
+module.exports = mongoose.models.TripSession || mongoose.model("TripSession", tripSessionSchema);
