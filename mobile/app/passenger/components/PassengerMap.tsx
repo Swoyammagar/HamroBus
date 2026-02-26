@@ -4,7 +4,8 @@ import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 interface BusStop {
-  id: number | string;
+  id?: number | string;
+  _id?: string;
   name: string;
   latitude: number;
   longitude: number;

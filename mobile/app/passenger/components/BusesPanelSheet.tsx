@@ -22,13 +22,17 @@ const BusesPanelSheet: React.FC<BusesPanelSheetProps> = ({ buses, onClose, onBus
         </TouchableOpacity>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.busesPanelScroll}>
-        {buses.map(bus => {
+        {buses.map((bus, index) => {
           const crowdPercentage = calculateCrowdPercentage(bus);
           const crowdLevel = getCrowdLevel(crowdPercentage);
+          const busId = bus._id || bus.id || `${bus.busNumber}-${index}`;
+          const currentPassengers = bus.currentPassengers ?? bus.currentOccupancy ?? 0;
+          const totalCapacity = bus.totalCapacity ?? bus.capacity ?? 0;
+          const driverName = bus.driverName || 'Unknown';
 
           return (
             <TouchableOpacity
-              key={bus.id}
+              key={busId}
               style={styles.busCard}
               onPress={() => onBusPress(bus)}
             >
@@ -65,7 +69,7 @@ const BusesPanelSheet: React.FC<BusesPanelSheetProps> = ({ buses, onClose, onBus
                 </View>
               </View>
 
-              <Text style={styles.busCardDriver}>Driver: {bus.driverName}</Text>
+              <Text style={styles.busCardDriver}>Driver: {driverName}</Text>
 
               <View style={styles.crowdBar}>
                 <View
@@ -79,7 +83,7 @@ const BusesPanelSheet: React.FC<BusesPanelSheetProps> = ({ buses, onClose, onBus
                 />
               </View>
               <Text style={styles.crowdText}>
-                {crowdLevel} • {bus.currentPassengers}/{bus.totalCapacity} seats
+                {crowdLevel} • {currentPassengers}/{totalCapacity} seats
               </Text>
 
               <TouchableOpacity
