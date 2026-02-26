@@ -1,18 +1,32 @@
 import React from 'react';
-import { View, Text, Modal, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Modal, ScrollView, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { type Bus } from '../context/PassengerContext';
 import { calculateCrowdPercentage, getCrowdColor, formatTime } from '../utils/helpers';
+import { type Schedule } from '../services/routeService';
 
 interface BusDetailsModalProps {
   visible: boolean;
   bus: Bus | null;
+  schedules?: Schedule[];
   onClose: () => void;
   onBookNow: () => void;
 }
 
-const BusDetailsModal: React.FC<BusDetailsModalProps> = ({ visible, bus, onClose, onBookNow }) => {
+const BusDetailsModal: React.FC<BusDetailsModalProps> = ({
+  visible,
+  bus,
+  schedules = [],
+  onClose,
+  onBookNow,
+}) => {
   if (!bus) return null;
+  const currentPassengers = bus.currentPassengers ?? bus.currentOccupancy ?? 0;
+  const totalCapacity = bus.totalCapacity ?? bus.capacity ?? 0;
+  const driverName = bus.driverName || 'Unknown';
+  const driverPhoto = bus.driverPhoto;
+  const currentStop = bus.currentStop || 'Unknown';
+  const nextStopTime = bus.estimatedNextStopTime || '';
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
@@ -23,16 +37,23 @@ const BusDetailsModal: React.FC<BusDetailsModalProps> = ({ visible, bus, onClose
           </TouchableOpacity>
 
           <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.modalTitle}>{bus.busNumber}</Text>
+            <Text style={styles.modalTitle}>{bus.busNumber || 'Bus'}</Text>
 
             <View style={styles.detailsSection}>
               <Text style={styles.detailsTitle}>Bus Information</Text>
 
               <View style={styles.detailRow}>
                 <Ionicons name="person" size={20} color="#3b82f6" />
+                {driverPhoto ? (
+                  <Image source={{ uri: driverPhoto }} style={styles.driverAvatar} />
+                ) : (
+                  <View style={styles.driverAvatarPlaceholder}>
+                    <Ionicons name="person" size={16} color="#6b7280" />
+                  </View>
+                )}
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Driver</Text>
-                  <Text style={styles.detailValue}>{bus.driverName}</Text>
+                  <Text style={styles.detailValue}>{driverName}</Text>
                 </View>
               </View>
 
@@ -40,7 +61,7 @@ const BusDetailsModal: React.FC<BusDetailsModalProps> = ({ visible, bus, onClose
                 <Ionicons name="location" size={20} color="#3b82f6" />
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Current Stop</Text>
-                  <Text style={styles.detailValue}>{bus.currentStop}</Text>
+                  <Text style={styles.detailValue}>{currentStop}</Text>
                 </View>
               </View>
 
@@ -48,10 +69,26 @@ const BusDetailsModal: React.FC<BusDetailsModalProps> = ({ visible, bus, onClose
                 <Ionicons name="time" size={20} color="#3b82f6" />
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Next Stop ETA</Text>
-                  <Text style={styles.detailValue}>{formatTime(bus.estimatedNextStopTime)}</Text>
+                  <Text style={styles.detailValue}>
+                    {nextStopTime ? formatTime(nextStopTime) : 'N/A'}
+                  </Text>
                 </View>
               </View>
             </View>
+
+            {schedules.length > 0 && (
+              <View style={styles.detailsSection}>
+                <Text style={styles.detailsTitle}>Schedule</Text>
+                {schedules.map(schedule => (
+                  <View key={schedule._id} style={styles.scheduleRow}>
+                    <Text style={styles.scheduleDay}>{schedule.dayOfWeek || 'Day'}</Text>
+                    <Text style={styles.scheduleTime}>
+                      {schedule.startTime || schedule.departureTime || 'N/A'} - {schedule.endTime || schedule.arrivalTime || 'N/A'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
             <View style={styles.detailsSection}>
               <Text style={styles.detailsTitle}>Occupancy</Text>
@@ -71,17 +108,17 @@ const BusDetailsModal: React.FC<BusDetailsModalProps> = ({ visible, bus, onClose
               <View style={styles.occupancyDetails}>
                 <View style={styles.occupancyItem}>
                   <Text style={styles.occupancyLabel}>Occupied</Text>
-                  <Text style={styles.occupancyValue}>{bus.currentPassengers}</Text>
+                  <Text style={styles.occupancyValue}>{currentPassengers}</Text>
                 </View>
                 <View style={styles.occupancyItem}>
                   <Text style={styles.occupancyLabel}>Available</Text>
                   <Text style={styles.occupancyValue}>
-                    {bus.totalCapacity - bus.currentPassengers}
+                    {totalCapacity - currentPassengers}
                   </Text>
                 </View>
                 <View style={styles.occupancyItem}>
                   <Text style={styles.occupancyLabel}>Total</Text>
-                  <Text style={styles.occupancyValue}>{bus.totalCapacity}</Text>
+                  <Text style={styles.occupancyValue}>{totalCapacity}</Text>
                 </View>
               </View>
             </View>
@@ -141,6 +178,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     borderRadius: 8,
   },
+  driverAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginLeft: 8,
+    backgroundColor: '#e5e7eb',
+  },
+  driverAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginLeft: 8,
+    backgroundColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   detailContent: {
     marginLeft: 12,
     flex: 1,
@@ -182,6 +235,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#3b82f6',
     marginTop: 4,
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  scheduleDay: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  scheduleTime: {
+    fontSize: 12,
+    color: '#6b7280',
   },
   bookButton: {
     backgroundColor: '#3b82f6',
