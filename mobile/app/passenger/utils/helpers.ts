@@ -20,7 +20,10 @@ export const formatDate = (dateString: string): string => {
 };
 
 export const calculateCrowdPercentage = (bus: Bus): number => {
-  return Math.round((bus.currentPassengers / bus.totalCapacity) * 100);
+  const currentPassengers = bus.currentPassengers ?? bus.currentOccupancy ?? 0;
+  const totalCapacity = bus.totalCapacity ?? bus.capacity ?? 0;
+  if (totalCapacity <= 0) return 0;
+  return Math.round((currentPassengers / totalCapacity) * 100);
 };
 
 export const getCrowdLevel = (percentage: number): string => {
@@ -57,7 +60,9 @@ export const getStopName = (stops: Stop[], stopId: string): string => {
 };
 
 export const getSeatsAvailable = (bus: Bus): number => {
-  return bus.totalCapacity - bus.currentPassengers;
+  const totalCapacity = bus.totalCapacity ?? bus.capacity ?? 0;
+  const currentPassengers = bus.currentPassengers ?? bus.currentOccupancy ?? 0;
+  return totalCapacity - currentPassengers;
 };
 
 export const generateTicketHTML = (booking: Booking, bus: Bus, stops: Stop[]): string => {
