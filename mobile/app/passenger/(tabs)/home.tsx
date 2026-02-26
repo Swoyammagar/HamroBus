@@ -14,59 +14,58 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { usePassenger, type Route } from '../context/PassengerContext';
-import { mockRoutesData } from '../utils/mockData';
+import { useRoutes } from '../hooks/useRoutes';
 
 const Home = () => {
   const router = useRouter();
   const { routes, setRoutes, setSelectedRoute } = usePassenger();
+  const { routes: fetchedRoutes, loading, refreshing, refreshRoutes, searchRoutes } = useRoutes();
   const [searchText, setSearchText] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
   const [filteredRoutes, setFilteredRoutes] = useState(routes);
-  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (fetchedRoutes.length > 0) {
+      setRoutes(fetchedRoutes);
+      setFilteredRoutes(fetchedRoutes);
+    }
+  }, [fetchedRoutes, setRoutes]);
+
+  useEffect(() => {
+    const query = searchText.trim();
+    if (query.length > 0) {
+      const debounceId = setTimeout(() => {
+        searchRoutes(query);
+      }, 350);
+      return () => clearTimeout(debounceId);
+    }
+  }, [searchText, searchRoutes]);
 
   useEffect(() => {
     const filtered = routes.filter(
       route =>
         route.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        route.source.toLowerCase().includes(searchText.toLowerCase()) ||
-        route.destination.toLowerCase().includes(searchText.toLowerCase())
+        route.stops.some(stop =>
+          stop.name.toLowerCase().includes(searchText.toLowerCase())
+        )
     );
     setFilteredRoutes(filtered);
   }, [searchText, routes]);
-
-  useEffect(() => {
-    fetchRoutes();
-  }, []);
-
-  const fetchRoutes = async () => {
-    setLoading(true);
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setRoutes(mockRoutesData);
-      setFilteredRoutes(mockRoutesData);
-    } catch (error) {
-      console.error('Error fetching routes:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchRoutes();
-    setRefreshing(false);
-  };
 
   const handleRouteSelect = (route: Route) => {
     setSelectedRoute(route);
     router.push({
       pathname: './map',
-      params: { routeId: route.id },
+      params: { routeId: route._id || route.id },
     });
   };
 
-  const RouteCard = ({ route }: { route: Route }) => (
+  const RouteCard = ({ route }: { route: Route }) => {
+    const startStop = route.stops[0]?.name || 'Start';
+    const endStop = route.stops[route.stops.length - 1]?.name || 'End';
+    const distanceLabel = route.distance ? `${route.distance} km` : `${route.stops.length} stops`;
+    const busesCount = route.busesCount ?? 0;
+
+    return (
     <TouchableOpacity
       style={styles.routeCard}
       onPress={() => handleRouteSelect(route)}
@@ -75,7 +74,7 @@ const Home = () => {
       <View style={styles.routeHeader}>
         <View style={styles.routeInfo}>
           <Text style={styles.routeName}>{route.name}</Text>
-          <Text style={styles.routeDistance}>{route.distance} km</Text>
+          <Text style={styles.routeDistance}>{distanceLabel}</Text>
         </View>
         <Ionicons name="chevron-forward" size={24} color="#3b82f6" />
       </View>
@@ -83,12 +82,12 @@ const Home = () => {
       <View style={styles.routeRoute}>
         <View style={styles.routeStop}>
           <View style={styles.stopDot} />
-          <Text style={styles.stopText}>{route.source}</Text>
+          <Text style={styles.stopText}>{startStop}</Text>
         </View>
         <View style={styles.routeLine} />
         <View style={styles.routeStop}>
           <View style={[styles.stopDot, { backgroundColor: '#ef4444' }]} />
-          <Text style={styles.stopText}>{route.destination}</Text>
+          <Text style={styles.stopText}>{endStop}</Text>
         </View>
       </View>
 
@@ -99,11 +98,12 @@ const Home = () => {
         </View>
         <View style={styles.statItem}>
           <Ionicons name="bus" size={16} color="#3b82f6" />
-          <Text style={styles.statText}>{route.busesCount} buses</Text>
+          <Text style={styles.statText}>{busesCount} buses</Text>
         </View>
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   if (loading && routes.length === 0) {
     return (
@@ -138,13 +138,13 @@ const Home = () => {
 
       <ScrollView
         style={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshRoutes} />}
         showsVerticalScrollIndicator={false}
       >
         {filteredRoutes.length > 0 ? (
           <View style={styles.routesList}>
             {filteredRoutes.map(route => (
-              <RouteCard key={route.id} route={route} />
+              <RouteCard key={route._id || route.id} route={route} />
             ))}
           </View>
         ) : (
