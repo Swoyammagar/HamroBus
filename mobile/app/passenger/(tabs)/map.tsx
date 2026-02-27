@@ -12,11 +12,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { usePassenger, type Route, type Bus } from '../context/PassengerContext';
-import { mockRoutesData, mockBusesData } from '../utils/mockData';
 import PassengerMap from '../components/PassengerMap';
 import FloatingBusButton from '../components/FloatingBusButton';
 import BusesPanelSheet from '../components/BusesPanelSheet';
 import BusDetailsModal from '../components/BusDetailsModal';
+import { useRoutes } from '../hooks/useRoutes';
+import { useBuses } from '../hooks/useBuses';
+import { useRouteSchedules } from '../hooks/useRouteSchedules';
 import { useDriverTracking } from '../hooks/useDriverTracking';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -24,7 +26,8 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const MapTab = () => {
   const router = useRouter();
   const { routeId } = useLocalSearchParams();
-  const { setSelectedRoute, routes, selectedBus, setBuses } = usePassenger();
+  const { setSelectedRoute, routes, selectedBus, setBuses, setRoutes, setSelectedBus } = usePassenger();
+  const { routes: fetchedRoutes, searchRoutes } = useRoutes();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRouteForMap, setSelectedRouteForMap] = useState<Route | null>(null);
   const [showMap, setShowMap] = useState(false);
@@ -32,34 +35,62 @@ const MapTab = () => {
   const [selectedBusModal, setSelectedBusModal] = useState(false);
   const [selectedBusForModal, setSelectedBusForModal] = useState<Bus | null>(null);
   const [showBusesPanel, setShowBusesPanel] = useState(false);
+  const routeIdValue = Array.isArray(routeId) ? routeId[0] : routeId;
+  const routeList = Array.isArray(routes) && routes.length > 0
+    ? routes
+    : Array.isArray(fetchedRoutes)
+    ? fetchedRoutes
+    : [];
+  const selectedRouteId = selectedRouteForMap?._id || selectedRouteForMap?.id;
+  const { buses: fetchedBuses } = useBuses(selectedRouteId);
+  const { schedules } = useRouteSchedules(selectedRouteId);
 
   // Enable tracking when a bus is selected
   const { driverLocation, isConnected, error: trackingError } = useDriverTracking({
-    busId: selectedBus?.id || null,
+    busId: selectedBus?._id || selectedBus?.id || null,
     enabled: !!selectedBus && showMap,
   });
 
+  useEffect(() => {
+    if (fetchedRoutes.length > 0 && routes.length === 0) {
+      setRoutes(fetchedRoutes);
+    }
+  }, [fetchedRoutes, routes.length, setRoutes]);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    const debounceId = setTimeout(() => {
+      if (query.length > 0) {
+        searchRoutes(query);
+      } else {
+        setRoutes(fetchedRoutes);
+      }
+    }, 350);
+
+    return () => clearTimeout(debounceId);
+  }, [searchQuery, searchRoutes, fetchedRoutes, setRoutes]);
+
   // Handle routeId from navigation (coming from home screen)
   useEffect(() => {
-    if (routeId) {
-      const route = routes.find(r => r.id === routeId);
+    // Only auto-show map if we're not already showing it (prevents re-trigger after back)
+    if (routeIdValue && !showMap) {
+      const route = routeList.find(r => (r._id || r.id) === routeIdValue);
       if (route) {
         handleRoutePress(route);
       }
     }
-  }, [routeId]);
+  }, [routeIdValue, routeList]);
 
   // Fetch buses for selected route
   useEffect(() => {
     if (selectedRouteForMap) {
-      const buses = mockBusesData.filter(b => b.routeId === selectedRouteForMap.id);
-      setBusesList(buses);
-      setBuses(buses);
+      setBusesList(fetchedBuses);
+      setBuses(fetchedBuses);
     }
-  }, [selectedRouteForMap]);
+  }, [selectedRouteForMap, fetchedBuses, setBuses]);
 
   // Filter routes based on search query
-  const filteredRoutes = mockRoutesData.filter(route =>
+  const filteredRoutes = routeList.filter(route =>
     route.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     route.stops.some(stop => stop.name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
@@ -75,19 +106,35 @@ const MapTab = () => {
     setSelectedRouteForMap(null);
     setBusesList([]);
     setShowBusesPanel(false);
+    setSelectedBus(null);
+    // Clear the routeId param to prevent the useEffect from re-triggering
+    router.setParams({ routeId: undefined });
   };
 
   const handleBusPress = (bus: Bus) => {
+    setSelectedBus(bus);
     setSelectedBusForModal(bus);
     setSelectedBusModal(true);
   };
+
+  const selectedBusSchedules = React.useMemo(() => {
+    if (!selectedBusForModal) return [];
+    const busIdValue = selectedBusForModal._id || selectedBusForModal.id;
+    return schedules.filter(schedule => {
+      const scheduleBusId = schedule.busId?._id || schedule.busId;
+      return busIdValue && scheduleBusId && String(scheduleBusId) === String(busIdValue);
+    });
+  }, [schedules, selectedBusForModal]);
 
   const handleBookBus = () => {
     setSelectedBusModal(false);
     if (selectedBusForModal) {
       router.push({
         pathname: '../screens/bus-booking',
-        params: { busId: selectedBusForModal.id, routeId: selectedRouteForMap?.id },
+        params: {
+          busId: selectedBusForModal._id || selectedBusForModal.id,
+          routeId: selectedRouteForMap?._id || selectedRouteForMap?.id,
+        },
       });
     }
   };
@@ -163,6 +210,7 @@ const MapTab = () => {
         <BusDetailsModal
           visible={selectedBusModal}
           bus={selectedBusForModal}
+          schedules={selectedBusSchedules}
           onClose={() => setSelectedBusModal(false)}
           onBookNow={handleBookBus}
         />
@@ -213,7 +261,7 @@ const MapTab = () => {
           <View style={styles.routesList}>
             {filteredRoutes.map(route => (
               <TouchableOpacity
-                key={route.id}
+                key={route._id || route.id}
                 style={styles.routeCard}
                 onPress={() => handleRoutePress(route)}
               >
@@ -230,7 +278,7 @@ const MapTab = () => {
                       </View>
                       <View style={styles.detailItem}>
                         <Ionicons name="bus" size={14} color="#6b7280" />
-                        <Text style={styles.detailText}>{route.busesCount} buses</Text>
+                        <Text style={styles.detailText}>{route.busesCount ?? 0} buses</Text>
                       </View>
                     </View>
                   </View>
