@@ -1,30 +1,66 @@
-import { useContext, createContext, useState } from 'react';
+import { useContext, createContext, useState, useCallback } from 'react';
+import { Route, Stop, TripSession } from '../services/driverService';
 
-type AppContextType = {
+type DriverContextType = {
+  // Online Status
   isOnline: boolean;
   setIsOnline: (value: boolean) => void;
+
+  // UI State
   menuOpen: boolean;
   setMenuOpen: (value: boolean) => void;
   showSOS: boolean;
   setShowSOS: (value: boolean) => void;
+
+  // Route Data
+  assignedRoute: Route | null;
+  setAssignedRoute: (route: Route | null) => void;
+
+  // Trip Data
+  currentTrip: TripSession | null;
+  setCurrentTrip: (trip: TripSession | null) => void;
+
+  // Schedules
+  schedules: any[];
+  setSchedules: (schedules: any[]) => void;
+
+  // Announcements
   announcement: { show: boolean; message: string; type: 'info' | 'warning' | 'emergency' };
   setAnnouncement: (value: any) => void;
 };
 
-export const AppContext = createContext<AppContextType | undefined>(undefined);
+export const AppContext = createContext<DriverContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isOnline, setIsOnline] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
+  const [assignedRoute, setAssignedRoute] = useState<Route | null>(null);
+  const [currentTrip, setCurrentTrip] = useState<TripSession | null>(null);
+  const [schedules, setSchedules] = useState<any[]>([]);
   const [announcement, setAnnouncement] = useState({
-    show: true,
-    message: 'Route 42 - Minor delay expected on Main St due to traffic',
-    type: 'warning' as 'info' | 'warning' | 'emergency',
+    show: false,
+    message: '',
+    type: 'info' as 'info' | 'warning' | 'emergency',
   });
 
   return (
-    <AppContext.Provider value={{ isOnline, setIsOnline, menuOpen, setMenuOpen, showSOS, setShowSOS, announcement, setAnnouncement }}>
+    <AppContext.Provider value={{
+      isOnline,
+      setIsOnline,
+      menuOpen,
+      setMenuOpen,
+      showSOS,
+      setShowSOS,
+      assignedRoute,
+      setAssignedRoute,
+      currentTrip,
+      setCurrentTrip,
+      schedules,
+      setSchedules,
+      announcement,
+      setAnnouncement
+    }}>
       {children}
     </AppContext.Provider>
   );
