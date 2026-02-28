@@ -42,6 +42,8 @@ const Schedules: React.FC = () => {
     if (selectedRouteId) {
       const route = routes.find(r => r._id === selectedRouteId);
       setSchedules(route?.schedules || []);
+      // Clear bus selection when route changes to avoid showing invalid bus
+      setEditFields(prev => ({ ...prev, busId: undefined, driverId: undefined }));
     } else {
       setSchedules([]);
     }
@@ -79,9 +81,28 @@ const Schedules: React.FC = () => {
     .filter(r => r._id)
     .map(r => ({ label: r.routeName || r.routeNumber || 'Unknown', value: r._id! }));
   
-  const busOptions = buses
-    .filter(b => b._id)
-    .map(b => ({ label: b.busNumber || 'Unknown', value: b._id! }));
+  // Filter buses to only show those assigned to the selected route
+  const busOptions = useMemo(() => {
+    if (!selectedRouteId) {
+      return buses
+        .filter(b => b._id)
+        .map(b => ({ label: b.busNumber || 'Unknown', value: b._id! }));
+    }
+    
+    const selectedRoute = routes.find(r => r._id === selectedRouteId);
+    const assignedBusIds = selectedRoute?.assignedBusIds || [];
+    
+    // Extract bus IDs from assignedBusIds (handle both string and object formats)
+    const busIdSet = new Set(
+      assignedBusIds.map(busId => 
+        typeof busId === 'string' ? busId : busId._id
+      ).filter(id => id)
+    );
+    
+    return buses
+      .filter(b => b._id && busIdSet.has(b._id))
+      .map(b => ({ label: b.busNumber || 'Unknown', value: b._id! }));
+  }, [buses, selectedRouteId, routes]);
   
   const driverOptions = drivers
     .filter(d => d._id)
@@ -252,6 +273,11 @@ const Schedules: React.FC = () => {
       return;
     }
 
+    if (busOptions.length === 0) {
+      alert('No buses are assigned to this route. Please assign buses to the route first.');
+      return;
+    }
+
     if (!editFields.dayOfWeek || !editFields.busId || !editFields.startTime || !editFields.endTime) {
       alert('Please fill all required fields (Route, Day, Bus, Start Time, End Time)');
       return;
@@ -387,6 +413,14 @@ const Schedules: React.FC = () => {
                 placeholder="Select day"
               />
 
+              {selectedRouteId && busOptions.length === 0 && (
+                <View style={{ padding: 12, backgroundColor: '#fef2f2', borderRadius: 6, borderWidth: 1, borderColor: '#fecaca' }}>
+                  <Text style={{ fontSize: 13, color: '#991b1b', fontWeight: '500' }}>
+                    ⚠️ No buses are assigned to this route. Please assign buses to the route first.
+                  </Text>
+                </View>
+              )}
+
               <Picker
                 label="Bus"
                 options={busOptions}
@@ -398,7 +432,8 @@ const Schedules: React.FC = () => {
                   ''
                 }
                 onSelect={(value) => setEditFields(s => ({ ...s, busId: String(value) }))}
-                placeholder="Select bus"
+                placeholder={busOptions.length === 0 ? "No buses available for this route" : "Select bus"}
+                disabled={busOptions.length === 0}
               />
 
               {/* Display assigned driver automatically */}
@@ -461,6 +496,14 @@ const Schedules: React.FC = () => {
               placeholder="Select route"
             />
 
+            {selectedRouteId && busOptions.length === 0 && (
+              <View style={{ padding: 12, backgroundColor: '#fef2f2', borderRadius: 6, borderWidth: 1, borderColor: '#fecaca' }}>
+                <Text style={{ fontSize: 13, color: '#991b1b', fontWeight: '500' }}>
+                  ⚠️ No buses are assigned to this route. Please assign buses to the route first.
+                </Text>
+              </View>
+            )}
+
             <Picker
               label="Day of Week"
               options={dayOptions}
@@ -474,7 +517,8 @@ const Schedules: React.FC = () => {
               options={busOptions}
               value={editFields.busId ?? ''}
               onSelect={(value: string | number) => setEditFields(s => ({ ...s, busId: String(value) }))}
-              placeholder="Select bus"
+              placeholder={busOptions.length === 0 ? "No buses available for this route" : "Select bus"}
+              disabled={!selectedRouteId || busOptions.length === 0}
             />
 
             {/* Display assigned driver automatically */}
@@ -533,7 +577,7 @@ const Schedules: React.FC = () => {
                 variant="success" 
                 onPress={handleAddSchedule}
                 loading={isSubmitting}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !selectedRouteId || busOptions.length === 0 || !editFields.dayOfWeek || !editFields.busId || !editFields.startTime || !editFields.endTime}
               >
                 Add Schedule
               </Button>
