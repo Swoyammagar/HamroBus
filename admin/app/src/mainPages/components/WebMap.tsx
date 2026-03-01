@@ -1,7 +1,6 @@
 // @ts-nocheck
-import React, { useEffect, useState } from 'react';
-import { View, ScrollView, Text, StyleSheet, Platform } from 'react-native';
-import { Button } from '../../../components/ui';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 
 interface WebMapProps {
   route: any | null;
@@ -10,66 +9,123 @@ interface WebMapProps {
   onSelectRoute: (routeId: string) => void;
 }
 
-const WebMap: React.FC<WebMapProps> = ({ route, routes, selectedRouteId, onSelectRoute }) => {
+const WebMap: React.FC<WebMapProps> = ({
+  route,
+  routes,
+  selectedRouteId,
+  onSelectRoute,
+}) => {
   const [leaflet, setLeaflet] = useState<any>(null);
-  const mapRef = React.useRef<any>(null);
   const [tilesLoaded, setTilesLoaded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchMarker, setSearchMarker] = useState<[number, number] | null>(null);
 
+  const mapRef = useRef<any>(null);
+
+  /* ---------------- Load Leaflet ---------------- */
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       try {
         const rl = await import('react-leaflet');
         const L = await import('leaflet');
-        try {
-          L.Icon.Default.mergeOptions({
-            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-          });
-        } catch (e) {
-          // ignore
-        }
+
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl:
+            'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+          iconUrl:
+            'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+          shadowUrl:
+            'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        });
+
         if (mounted) setLeaflet({ ...rl, L });
       } catch (e) {
-        // import failed
+        console.error('Leaflet load failed', e);
       }
     })();
-    return () => { mounted = false; };
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
+  /* ---------------- Resize Fix ---------------- */
   useEffect(() => {
     const onResize = () => {
-      const m = mapRef.current;
-      if (m && typeof m.invalidateSize === 'function') {
-        m.invalidateSize();
-      }
+      mapRef.current?.invalidateSize?.();
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  /* ---------------- Recenter on Route Change ---------------- */
   useEffect(() => {
-    const m = mapRef.current;
-    if (!m) return;
-    const c = route && route.stops && route.stops.length ? [route.stops[0].latitude, route.stops[0].longitude] : [27.7172, 85.3240];
-    const id = setTimeout(() => {
-      if (typeof m.invalidateSize === 'function') m.invalidateSize();
-      try {
-        if (typeof m.setView === 'function') m.setView(c, m.getZoom ? m.getZoom() : 12);
-      } catch (e) {
-        // ignore
-      }
-    }, 150);
-    return () => clearTimeout(id);
+    if (!mapRef.current) return;
+
+    const center =
+      route?.stops?.length > 0
+        ? [
+            parseFloat(route.stops[0].latitude),
+            parseFloat(route.stops[0].longitude),
+          ]
+        : [27.7172, 85.324];
+
+    mapRef.current.setView(center, 12);
   }, [route]);
 
-  if (!leaflet) return <View style={s.mapPlaceholder}><Text style={{ color: '#6b7280' }}>Loading map...</Text></View>;
+  /* ---------------- Search While Typing ---------------- */
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
 
-  const { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip } = leaflet;
+    const debounce = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            searchQuery
+          )}`
+        );
+        const data = await res.json();
+        setSearchResults(data.slice(0, 5));
+      } catch (err) {
+        console.error('Search failed', err);
+      }
+    }, 500);
 
-  const center = route && route.stops && route.stops.length ? [route.stops[0].latitude, route.stops[0].longitude] : [27.7172, 85.3240];
-  const positions = (route?.stops?.map((s: any) => [s.latitude, s.longitude]) ?? []) as any[];
+    return () => clearTimeout(debounce);
+  }, [searchQuery]);
+
+  /* ---------------- Loading State ---------------- */
+  if (!leaflet)
+    return (
+      <View style={s.mapPlaceholder}>
+        <Text style={{ color: '#6b7280' }}>Loading map...</Text>
+      </View>
+    );
+
+  const { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip } =
+    leaflet;
+
+  const center =
+    route?.stops?.length > 0
+      ? [
+          parseFloat(route.stops[0].latitude),
+          parseFloat(route.stops[0].longitude),
+        ]
+      : [27.7172, 85.324];
+
+  const positions =
+    route?.stops
+      ?.filter((s: any) => s.latitude && s.longitude)
+      .map((s: any) => [
+        parseFloat(s.latitude),
+        parseFloat(s.longitude),
+      ]) ?? [];
 
   return (
     <View style={s.container}>
@@ -91,6 +147,41 @@ const WebMap: React.FC<WebMapProps> = ({ route, routes, selectedRouteId, onSelec
         </select>
       </View>
 
+      {/* Search Bar */}
+      <View style={s.searchContainer}>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search location..."
+          style={s.searchInput as any}
+        />
+
+        {searchResults.length > 0 && (
+          <View style={s.resultsContainer}>
+            {searchResults.map((result, index) => (
+              <View
+                key={index}
+                style={s.resultItem}
+                onClick={() => {
+                  const lat = parseFloat(result.lat);
+                  const lon = parseFloat(result.lon);
+
+                  mapRef.current?.flyTo([lat, lon], 15);
+                  setSearchMarker([lat, lon]);
+                  setSearchResults([]);
+                  setSearchQuery(result.display_name);
+                }}
+              >
+                <Text style={{ fontSize: 12 }}>
+                  {result.display_name}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
       {/* Map */}
       <View style={s.mapContainer}>
         <MapContainer
@@ -100,30 +191,36 @@ const WebMap: React.FC<WebMapProps> = ({ route, routes, selectedRouteId, onSelec
           style={{ height: '100%', width: '100%' }}
           whenCreated={(mapInstance: any) => {
             mapRef.current = mapInstance;
-            setTimeout(() => mapInstance.invalidateSize && mapInstance.invalidateSize(), 200);
+            setTimeout(() => mapInstance.invalidateSize(), 200);
           }}
         >
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             eventHandlers={{
-              tileload: () => {},
               load: () => setTilesLoaded(true),
               tileerror: () => setTilesLoaded(true),
             }}
           />
-          {route && positions.length > 0 && positions.map((pos: any, idx: number) => (
-            <Marker key={idx} position={pos}>
-              <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent={false}>
-                {route.stops[idx]?.stopName || `Stop ${idx + 1}`}
-              </Tooltip>
 
+          {positions.map((pos: any, idx: number) => (
+            <Marker key={idx} position={pos}>
+              <Tooltip>
+                {route?.stops[idx]?.stopName || `Stop ${idx + 1}`}
+              </Tooltip>
               <Popup>
-                {route.stops[idx]?.stopName || `Stop ${idx + 1}`}
+                {route?.stops[idx]?.stopName || `Stop ${idx + 1}`}
               </Popup>
             </Marker>
           ))}
+
+          {searchMarker && (
+            <Marker position={searchMarker}>
+              <Popup>Searched Location</Popup>
+            </Marker>
+          )}
+
           {positions.length > 1 && (
-            <Polyline positions={positions} color={'#3b82f6'} />
+            <Polyline positions={positions} color="#3b82f6" />
           )}
         </MapContainer>
 
@@ -138,27 +235,63 @@ const WebMap: React.FC<WebMapProps> = ({ route, routes, selectedRouteId, onSelec
 };
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column' },
-  dropdown: { maxHeight: 120, borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-  routeButton: { marginHorizontal: 8, marginVertical: 4, paddingVertical: 8 },
-  routeButtonActive: { backgroundColor: '#10b981' },
-  routeButtonText: { fontSize: 12, fontWeight: '500', color: '#1f2937' },
-  mapContainer: { flex: 1, position: 'relative' },
-  mapPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  mapContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  mapPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   dropdownContainer: {
-  padding: 12,
-  borderBottomWidth: 1,
-  borderBottomColor: '#e5e7eb',
-},
-
-webSelect: {
-  width: '100%',
-  padding: '8px',
-  fontSize: '14px',
-  borderRadius: '6px',
-  border: '1px solid #d1d5db',
-},
-  mapLoadingOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  webSelect: {
+    width: '100%',
+    padding: '8px',
+    fontSize: '14px',
+    borderRadius: '6px',
+    border: '1px solid #d1d5db',
+  },
+  searchContainer: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  searchInput: {
+    width: '100%',
+    padding: '8px',
+    borderRadius: '6px',
+    border: '1px solid #d1d5db',
+    fontSize: '14px',
+  },
+  resultsContainer: {
+    marginTop: 6,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 6,
+  },
+  resultItem: {
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    cursor: 'pointer',
+  },
+  mapLoadingOverlay: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
 
 export default WebMap;
