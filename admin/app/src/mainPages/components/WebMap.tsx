@@ -20,6 +20,7 @@ const WebMap: React.FC<WebMapProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchMarker, setSearchMarker] = useState<[number, number] | null>(null);
+  const [routePath, setRoutePath] = useState<any[]>([]);
 
   const mapRef = useRef<any>(null);
 
@@ -99,6 +100,46 @@ const WebMap: React.FC<WebMapProps> = ({
 
     return () => clearTimeout(debounce);
   }, [searchQuery]);
+
+  useEffect(() => {
+  if (!route?.stops || route.stops.length < 2) {
+    setRoutePath([]);
+    return;
+  }
+
+  const fetchRoute = async () => {
+    try {
+      let fullPath: any[] = [];
+
+      for (let i = 0; i < route.stops.length - 1; i++) {
+        const start = route.stops[i];
+        const end = route.stops[i + 1];
+
+        const url = `https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.routes?.length > 0) {
+          const coords = data.routes[0].geometry.coordinates;
+
+          const formatted = coords.map((c: any) => [
+            c[1], // lat
+            c[0], // lon
+          ]);
+
+          fullPath = [...fullPath, ...formatted];
+        }
+      }
+
+      setRoutePath(fullPath);
+    } catch (err) {
+      console.error('Routing failed:', err);
+    }
+  };
+
+  fetchRoute();
+}, [route]);
 
   /* ---------------- Loading State ---------------- */
   if (!leaflet)
@@ -219,8 +260,8 @@ const WebMap: React.FC<WebMapProps> = ({
             </Marker>
           )}
 
-          {positions.length > 1 && (
-            <Polyline positions={positions} color="#3b82f6" />
+          {routePath.length > 0 && (
+            <Polyline positions={routePath} color="#2563eb" weight={5} />
           )}
         </MapContainer>
 
