@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { View, Text, StyleSheet } from "react-native";
 
 interface AddMapProps {
@@ -19,6 +19,10 @@ const AddMap: React.FC<AddMapProps> = ({
   onRemoveStop,
 }) => {
   const [leaflet, setLeaflet] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchMarker, setSearchMarker] = useState<[number, number] | null>(null);
+  const mapRef = useRef<any>(null); // <-- added mapRef
 
   useEffect(() => {
     let mounted = true;
@@ -44,6 +48,29 @@ const AddMap: React.FC<AddMapProps> = ({
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+      if (!searchQuery.trim()) {
+        setSearchResults([]);
+        return;
+      }
+  
+      const debounce = setTimeout(async () => {
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+              searchQuery
+            )}`
+          );
+          const data = await res.json();
+          setSearchResults(data.slice(0, 5));
+        } catch (err) {
+          console.error('Search failed', err);
+        }
+      }, 500);
+  
+      return () => clearTimeout(debounce);
+    }, [searchQuery]);
 
   if (!leaflet) {
     return (
@@ -79,11 +106,47 @@ const AddMap: React.FC<AddMapProps> = ({
 
   return (
     <View style={styles.container}>
+      {/* Search Bar */}
+      <div style={s.searchContainer}>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search location..."
+          style={s.searchInput as any}
+        />
+
+        {searchResults.length > 0 && (
+          <div style={s.resultsContainer}>
+            {searchResults.map((result, index) => (
+              <div
+                key={index}
+                style={s.resultItem}
+                onClick={() => {
+                  const lat = parseFloat(result.lat);
+                  const lon = parseFloat(result.lon);
+
+                  mapRef.current?.flyTo([lat, lon], 15); // use mapRef
+                  setSearchMarker([lat, lon]);
+                  setSearchResults([]);
+                  setSearchQuery(result.display_name);
+                }}
+              >
+                <Text style={{ fontSize: 12 }}>
+                  {result.display_name}
+                </Text>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <View style={styles.mapContainer}>
         <MapContainer
           center={center}
           zoom={13}
           style={{ height: "100%", width: "100%", cursor: "crosshair" }}
+          whenCreated={(mapInstance) => (mapRef.current = mapInstance)} // <-- assign mapRef
         >
           <MapClickHandler />
 
@@ -114,6 +177,11 @@ const AddMap: React.FC<AddMapProps> = ({
               </Popup>
             </Marker>
           ))}
+          {searchMarker && (
+            <Marker position={searchMarker}>
+              <Popup>Searched Location</Popup>
+            </Marker>
+          )}
         </MapContainer>
       </View>
     </View>
@@ -129,5 +197,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
+
+const s: any = {
+  searchContainer: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  searchInput: {
+    width: '100%',
+    padding: 8,
+    borderRadius: 6,
+    border: '1px solid #d1d5db',
+    fontSize: 14,
+  },
+  resultsContainer: {
+    marginTop: 6,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 6,
+  },
+  resultItem: {
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    cursor: 'pointer',
+  },
+};
 
 export default AddMap;
