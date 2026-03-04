@@ -48,7 +48,7 @@ const getAssignedRoute = async (req, res) => {
         console.log(`Total schedules in route: ${route.schedules?.length || 0}`);
         console.log(`Filtered driver schedules: ${driverSchedules.length}`);
 
-        res.status(200).json({
+        const responseData = {
             route: route,
             bus: {
                 _id: driver.assignedBus._id,
@@ -56,7 +56,9 @@ const getAssignedRoute = async (req, res) => {
                 registrationNumber: driver.assignedBus.registrationNumber
             },
             driverSchedules: driverSchedules
-        });
+        };
+
+        res.status(200).json(responseData);
 
     } catch (error) {
         console.error("Error fetching assigned route:", error);
@@ -189,15 +191,11 @@ const startTrip = async (req, res) => {
         await newTrip.populate('routeId', 'routeName stops source destination');
         await newTrip.populate('busId', 'busNumber');
 
-        // Emit socket event for real-time updates
+        // Emit socket event for real-time updates to specific driver
         const io = req.app.get('io');
         if (io) {
-            io.emit('trip-started', {
-                driverId: driverId,
-                tripId: newTrip._id,
-                status: 'in-progress',
-                timestamp: new Date()
-            });
+            io.to(`driver:${driverId}`).emit('trip:started', newTrip);
+            io.to(`driver:${driverId}`).emit('trip:updated', newTrip);
         }
 
         res.status(201).json({
@@ -235,15 +233,11 @@ const endTrip = async (req, res) => {
         trip.endTime = new Date();
         await trip.save();
 
-        // Emit socket event
+        // Emit socket event to specific driver
         const io = req.app.get('io');
         if (io) {
-            io.emit('trip-ended', {
-                driverId: driverId,
-                tripId: trip._id,
-                status: 'completed',
-                timestamp: new Date()
-            });
+            io.to(`driver:${driverId}`).emit('trip:ended', trip);
+            io.to(`driver:${driverId}`).emit('trip:updated', trip);
         }
 
         res.status(200).json({
@@ -279,6 +273,12 @@ const startBreak = async (req, res) => {
         });
 
         await trip.save();
+
+        // Emit socket event to specific driver
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`driver:${driverId}`).emit('trip:updated', trip);
+        }
 
         res.status(200).json({
             message: "Break started",
@@ -325,6 +325,12 @@ const endBreak = async (req, res) => {
         trip.status = 'in-progress';
         await trip.save();
 
+        // Emit socket event to specific driver
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`driver:${driverId}`).emit('trip:updated', trip);
+        }
+
         res.status(200).json({
             message: "Break ended",
             trip: trip
@@ -365,15 +371,10 @@ const updatePassengerCount = async (req, res) => {
         trip.currentStop = stopId;
         await trip.save();
 
-        // Emit socket event for real-time updates
+        // Emit socket event for real-time updates to specific driver
         const io = req.app.get('io');
         if (io) {
-            io.emit('stop-completed', {
-                tripId: tripId,
-                stopId: stopId,
-                passengerCount: trip.passengerCount,
-                timestamp: new Date()
-            });
+            io.to(`driver:${driverId}`).emit('trip:updated', trip);
         }
 
         res.status(200).json({

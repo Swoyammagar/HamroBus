@@ -30,6 +30,12 @@ io.on('connection', (socket) => {
     console.log('Admin joined room');
   });
   
+  // Driver joins their specific room
+  socket.on('driver:join', ({ driverId }) => {
+    socket.join(`driver:${driverId}`);
+    console.log(`🚗 Driver ${driverId} joined room`);
+  });
+  
   // Driver location broadcasting
   socket.on('driver:share-location', (data) => {
     const { busId, driverId, latitude, longitude, heading, speed } = data;

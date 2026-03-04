@@ -254,6 +254,18 @@ const updateBus = async (req, res) => {
         
         const updatedBus = await query.exec();
         
+        // Emit socket event to notify driver of route/bus assignment change
+        const io = req.app.get('io');
+        if (io && bus.assignedDriverId) {
+            io.to(`driver:${bus.assignedDriverId}`).emit('route:updated', {
+                message: 'Your assigned bus or route has been updated',
+                busId: bus._id,
+                routeId: bus.assignedRouteId,
+                timestamp: new Date()
+            });
+            console.log(`📡 Emitted route:updated to driver:${bus.assignedDriverId}`);
+        }
+        
         return res.status(200).json({ message: "Bus updated successfully", bus: updatedBus });
     }
     catch (error) {
