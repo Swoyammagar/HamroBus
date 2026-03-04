@@ -47,150 +47,238 @@ export default function OpenStreetMap({
     }
   };
 
-  const htmlContent = `
+const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <style>
-    body, html { margin: 0; padding: 0; height: 100%; }
-    #map { height: 100%; width: 100%; }
-  </style>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+body, html { margin:0; padding:0; height:100%; }
+#map { height:100%; width:100%; }
+
+.route-btn {
+  position:absolute;
+  top:60px;
+  right:18px;
+  z-index:2000;
+  background:#2563EB;
+  color:white;
+  padding:8px 12px;
+  border-radius:8px;
+  font-family:sans-serif;
+  font-size:14px;
+  cursor:pointer;
+}
+
+.route-panel {
+  position:absolute;
+  bottom:-100%;
+  left:0;
+  width:93%;
+  max-height:55%;
+  background:white;
+  border-top-left-radius:18px;
+  border-top-right-radius:18px;
+  box-shadow:0 -4px 12px rgba(0,0,0,0.3);
+  padding:15px;
+  overflow-y:auto;
+  font-family:sans-serif;
+  transition:bottom 0.3s ease;
+  z-index:2000;
+}
+
+.route-panel.open {
+  bottom:0;
+}
+
+.step {
+  font-size:13px;
+  margin-bottom:8px;
+  padding:6px;
+  border-radius:6px;
+}
+
+.step.active {
+  background:#DBEAFE;
+  font-weight:bold;
+}
+</style>
 </head>
+
 <body>
-  <div id="map"></div>
-  <script>
-    // Initialize map
-    const map = L.map('map', {
-      zoomControl: true,
-      attributionControl: true
-    }).setView([${currentLocation?.latitude || busStops[0]?.latitude || 40.7489}, ${currentLocation?.longitude || busStops[0]?.longitude || -73.9680}], 13);
 
-    // Add OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-      maxZoom: 19
+<div id="map"></div>
+<div class="route-btn" id="routeBtn">Route Info</div>
+
+<div class="route-panel" id="routePanel">
+  <h3>Navigation</h3>
+  <div id="distance"></div>
+  <div id="duration"></div>
+  <hr/>
+  <div id="nextTurn" style="margin-bottom:10px;font-weight:bold;"></div>
+  <div id="instructions"></div>
+</div>
+
+<script>
+
+const stops = ${JSON.stringify(busStops)};
+const map = L.map('map',{ zoomControl:true }).setView(
+  [${currentLocation?.latitude || busStops[0]?.latitude || 40.7489},
+   ${currentLocation?.longitude || busStops[0]?.longitude || -73.9680}],
+  14
+);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'© OpenStreetMap contributors'
+}).addTo(map);
+
+let driverMarker = null;
+let routeLine = null;
+let stepMarkers = [];
+let currentStepIndex = 0;
+let stepsData = [];
+
+/* =========================
+   DRIVER FOLLOW MODE
+========================= */
+
+window.updateDriverLocation = function(lat,lng){
+
+  if(!driverMarker){
+    driverMarker = L.circleMarker([lat,lng],{
+      radius:8,
+      color:'#2563EB',
+      fillColor:'#2563EB',
+      fillOpacity:1
     }).addTo(map);
+  } else {
+    driverMarker.setLatLng([lat,lng]);
+  }
 
-    // Store markers
-    let driverMarker = null;
-    const busStopMarkers = [];
+  // FOLLOW DRIVER
+  map.setView([lat,lng], map.getZoom(), { animate:true });
 
-    // Add route polyline
-    const routeCoords = ${JSON.stringify(routePolyline.map(p => [p.latitude, p.longitude]))};
-    if (routeCoords.length > 1) {
-      L.polyline(routeCoords, {
-        color: '${palette.primary}',
-        weight: 3,
-        opacity: 0.8
-      }).addTo(map);
-    }
+  updateStepHighlight(lat,lng);
+};
 
-    // Add bus stop markers
-    const busStops = ${JSON.stringify(busStops)};
-    busStops.forEach(stop => {
-      const color = '${busStops.map(s => `${s.id}:${getMarkerColor(s.status)}`).join(',')}';
-      const stopColor = color.split(',').find(c => c.startsWith(stop.id + ':'))?.split(':')[1] || '#64748B';
-      
-      const icon = L.divIcon({
-        html: \`<div style="
-          background-color: \${stopColor};
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          border: 2px solid white;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-weight: bold;
-          font-size: 14px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        ">\${stop.status === 'completed' ? '✓' : stop.id}</div>\`,
-        className: '',
-        iconSize: [36, 36],
-        iconAnchor: [18, 18]
+/* =========================
+   ROUTE FETCH
+========================= */
+
+async function fetchRoute(){
+  if(stops.length < 2) return;
+
+  const coords = stops.map(s=>\`\${s.longitude},\${s.latitude}\`).join(';');
+
+  const url = \`https://router.project-osrm.org/route/v1/driving/\${coords}?overview=full&geometries=geojson&steps=true\`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+  if(!data.routes || !data.routes.length) return;
+
+  const route = data.routes[0];
+
+  const latlngs = route.geometry.coordinates.map(c=>[c[1],c[0]]);
+  routeLine = L.polyline(latlngs,{ color:'#2563EB', weight:5 }).addTo(map);
+
+  map.fitBounds(routeLine.getBounds(),{ padding:[40,40] });
+
+  document.getElementById('distance').innerHTML =
+    "Total Distance: " + (route.distance/1000).toFixed(2) + " km";
+
+  document.getElementById('duration').innerHTML =
+    "Estimated Time: " + Math.round(route.duration/60) + " min";
+
+  const container = document.getElementById("instructions");
+  container.innerHTML = "";
+  stepsData = [];
+
+  route.legs.forEach(leg=>{
+    leg.steps.forEach(step=>{
+      const div = document.createElement("div");
+      div.className = "step";
+
+      const road = step.name || "";
+      const type = step.maneuver.type.replace("_"," ");
+      const modifier = step.maneuver.modifier || "";
+
+      let text = type;
+      if(modifier) text += " " + modifier;
+      if(road) text += " onto " + road;
+
+      div.innerHTML = "• " + text;
+
+      container.appendChild(div);
+
+      stepsData.push({
+        lat: step.maneuver.location[1],
+        lng: step.maneuver.location[0],
+        text: text,
+        element: div
       });
-
-      const marker = L.marker([stop.latitude, stop.longitude], { icon })
-        .bindPopup(\`<b>\${stop.name}</b><br>\${stop.time} • \${stop.passengers} passengers\`)
-        .addTo(map);
-      
-      busStopMarkers.push(marker);
     });
+  });
 
-    // Add driver location marker
-    ${currentLocation ? `
-    const driverIcon = L.divIcon({
-      html: \`<div style="
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background-color: rgba(59, 130, 246, 0.2);
-        border: 3px solid #3B82F6;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      "><div style="
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background-color: #3B82F6;
-      "></div></div>\`,
-      className: '',
-      iconSize: [40, 40],
-      iconAnchor: [20, 20]
-    });
+  highlightStep(0);
+}
 
-    driverMarker = L.marker([${currentLocation.latitude}, ${currentLocation.longitude}], { icon: driverIcon })
-      .bindPopup('Your Location')
-      .addTo(map);
-    ` : ''}
+fetchRoute();
 
-    // Fit bounds to show all markers
-    const allCoords = [...routeCoords];
-    ${currentLocation ? `allCoords.push([${currentLocation.latitude}, ${currentLocation.longitude}]);` : ''}
-    if (allCoords.length > 0) {
-      map.fitBounds(allCoords, { padding: [50, 50] });
+/* =========================
+   STEP HIGHLIGHTING
+========================= */
+
+function highlightStep(index){
+  stepsData.forEach((s,i)=>{
+    s.element.classList.remove("active");
+    if(i===index){
+      s.element.classList.add("active");
+      document.getElementById("nextTurn").innerHTML =
+        "Next: " + s.text;
     }
+  });
+  currentStepIndex = index;
+}
 
-    // Function to update driver location from React Native
-    window.updateDriverLocation = function(lat, lng) {
-      if (driverMarker) {
-        driverMarker.setLatLng([lat, lng]);
-      } else {
-        const driverIcon = L.divIcon({
-          html: \`<div style="
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background-color: rgba(59, 130, 246, 0.2);
-            border: 3px solid #3B82F6;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          "><div style="
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background-color: #3B82F6;
-          "></div></div>\`,
-          className: '',
-          iconSize: [40, 40],
-          iconAnchor: [20, 20]
-        });
-        driverMarker = L.marker([lat, lng], { icon: driverIcon })
-          .bindPopup('Your Location')
-          .addTo(map);
-      }
-      map.setView([lat, lng], map.getZoom());
-    };
-  </script>
+function updateStepHighlight(lat,lng){
+  if(!stepsData.length) return;
+
+  const next = stepsData[currentStepIndex];
+  const dist = map.distance([lat,lng],[next.lat,next.lng]);
+
+  if(dist < 40 && currentStepIndex < stepsData.length-1){
+    highlightStep(currentStepIndex+1);
+  }
+}
+
+/* =========================
+   MARKERS
+========================= */
+
+stops.forEach(stop=>{
+  L.marker([stop.latitude,stop.longitude])
+    .bindPopup(stop.name)
+    .addTo(map);
+});
+
+/* =========================
+   PANEL TOGGLE
+========================= */
+
+const btn = document.getElementById("routeBtn");
+const panel = document.getElementById("routePanel");
+
+btn.addEventListener("click",()=>{
+  panel.classList.toggle("open");
+});
+
+</script>
 </body>
 </html>
-  `;
+`;
 
   return (
     <View style={styles.container}>
