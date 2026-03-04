@@ -7,16 +7,20 @@ interface PassengerLogModalProps {
   visible: boolean;
   passengerCount: number;
   onCountChange: (count: number) => void;
+  onConfirm: (count: number) => Promise<void>;
   onClose: () => void;
   capacity?: number;
+  isLoading?: boolean;
 }
 
 export default function PassengerLogModal({
   visible,
   passengerCount,
   onCountChange,
+  onConfirm,
   onClose,
   capacity = 45,
+  isLoading = false,
 }: PassengerLogModalProps) {
   const handleIncrement = () => {
     if (passengerCount < capacity) {
@@ -33,6 +37,15 @@ export default function PassengerLogModal({
   const handleQuickAdd = (num: number) => {
     const newCount = Math.min(capacity, passengerCount + num);
     onCountChange(newCount);
+  };
+
+  const handleConfirm = async () => {
+    try {
+      await onConfirm(passengerCount);
+      onClose();
+    } catch (error) {
+      console.error('Error confirming passenger count:', error);
+    }
   };
 
   return (
@@ -112,11 +125,21 @@ export default function PassengerLogModal({
 
           {/* Action Buttons */}
           <View style={styles.buttonRow}>
-            <Pressable style={styles.cancelButton} onPress={onClose}>
+            <Pressable 
+              style={styles.cancelButton} 
+              onPress={onClose}
+              disabled={isLoading}
+            >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </Pressable>
-            <Pressable style={styles.confirmButton} onPress={onClose}>
-              <Text style={styles.confirmButtonText}>Confirm</Text>
+            <Pressable 
+              style={[styles.confirmButton, isLoading && { opacity: 0.6 }]}
+              onPress={handleConfirm}
+              disabled={isLoading}
+            >
+              <Text style={styles.confirmButtonText}>
+                {isLoading ? 'Saving...' : 'Confirm'}
+              </Text>
             </Pressable>
           </View>
         </View>
