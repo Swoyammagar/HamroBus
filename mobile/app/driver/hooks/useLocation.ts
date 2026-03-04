@@ -177,15 +177,44 @@ export const useLocation = (): UseLocationReturn => {
   // Start tracking location
   const startTracking = useCallback(async (): Promise<void> => {
     try {
-      if (!hasPermission) {
+      setLoading(true);
+      setError(null);
+      console.log('📍 [startTracking] Starting...');
+      
+      // Check/request permission first
+      let hasPermissionGranted = hasPermission;
+      if (!hasPermissionGranted) {
+        console.log('📍 [startTracking] No permission, requesting...');
         const permissionGranted = await requestPermission();
-        if (!permissionGranted) return;
+        if (!permissionGranted) {
+          console.log('❌ [startTracking] Permission denied');
+          setLoading(false);
+          return;
+        }
+        hasPermissionGranted = true;
       }
 
-      // Get initial location
-      await getCurrentLocation();
+      console.log('📍 [startTracking] Getting initial location...');
+      // Get initial location immediately
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      
+      const initialCoords: LocationCoords = {
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+        accuracy: currentLocation.coords.accuracy || undefined,
+        altitude: currentLocation.coords.altitude,
+        heading: currentLocation.coords.heading,
+        speed: currentLocation.coords.speed,
+      };
 
-      // Watch for location changes
+      console.log('📍 [startTracking] Initial location:', initialCoords);
+      setLocation(initialCoords);
+      emitLocationToServer(initialCoords);
+
+      console.log('📍 [startTracking] Starting watch...');
+      // Start watching for changes (don't wait for this)
       const subscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.Balanced,
@@ -202,22 +231,23 @@ export const useLocation = (): UseLocationReturn => {
             speed: locationData.coords.speed,
           };
 
+          console.log('📍 [watch] Location updated:', coords);
           setLocation(coords);
           setError(null);
-
-          // Emit location to server
           emitLocationToServer(coords);
         }
       );
 
       setWatchId(subscription);
-      setLoading(false);
+      console.log('✅ [startTracking] Watch setup complete');
+      setLoading(false); // Stop loading immediately after watch is set up
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to start tracking';
+      console.error('❌ [startTracking] Error:', message, err);
       setError(message);
       setLoading(false);
     }
-  }, [hasPermission, requestPermission, getCurrentLocation, emitLocationToServer]);
+  }, [hasPermission, requestPermission, emitLocationToServer]);
 
   // Stop tracking location
   const stopTracking = useCallback(() => {
