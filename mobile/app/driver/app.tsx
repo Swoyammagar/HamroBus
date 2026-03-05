@@ -12,6 +12,7 @@ import AnnouncementBanner from './component/AnnouncementBanner';
 import EmergencySOSModal from './component/EmergencySOSModal';
 import { palette } from './theme';
 import { useAuth } from '../context/AuthContext';
+import { AppProvider } from './context/AppContext';
 
 export default function App() {
   const [isOnline, setIsOnline] = useState(false);
@@ -36,50 +37,50 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
+          <AppProvider>
+            {/* EVERYTHING inside SafeAreaView */}
+            <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
 
-        {/* EVERYTHING inside SafeAreaView */}
-        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-
-
-          {/* Header (always safe-area aware) */}
-          <Header
-            isOnline={isOnline}
-            onToggleOnline={() => setIsOnline(prev => !prev)}
-            onMenuPress={() => setMenuOpen(true)}
-          />
-
-          {/* Announcements */}
-          {announcement.show && (
-            <AnnouncementBanner
-            message={announcement.message}
-            type={announcement.type}
-            onClose={() => setAnnouncement({ ...announcement, show: false })}
-            />
-          )}
-
-          {/* Main App Navigation */}
-          <View style={styles.content}>
-            <RootNavigator
+            {/* Header (always safe-area aware) */}
+            <Header
               isOnline={isOnline}
-              onSOS={() => setShowSOS(true)}
+              onToggleOnline={() => setIsOnline(prev => !prev)}
+              onMenuPress={() => setMenuOpen(true)}
             />
-          </View>
 
-          {/* SOS Modal */}
-          <EmergencySOSModal
-            visible={showSOS}
-            onClose={() => setShowSOS(false)}
-          />
+            {/* Announcements */}
+            {announcement.show && (
+              <AnnouncementBanner
+                message={announcement.message}
+                type={announcement.type}
+                onClose={() => setAnnouncement({ ...announcement, show: false })}
+              />
+            )}
 
-          {/* Side Menu (overlay) */}
-          <SideMenu
-            isOpen={menuOpen}
-            onClose={() => setMenuOpen(false)}
-            isOnline={isOnline}
-          />
-          <StatusBar style="dark" />
+            {/* Main App Navigation */}
+            <View style={styles.content}>
+              <RootNavigator
+                isOnline={isOnline}
+                onSOS={() => setShowSOS(true)}
+              />
+            </View>
 
-        </SafeAreaView>
+            {/* SOS Modal */}
+            <EmergencySOSModal
+              visible={showSOS}
+              onClose={() => setShowSOS(false)}
+            />
+
+            {/* Side Menu (overlay) */}
+            <SideMenu
+              isOpen={menuOpen}
+              onClose={() => setMenuOpen(false)}
+              isOnline={isOnline}
+            />
+            <StatusBar style="dark" />
+
+          </SafeAreaView>
+        </AppProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
