@@ -137,8 +137,7 @@ const getCurrentTrip = async (req, res) => {
             status: { $in: ['in-progress', 'on-break'] }
         })
             .populate('routeId', 'routeName stops source destination')
-            .populate('busId', 'busNumber registrationNumber')
-            .populate('currentStop');
+            .populate('busId', 'busNumber registrationNumber');
 
         if (!currentTrip) {
             return res.status(404).json({ message: "No active trip" });
@@ -359,6 +358,10 @@ const updatePassengerCount = async (req, res) => {
     const { tripId, stopId, passengersBoarded, passengersAlighted } = req.body;
 
     try {
+        if (!tripId) {
+            return res.status(400).json({ message: "tripId is required" });
+        }
+
         const trip = await TripSession.findOne({
             _id: tripId,
             driverId: driverId
@@ -368,18 +371,31 @@ const updatePassengerCount = async (req, res) => {
             return res.status(404).json({ message: "Trip not found" });
         }
 
-        // Update passenger count
-        trip.passengerCount += (passengersBoarded || 0) - (passengersAlighted || 0);
+        const boarded = Number(passengersBoarded || 0);
+        const alighted = Number(passengersAlighted || 0);
+        const normalizedStopId = typeof stopId === 'string' ? stopId.trim() : '';
 
-        // Add completed stop
-        trip.completedStops.push({
-            stopId: stopId,
-            completionTime: new Date(),
-            passengersBoarded: passengersBoarded || 0,
-            passengersAlighted: passengersAlighted || 0
-        });
+        // Update passenger count and prevent negative values.
+        trip.passengerCount = Math.max(0, (trip.passengerCount || 0) + boarded - alighted);
 
-        trip.currentStop = stopId;
+        // Mark stop as completed only once (route stops are tracked by stop name).
+        if (normalizedStopId) {
+            const alreadyCompleted = trip.completedStops?.some(
+                completed => completed.stopId === normalizedStopId
+            );
+
+            if (!alreadyCompleted) {
+                trip.completedStops.push({
+                    stopId: normalizedStopId,
+                    completionTime: new Date(),
+                    passengersBoarded: boarded,
+                    passengersAlighted: alighted
+                });
+            }
+
+            trip.currentStop = normalizedStopId;
+        }
+
         await trip.save();
 
         // Emit socket event for real-time updates to specific driver
