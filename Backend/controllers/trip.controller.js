@@ -172,11 +172,20 @@ const startTrip = async (req, res) => {
             return res.status(400).json({ message: "Driver already has an active trip" });
         }
 
+        // If busId not provided, fetch from driver's assigned bus
+        let finalBusId = busId;
+        if (!finalBusId) {
+            const driver = await Driver.findById(driverId).populate('assignedBus', '_id');
+            if (driver && driver.assignedBus) {
+                finalBusId = driver.assignedBus._id;
+            }
+        }
+
         // Create new trip session
         const newTrip = new TripSession({
             driverId: driverId,
             routeId: routeId,
-            busId: busId || null,
+            busId: finalBusId || null,
             scheduleId: scheduleId || null,
             status: 'in-progress',
             startTime: new Date(),
@@ -190,6 +199,8 @@ const startTrip = async (req, res) => {
         // Populate the trip details
         await newTrip.populate('routeId', 'routeName stops source destination');
         await newTrip.populate('busId', 'busNumber');
+
+        console.log(`✅ Trip started - Driver: ${driverId}, Bus: ${finalBusId}, Schedule: ${scheduleId}`);
 
         // Emit socket event for real-time updates to specific driver
         const io = req.app.get('io');
@@ -421,6 +432,37 @@ const getTripHistory = async (req, res) => {
     }
 };
 
+// Get today's completed trips for a driver
+const getTodayCompletedTrips = async (req, res) => {
+    const driverId = req.user.id;
+
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const completedTrips = await TripSession.find({
+            driverId: driverId,
+            status: 'completed',
+            endTime: { $gte: today, $lt: tomorrow }
+        })
+            .populate('routeId', 'routeName')
+            .populate('busId', 'busNumber')
+            .select('scheduleId startTime endTime');
+
+        res.status(200).json({
+            completedTrips: completedTrips,
+            count: completedTrips.length
+        });
+
+    } catch (error) {
+        console.error("Error fetching today's completed trips:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 module.exports = {
     getAssignedRoute,
     getDriverSchedules,
@@ -430,5 +472,6 @@ module.exports = {
     startBreak,
     endBreak,
     updatePassengerCount,
-    getTripHistory
+    getTripHistory,
+    getTodayCompletedTrips
 };
