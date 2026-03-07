@@ -27,7 +27,11 @@ io.on('connection', (socket) => {
   // Admin room
   socket.on('join-admin', () => {
     socket.join('admin-room');
-    console.log('Admin joined room');
+    console.log('👨‍💼 Admin joined admin-room, socket:', socket.id);
+    
+    // Get all rooms for this socket
+    const rooms = Array.from(socket.rooms);
+    console.log('📋 Current rooms for this socket:', rooms);
   });
   
   // Driver joins their specific room
@@ -41,8 +45,7 @@ io.on('connection', (socket) => {
     const { busId, driverId, latitude, longitude, heading, speed } = data;
     console.log(`📍 Driver ${driverId} location:`, { latitude, longitude });
     
-    // Broadcast to all passengers tracking this bus
-    io.to(`bus:${busId}`).emit('driver:location-update', {
+    const locationPayload = {
       busId,
       driverId,
       latitude,
@@ -50,7 +53,15 @@ io.on('connection', (socket) => {
       heading: heading || 0,
       speed: speed || 0,
       timestamp: new Date().toISOString(),
-    });
+    };
+    
+    // Broadcast to all passengers tracking this bus
+    io.to(`bus:${busId}`).emit('driver:location-update', locationPayload);
+    console.log(`✅ Broadcast to bus:${busId}`);
+    
+    // Also broadcast to admin room for real-time monitoring
+    io.to('admin-room').emit('driver:location-update', locationPayload);
+    console.log('✅ Broadcast to admin-room');
   });
   
   // Passenger tracking
