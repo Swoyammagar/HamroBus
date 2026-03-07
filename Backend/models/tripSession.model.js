@@ -57,13 +57,19 @@ const tripSessionSchema = new mongoose.Schema({
         default: 0
     },
     completedStops: [{
-        stopId: mongoose.Schema.Types.ObjectId,
+        // Route stops do not have ObjectIds; track by stop name.
+        stopId: {
+            type: String,
+            trim: true
+        },
         completionTime: Date,
         passengersBoarded: Number,
         passengersAlighted: Number
     }],
     currentStop: {
-        type: mongoose.Schema.Types.ObjectId,
+        // Store current stop name to match route stop structure.
+        type: String,
+        trim: true,
         required: false
     },
     notes: {
