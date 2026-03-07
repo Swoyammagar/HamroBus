@@ -1,6 +1,19 @@
 // @ts-nocheck
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { io, Socket } from 'socket.io-client';
+
+const SOCKET_URL = process.env.EXPO_PUBLIC_API_BASE?.replace('/api', '') || 'http://localhost:3000';
+
+interface DriverLocation {
+  busId: string;
+  driverId: string;
+  latitude: number;
+  longitude: number;
+  heading: number;
+  speed: number;
+  timestamp: string;
+}
 
 interface WebMapProps {
   route: any | null;
@@ -21,8 +34,10 @@ const WebMap: React.FC<WebMapProps> = ({
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchMarker, setSearchMarker] = useState<[number, number] | null>(null);
   const [routePath, setRoutePath] = useState<any[]>([]);
+  const [driverLocations, setDriverLocations] = useState<Map<string, DriverLocation>>(new Map());
 
   const mapRef = useRef<any>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   /* ---------------- Load Leaflet ---------------- */
   useEffect(() => {
@@ -50,6 +65,59 @@ const WebMap: React.FC<WebMapProps> = ({
 
     return () => {
       mounted = false;
+    };
+  }, []);
+
+  /* ---------------- Socket Connection for Driver Locations ---------------- */
+  useEffect(() => {
+    console.log('🔌 Initializing socket connection to:', SOCKET_URL);
+    
+    // Connect to socket server
+    const socket = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('✅ Admin socket connected:', socket.id);
+      console.log('🔑 Joining admin-room...');
+      // Join admin room to receive driver location updates
+      socket.emit('join-admin');
+      console.log('✅ Emitted join-admin');
+    });
+
+    socket.on('driver:location-update', (data: DriverLocation) => {
+      console.log('📍 [ADMIN] Received driver location update:', {
+        driverId: data.driverId,
+        busId: data.busId,
+        lat: data.latitude,
+        lng: data.longitude,
+        speed: data.speed,
+        timestamp: data.timestamp
+      });
+      setDriverLocations((prev) => {
+        const updated = new Map(prev);
+        updated.set(data.driverId, data);
+        console.log('✅ Updated driver locations map, total drivers:', updated.size);
+        return updated;
+      });
+    });
+
+    socket.on('disconnect', () => {
+      console.log('❌ Admin socket disconnected');
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket connection error:', err);
+    });
+
+    // Cleanup on unmount
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
     };
   }, []);
 
@@ -243,8 +311,9 @@ const WebMap: React.FC<WebMapProps> = ({
             }}
           />
 
+          {/* Route Stop Markers */}
           {positions.map((pos: any, idx: number) => (
-            <Marker key={idx} position={pos}>
+            <Marker key={`stop-${idx}`} position={pos}>
               <Tooltip>
                 {route?.stops[idx]?.stopName || `Stop ${idx + 1}`}
               </Tooltip>
@@ -253,6 +322,59 @@ const WebMap: React.FC<WebMapProps> = ({
               </Popup>
             </Marker>
           ))}
+
+          {/* Driver Location Markers */}
+          {Array.from(driverLocations.values()).map((driver) => {
+            if (!leaflet?.L) return null;
+            
+            const driverIcon = leaflet.L.divIcon({
+              className: 'custom-driver-marker',
+              html: `
+                <div style="
+                  position: relative;
+                  width: 40px;
+                  height: 40px;
+                  background: #10b981;
+                  border: 3px solid white;
+                  border-radius: 50%;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                  transform: rotate(${driver.heading}deg);
+                ">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                  </svg>
+                </div>
+              `,
+              iconSize: [40, 40],
+              iconAnchor: [20, 20],
+            });
+
+            return (
+              <Marker 
+                key={`driver-${driver.driverId}`}
+                position={[driver.latitude, driver.longitude]}
+                icon={driverIcon}
+              >
+                <Tooltip permanent direction="top" offset={[0, -20]}>
+                  <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
+                    🚌 Bus {driver.busId.slice(-4)}
+                  </div>
+                </Tooltip>
+                <Popup>
+                  <div style={{ fontSize: '12px' }}>
+                    <strong>Driver ID:</strong> {driver.driverId.slice(0, 8)}...<br/>
+                    <strong>Bus ID:</strong> {driver.busId.slice(-8)}<br/>
+                    <strong>Speed:</strong> {driver.speed.toFixed(1)} km/h<br/>
+                    <strong>Heading:</strong> {driver.heading}°<br/>
+                    <strong>Last Update:</strong> {new Date(driver.timestamp).toLocaleTimeString()}
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
 
           {searchMarker && (
             <Marker position={searchMarker}>
@@ -268,6 +390,25 @@ const WebMap: React.FC<WebMapProps> = ({
         {!tilesLoaded && (
           <View style={s.mapLoadingOverlay}>
             <Text style={{ color: '#fff' }}>Loading tiles...</Text>
+          </View>
+        )}
+
+        {/* Live Driver Status Panel */}
+        {driverLocations.size > 0 && (
+          <View style={s.driverStatusPanel}>
+            <View style={s.panelHeader}>
+              <Text style={s.panelTitle}>🚌 Live Drivers ({driverLocations.size})</Text>
+            </View>
+            <View style={s.driverList}>
+              {Array.from(driverLocations.values()).map((driver) => (
+                <View key={driver.driverId} style={s.driverItem}>
+                  <View style={s.driverDot} />
+                  <Text style={s.driverText}>
+                    Bus {driver.busId.slice(-4)} • {driver.speed.toFixed(0)} km/h
+                  </Text>
+                </View>
+              ))}
+            </View>
           </View>
         )}
       </View>
@@ -332,6 +473,48 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  driverStatusPanel: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 8,
+    padding: 12,
+    minWidth: 200,
+    maxHeight: 300,
+    overflow: 'auto',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+  },
+  panelHeader: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    paddingBottom: 8,
+    marginBottom: 8,
+  },
+  panelTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  driverList: {
+    gap: 6,
+  },
+  driverItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  driverDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10b981',
+  },
+  driverText: {
+    fontSize: 12,
+    color: '#4b5563',
   },
 });
 
