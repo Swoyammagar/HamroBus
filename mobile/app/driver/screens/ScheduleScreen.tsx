@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { palette, spacing, radius, shadow } from '../theme';
@@ -49,10 +49,35 @@ const generateWeekDays = () => {
 
 const weekDays = generateWeekDays();
 
-const dayMap: { [key: string]: number } = {};
-weekDays.forEach((day, index) => {
-  dayMap[day.id] = index;
-});
+const fullDayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const shortDayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+const getDayIndexFromValue = (value?: string) => {
+  if (!value) return null;
+
+  const normalized = value.trim().toLowerCase();
+  const asNumber = Number(normalized);
+
+  // Support day values like "0".."6" if backend ever returns numeric strings.
+  if (Number.isInteger(asNumber) && asNumber >= 0 && asNumber <= 6) {
+    return asNumber;
+  }
+
+  const fullIndex = fullDayNames.indexOf(normalized);
+  if (fullIndex !== -1) {
+    return fullIndex;
+  }
+
+  const shortIndex = shortDayNames.indexOf(normalized.slice(0, 3));
+  return shortIndex !== -1 ? shortIndex : null;
+};
+
+const toMinutes = (timeValue: string) => {
+  if (!timeValue) return 0;
+  const [hour, minute] = timeValue.split(':').map(Number);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return 0;
+  return hour * 60 + minute;
+};
 
 export default function ScheduleScreen() {
   const [selected, setSelected] = useState('0'); // Start with today
@@ -62,10 +87,10 @@ export default function ScheduleScreen() {
     schedules, 
     routeLoading, 
     currentTrip, 
+    assignedRoute,
     refreshRoute 
   } = useAppContext();
-  
-  const [currentSchedules, setCurrentSchedules] = useState<ScheduleItem[]>([]);
+
   const [refreshing, setRefreshing] = useState(false);
 
   // Handle pull-to-refresh
@@ -80,32 +105,30 @@ export default function ScheduleScreen() {
     }
   };
 
-  // Filter schedules based on selected day
-  useEffect(() => {
-    if (schedules && schedules.length > 0 && selected) {
-      const selectedDayIndex = parseInt(selected);
-      const selectedDate = weekDays[selectedDayIndex]?.date;
-
-      if (selectedDate) {
-        // Filter schedules that match the selected date
-        const filteredSchedules = schedules.filter((schedule) => {
-          // Try to match by dayOfWeek (0=Sunday, 1=Monday, etc.)
-          const scheduleDayOfWeek = schedule.dayOfWeek?.toLowerCase();
-          const selectedDayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][selectedDate.getDay()];
-          
-          if (scheduleDayOfWeek === selectedDayOfWeek) {
-            return true;
-          }
-
-          // For now, show all schedules as fallback
-          // In a real app, you'd have date-based filtering in the backend
-          return selectedDayIndex === 0; // Show all for today
-        });
-
-        setCurrentSchedules(filteredSchedules.length > 0 ? filteredSchedules : schedules);
-      }
+  const selectedDayIndex = useMemo(() => {
+    const parsed = Number(selected);
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 6) {
+      return 0;
     }
-  }, [schedules, selected]);
+    return parsed;
+  }, [selected]);
+
+  const selectedDayName = weekDays[selectedDayIndex]?.date
+    ? fullDayNames[weekDays[selectedDayIndex].date.getDay()]
+    : fullDayNames[new Date().getDay()];
+
+  const currentSchedules = useMemo(() => {
+    if (!Array.isArray(schedules) || schedules.length === 0) {
+      return [];
+    }
+
+    const matchesForDay = schedules.filter((schedule: ScheduleItem) => {
+      const scheduleDayIndex = getDayIndexFromValue(schedule.dayOfWeek);
+      return scheduleDayIndex === fullDayNames.indexOf(selectedDayName);
+    });
+
+    return [...matchesForDay].sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
+  }, [schedules, selectedDayName]);
 
   const statusStyle = (status?: string) => {
     switch (status) {
@@ -125,6 +148,10 @@ export default function ScheduleScreen() {
   };
 
   const getScheduleStatus = (schedule: ScheduleItem) => {
+    if (schedule.status) {
+      return schedule.status;
+    }
+
     if (currentTrip && currentTrip.startTime) {
       const scheduleStart = new Date(`2024-01-01 ${schedule.startTime}`);
       const scheduleEnd = new Date(`2024-01-01 ${schedule.endTime}`);
@@ -238,11 +265,11 @@ export default function ScheduleScreen() {
                 <View style={{ flex: 1, gap: spacing.sm }}>
                   <View style={styles.metaRow}>
                     <Feather name="map-pin" size={14} color={palette.muted} />
-                    <Text style={styles.metaText}>Start Point</Text>
+                    <Text style={styles.metaText}>{assignedRoute?.source || 'Start Point'}</Text>
                   </View>
                   <View style={styles.metaRow}>
                     <Feather name="map-pin" size={14} color={palette.muted} />
-                    <Text style={styles.metaText}>End Point</Text>
+                    <Text style={styles.metaText}>{assignedRoute?.destination || 'End Point'}</Text>
                   </View>
                 </View>
               </View>
@@ -266,8 +293,8 @@ export default function ScheduleScreen() {
       ) : (
         <View style={styles.emptyState}>
           <Feather name="calendar" size={48} color={palette.muted} />
-          <Text style={styles.emptyTitle}>No schedules assigned</Text>
-          <Text style={styles.emptyText}>Schedules will appear once assigned by admin</Text>
+          <Text style={styles.emptyTitle}>No schedules for this day</Text>
+          <Text style={styles.emptyText}>Try another day or pull to refresh</Text>
         </View>
       )}
     </ScrollView>
