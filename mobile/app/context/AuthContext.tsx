@@ -344,11 +344,17 @@ const logout = async () => {
 
 const getCurrentUser = async () => {
   try {
-    if (!token) return;
+    if (!token) {
+      console.log('⚠️ getCurrentUser: No token available, skipping');
+      return;
+    }
     
     // Get user role from stored data to determine correct endpoint
     const storedUser = await AsyncStorage.getItem('user');
-    if (!storedUser) return;
+    if (!storedUser) {
+      console.log('⚠️ getCurrentUser: No stored user data, skipping');
+      return;
+    }
     
     const userData = JSON.parse(storedUser);
     const roles = userData.roles || [];
@@ -363,19 +369,53 @@ const getCurrentUser = async () => {
     }
 
     if (!endpoint) {
-      console.warn('Get current user skipped: missing role information');
+      console.warn('⚠️ getCurrentUser: Missing role information, skipping');
       return;
     }
     
+    console.log(`📡 Fetching current user from ${API_URL}${endpoint}`);
+    
     const response = await axios.get(`${API_URL}${endpoint}`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 10000, // 10 second timeout
     });
     
     const updatedUserData = response.data.user;
     await AsyncStorage.setItem('user', JSON.stringify(updatedUserData));
     setUser(updatedUserData);
+    
+    console.log('✅ getCurrentUser: User data updated successfully');
   } catch (error: any) {
-    console.error('Get current user error:', error.response?.status, error.message);
+    // More detailed error logging
+    if (error.response) {
+      // Server responded with error status
+      console.error('❌ getCurrentUser API error:', {
+        status: error.response?.status,
+        message: error.response?.data?.message || error.message,
+        code: error.response?.data?.code
+      });
+      
+      // If token expired, try to refresh
+      if (error.response?.status === 401) {
+        console.log('🔄 Token expired, attempting refresh...');
+        const refreshed = await refreshToken();
+        if (refreshed) {
+          // Retry getCurrentUser after refresh
+          console.log('✅ Token refreshed, retrying getCurrentUser...');
+          return await getCurrentUser();
+        }
+      }
+    } else if (error.request) {
+      // Request was made but no response received
+      console.error('❌ getCurrentUser network error:', {
+        message: error.message,
+        url: `${API_URL}${error.config?.url || ''}`,
+        note: 'No response from server - check if backend is running and reachable'
+      });
+    } else {
+      // Something else happened
+      console.error('❌ getCurrentUser error:', error.message);
+    }
     // Don't throw - user data is already loaded from login
   }
 };
