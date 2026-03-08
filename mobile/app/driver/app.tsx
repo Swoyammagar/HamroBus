@@ -18,7 +18,7 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
-  const { getCurrentUser, isLoading } = useAuth();
+  const { getCurrentUser, isLoading, token } = useAuth();
 
   const [announcement, setAnnouncement] = useState({
     show: true,
@@ -26,13 +26,15 @@ export default function App() {
     type: 'warning' as 'info' | 'warning' | 'emergency',
   });
 
-  // ✅ FETCH CURRENT USER DATA ON APP MOUNT
+  // ✅ FETCH CURRENT USER DATA ONLY AFTER AUTH IS LOADED
   useEffect(() => {
-    const loadUserData = async () => {
-      await getCurrentUser();
-    };
-    loadUserData();
-  }, [getCurrentUser]);
+    if (!isLoading && token) {
+      const loadUserData = async () => {
+        await getCurrentUser();
+      };
+      loadUserData();
+    }
+  }, [isLoading, token]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
