@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet, Pressable, Text, Alert, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { palette, spacing, radius, shadow } from '../theme';
@@ -26,19 +26,49 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
   const { updatePassengers, error: tripError } = useTripActions();
   
   const [passengerCount, setPassengerCount] = useState(0);
+  const [tempPassengerCount, setTempPassengerCount] = useState(0);
   const [showStopsPanel, setShowStopsPanel] = useState(false);
   const [showPassengerLog, setShowPassengerLog] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
+  const pendingAutoStopRef = useRef<Set<string>>(new Set());
+  const autoCompletedStopsRef = useRef<Set<string>>(new Set());
+  const trackingInProgressRef = useRef(false); // ✅ Prevent duplicate tracking starts
 
   const { location, loading, error, startTracking, stopTracking, requestPermission } = useLocation();
 
   // Update passenger count from current trip
   useEffect(() => {
-    if (currentTrip?.passengerCount) {
-      setPassengerCount(currentTrip.passengerCount);
-    }
+    const count = currentTrip?.passengerCount || 0;
+    setPassengerCount(count);
+    setTempPassengerCount(count);
   }, [currentTrip]);
+
+  useEffect(() => {
+    pendingAutoStopRef.current.clear();
+    autoCompletedStopsRef.current.clear();
+  }, [currentTrip?._id]);
+
+  const completedStopSet = useMemo(() => {
+    const set = new Set<string>();
+    (currentTrip?.completedStops || []).forEach((stop: { stopId?: string }) => {
+      if (stop?.stopId) {
+        set.add(stop.stopId);
+      }
+    });
+    return set;
+  }, [currentTrip?.completedStops]);
+
+  const getCurrentStopName = useCallback(() => {
+    if (!assignedRoute?.stops?.length || !currentTrip) return undefined;
+
+    if (currentTrip.currentStop) {
+      return currentTrip.currentStop;
+    }
+
+    const nextStop = assignedRoute.stops.find(stop => !completedStopSet.has(stop.stopName));
+    return nextStop?.stopName;
+  }, [assignedRoute, currentTrip, completedStopSet]);
 
   // Log route updates for debugging
   useEffect(() => {
@@ -53,19 +83,27 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
 
   // Request location permission and start tracking
   const requestLocationPermission = useCallback(async () => {
+    // Prevent duplicate tracking attempts
+    if (trackingInProgressRef.current) {
+      console.log('Tracking already in progress, skipping duplicate request');
+      return;
+    }
+
+    trackingInProgressRef.current = true;
+    
     try {
-      console.log('� [Step 1] Requesting location permission...');
+      console.log('[Step 1] Requesting location permission...');
       const granted = await requestPermission();
-      console.log('🔵 [Step 2] Permission result:', granted);
+      console.log('[Step 2] Permission result:', granted);
       
       if (granted) {
-        console.log('🔵 [Step 3] Starting location tracking...');
-        await startTracking(); // Wait for tracking to actually start
-        console.log('🔵 [Step 4] Setting isLocationEnabled = true');
+        console.log('[Step 3] Starting location tracking...');
+        await startTracking();
+        console.log('[Step 4] Setting isLocationEnabled = true');
         setIsLocationEnabled(true);
-        console.log('✅ [Step 5] Location tracking fully enabled');
+        console.log('[Step 5] Location tracking fully enabled');
       } else {
-        console.log('🔴 [Error] Permission denied');
+        console.log('[Error] Permission denied');
         Alert.alert(
           'Permission Denied',
           'Location permission is required to share your live location with passengers.',
@@ -76,30 +114,45 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
         );
       }
     } catch (err) {
-      console.error('🔴 [Error] Exception in requestLocationPermission:', err);
+      console.error('[Error] Exception in requestLocationPermission:', err);
       Alert.alert('Error', 'Failed to start location tracking');
       onStatusChange?.(false);
+    } finally {
+      trackingInProgressRef.current = false;
     }
   }, [requestPermission, startTracking, onStatusChange]);
 
-  // Handle online/offline status change
+  // Handle online/offline status change - with stable dependencies
   useEffect(() => {
     if (isOnline && !isLocationEnabled) {
-      console.log('🟢 User went online - starting location tracking');
+      console.log('User went online - starting location tracking');
       requestLocationPermission();
-    } else if (!isOnline && isLocationEnabled) {
-      console.log('🔴 User went offline - stopping location tracking');
+    }
+  }, [isOnline, isLocationEnabled, requestLocationPermission]);
+
+  // Stop tracking when going offline - separate from start logic
+  useEffect(() => {
+    if (!isOnline && isLocationEnabled) {
+      console.log('User went offline - stopping location tracking');
       stopTracking();
       setIsLocationEnabled(false);
     }
-  }, [isOnline, isLocationEnabled, requestLocationPermission, stopTracking]);
+  }, [isOnline, isLocationEnabled, stopTracking]);
 
   // Convert stops to bus stops format
+  const activeStopIndex = assignedRoute?.stops
+    ? assignedRoute.stops.findIndex(stop => !completedStopSet.has(stop.stopName))
+    : -1;
+
   const busStops = assignedRoute?.stops
     ? assignedRoute.stops.map((stop, index) => ({
         id: index + 1,
         name: stop.stopName,
-        status: currentTrip?.completedStops?.some((s: { stopId: string }) => s.stopId === stop.stopName) ? 'completed' : 'upcoming' as any,
+        status: completedStopSet.has(stop.stopName)
+          ? 'completed'
+          : index === activeStopIndex
+            ? 'active'
+            : 'upcoming' as any,
         passengers: currentTrip?.completedStops?.[index]?.passengersBoarded || 0,
         time: `${String(8 + Math.floor(index / 4)).padStart(2, '0')}:${String((index * 15) % 60).padStart(2, '0')} AM`,
         latitude: stop.latitude,
@@ -113,6 +166,91 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
     longitude: stop.longitude
   })) || [];
 
+  const calculateDistanceMeters = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ) => {
+    const toRad = (value: number) => (value * Math.PI) / 180;
+    const earthRadius = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+    return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  // Auto-complete stops once driver reaches or passes them based on GPS proximity.
+  useEffect(() => {
+    const autoCompleteStops = async () => {
+      if (!isOnline || !currentTrip?._id || !assignedRoute?.stops?.length || !location) {
+        return;
+      }
+
+      let nearestIndex = -1;
+      let nearestDistance = Number.MAX_SAFE_INTEGER;
+
+      assignedRoute.stops.forEach((stop, index) => {
+        const distance = calculateDistanceMeters(
+          location.latitude,
+          location.longitude,
+          stop.latitude,
+          stop.longitude
+        );
+
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestIndex = index;
+        }
+      });
+
+      // Ignore when bus is not close enough to any route stop.
+      if (nearestIndex < 0 || nearestDistance > 120) {
+        return;
+      }
+
+      let lastContiguousCompletedIndex = -1;
+      for (let i = 0; i < assignedRoute.stops.length; i += 1) {
+        if (completedStopSet.has(assignedRoute.stops[i].stopName)) {
+          lastContiguousCompletedIndex = i;
+        } else {
+          break;
+        }
+      }
+
+      if (nearestIndex <= lastContiguousCompletedIndex) {
+        return;
+      }
+
+      for (let i = lastContiguousCompletedIndex + 1; i <= nearestIndex; i += 1) {
+        const stopName = assignedRoute.stops[i].stopName;
+        if (
+          completedStopSet.has(stopName) ||
+          autoCompletedStopsRef.current.has(stopName) ||
+          pendingAutoStopRef.current.has(stopName)
+        ) {
+          continue;
+        }
+
+        try {
+          pendingAutoStopRef.current.add(stopName);
+          await updatePassengers(currentTrip._id, stopName, 0, 0);
+          autoCompletedStopsRef.current.add(stopName);
+        } catch (autoCompleteError) {
+          console.error('Failed to auto-complete stop:', stopName, autoCompleteError);
+          break;
+        } finally {
+          pendingAutoStopRef.current.delete(stopName);
+        }
+      }
+    };
+
+    autoCompleteStops();
+  }, [isOnline, location, currentTrip?._id, assignedRoute?.stops, completedStopSet, updatePassengers]);
+
   const handlePassengerUpdate = async (newCount: number) => {
     if (!currentTrip?._id || !assignedRoute) {
       Alert.alert('Error', 'Trip or route data not available');
@@ -120,18 +258,7 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
     }
     
     try {
-      // Get current stop - prefer the currentStop field, fallback to calculated index
-      let stopName: string | undefined;
-      
-      if (currentTrip.currentStop) {
-        stopName = currentTrip.currentStop;
-      } else {
-        const currentStopIndex = currentTrip.completedStops?.length || 0;
-        // Check bounds before accessing
-        if (currentStopIndex < assignedRoute.stops.length) {
-          stopName = assignedRoute.stops[currentStopIndex].stopName;
-        }
-      }
+      const stopName = getCurrentStopName();
       
       if (!stopName) {
         Alert.alert('Error', 'Could not find current stop');
@@ -142,12 +269,18 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
       const oldCount = passengerCount;
       const boarded = Math.max(0, newCount - oldCount); // Passengers getting on
       const alighted = Math.max(0, oldCount - newCount); // Passengers getting off
+
+      if (boarded === 0 && alighted === 0) {
+        return;
+      }
       
       await updatePassengers(currentTrip._id, stopName, boarded, alighted);
       setPassengerCount(newCount);
+      setTempPassengerCount(newCount);
       // Context will auto-update via WebSocket
     } catch (err) {
       Alert.alert('Error', 'Failed to update passenger count');
+      throw err;
     }
   };
 
@@ -215,9 +348,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
         <View style={[styles.routeInfo, shadow.card]}>
           <View>
             <Text style={styles.routeInfoTitle}>{assignedRoute.routeName}</Text>
-            <Text style={styles.routeInfoText}>
-              {currentTrip.completedStops?.length || 0}/{busStops.length} stops completed
-            </Text>
           </View>
         </View>
       )}
@@ -250,10 +380,13 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
       {currentTrip && assignedRoute && (
         <PassengerLogModal
           visible={showPassengerLog}
-          passengerCount={passengerCount}
-          onCountChange={setPassengerCount}
+          passengerCount={tempPassengerCount}
+          onCountChange={setTempPassengerCount}
           onConfirm={handlePassengerUpdate}
-          onClose={() => setShowPassengerLog(false)}
+          onClose={() => {
+            setTempPassengerCount(passengerCount);
+            setShowPassengerLog(false);
+          }}
           capacity={35} // Typical bus capacity
         />
       )}
