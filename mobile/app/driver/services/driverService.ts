@@ -149,6 +149,12 @@ const driverService = {
             params: { limit, skip }
         });
         return response.data;
+    },
+
+    // Get today's completed trips
+    getTodayCompletedTrips: async () => {
+        const response = await apiClient.get('/trips/today-completed');
+        return response.data;
     }
 };
 
