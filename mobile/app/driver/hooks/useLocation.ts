@@ -35,6 +35,7 @@ export const useLocation = (): UseLocationReturn => {
   
   const socketRef = useRef<Socket | null>(null);
   const driverDataRef = useRef<{ driverId: string; busId: string } | null>(null);
+  const trackingStartedRef = useRef(false); // ✅ Prevent duplicate watch listeners
 
   // Initialize socket connection
   useEffect(() => {
@@ -176,6 +177,14 @@ export const useLocation = (): UseLocationReturn => {
 
   // Start tracking location
   const startTracking = useCallback(async (): Promise<void> => {
+    // ✅ Prevent multiple concurrent tracking starts
+    if (trackingStartedRef.current) {
+      console.log('⏳ [startTracking] Already in progress, skipping duplicate');
+      return;
+    }
+
+    trackingStartedRef.current = true;
+
     try {
       setLoading(true);
       setError(null);
@@ -189,6 +198,7 @@ export const useLocation = (): UseLocationReturn => {
         if (!permissionGranted) {
           console.log('❌ [startTracking] Permission denied');
           setLoading(false);
+          trackingStartedRef.current = false;
           return;
         }
         hasPermissionGranted = true;
@@ -241,11 +251,13 @@ export const useLocation = (): UseLocationReturn => {
       setWatchId(subscription);
       console.log('✅ [startTracking] Watch setup complete');
       setLoading(false); // Stop loading immediately after watch is set up
+      trackingStartedRef.current = false; // ✅ Reset flag after successful setup
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to start tracking';
       console.error('❌ [startTracking] Error:', message, err);
       setError(message);
       setLoading(false);
+      trackingStartedRef.current = false; // ✅ Reset flag on error
     }
   }, [hasPermission, requestPermission, emitLocationToServer]);
 
@@ -254,6 +266,7 @@ export const useLocation = (): UseLocationReturn => {
     if (watchId) {
       watchId.remove();
       setWatchId(null);
+      trackingStartedRef.current = false; // ✅ Reset ref when stopping
       console.log('🛑 Location tracking stopped');
     }
   }, [watchId]);
