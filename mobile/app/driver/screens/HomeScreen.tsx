@@ -7,6 +7,7 @@ import { useAppContext } from '../context/AppContext';
 import { useTripActions } from '../hooks/useDriver';
 import StartTripModal from '../component/StartTripModal';
 import PassengerLogModal from '../component/PassengerLogModal';
+import driverService from '../services/driverService';
 
 interface Props {
   onSOSPress: () => void;
@@ -29,6 +30,27 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
   const [showPassengerLog, setShowPassengerLog] = useState(false);
   const [tempPassengerCount, setTempPassengerCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] = useState<any>(null);
+  const [completedScheduleIds, setCompletedScheduleIds] = useState<Set<string>>(new Set());
+
+  // Fetch today's completed trips on mount and after trip end
+  useEffect(() => {
+    fetchCompletedTrips();
+  }, [currentTrip]);
+
+  const fetchCompletedTrips = async () => {
+    try {
+      const data = await driverService.getTodayCompletedTrips();
+      const scheduleIds = new Set<string>(
+        data.completedTrips
+          .map((trip: any) => trip.scheduleId?.toString())
+          .filter((id: any): id is string => Boolean(id))
+      );
+      setCompletedScheduleIds(scheduleIds);
+    } catch (error) {
+      console.error('Error fetching completed trips:', error);
+    }
+  };
 
   // Handle pull-to-refresh - now refreshes shared data
   const handleRefresh = async () => {
@@ -50,6 +72,56 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     }
   }, [isOnline]);
 
+  // Get today's schedules sorted by time
+  const getTodaySchedules = () => {
+    if (!schedules || schedules.length === 0) return [];
+
+    const today = new Date();
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayName = dayNames[today.getDay()];
+
+    return schedules
+      .filter((schedule: any) => 
+        schedule.dayOfWeek?.toLowerCase() === todayName.toLowerCase()
+      )
+      .sort((a: any, b: any) => {
+        const [aHour, aMin] = a.startTime.split(':').map(Number);
+        const [bHour, bMin] = b.startTime.split(':').map(Number);
+        return (aHour * 60 + aMin) - (bHour * 60 + bMin);
+      });
+  };
+
+  // Get next schedule that hasn't been completed today
+  const getNextSchedule = () => {
+    const todaySchedules = getTodaySchedules();
+    if (todaySchedules.length === 0) return null;
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    // Find the first schedule that hasn't ended yet and hasn't been completed
+    for (const schedule of todaySchedules) {
+      const scheduleId = schedule._id?.toString();
+      
+      // Skip if this schedule was already completed today
+      if (scheduleId && completedScheduleIds.has(scheduleId)) {
+        continue;
+      }
+
+      const [startHour, startMin] = schedule.startTime.split(':').map(Number);
+      const [endHour, endMin] = schedule.endTime.split(':').map(Number);
+      const startMinutes = startHour * 60 + startMin;
+      const endMinutes = endHour * 60 + endMin;
+
+      // If schedule hasn't ended yet, it's the next one
+      if (currentMinutes < endMinutes) {
+        return schedule;
+      }
+    }
+
+    return null; // All schedules for today are completed
+  };
+
   const handleStartTrip = async () => {
     try {
       if (!route) {
@@ -59,7 +131,19 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
 
       if (tripActionLoading) return;
 
-      await startTrip(route._id);
+      const nextSchedule = getNextSchedule();
+      if (!nextSchedule) {
+        Alert.alert('Error', 'No schedule available to start');
+        return;
+      }
+
+      // Get busId from schedule
+      const busId = nextSchedule.busId?._id || nextSchedule.busId;
+      const scheduleId = nextSchedule._id;
+
+      console.log('Starting trip with:', { routeId: route._id, busId, scheduleId });
+
+      await startTrip(route._id, busId, scheduleId);
       // Context will auto-update via WebSocket
       setShowStartTrip(false);
       Alert.alert('Success', 'Trip started successfully');
@@ -118,14 +202,26 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
         return;
       }
 
+      const nextStopByProgress = route?.stops?.[currentTrip.completedStops?.length || 0]?.stopName;
+      const stopId = currentTrip.currentStop || nextStopByProgress;
+
+      if (!stopId) {
+        Alert.alert('Error', 'Current stop is not available yet');
+        throw new Error('Current stop not available');
+      }
+
       // Calculate difference
       const difference = count - (currentTrip.passengerCount || 0);
       const passengersBoarded = difference > 0 ? difference : 0;
       const passengersAlighted = difference < 0 ? Math.abs(difference) : 0;
 
+      if (passengersBoarded === 0 && passengersAlighted === 0) {
+        return;
+      }
+
       await updatePassengers(
         currentTrip._id,
-        currentTrip.currentStop || 'current',
+        stopId,
         passengersBoarded,
         passengersAlighted
       );
@@ -134,17 +230,19 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       Alert.alert('Success', 'Passenger count updated');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to update passenger count');
+      throw error;
     }
   };
 
   // Get next upcoming schedule
-  const nextSchedule = schedules && schedules.length > 0 ? schedules[0] : null;
+  const nextSchedule = getNextSchedule();
+  const todaySchedules = getTodaySchedules();
 
   // Calculate stats from current trip
   const stats = [
     {
       label: "Today's Trips",
-      value: schedules?.length?.toString() || '0',
+      value: todaySchedules.length.toString(),
       icon: 'activity',
       color: '#2563EB'
     },
@@ -322,8 +420,10 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       {nextSchedule && !currentTrip && (
         <View style={[styles.panel, shadow.card]}>
           <View style={styles.panelHeader}>
-            <Text style={styles.panelTitle}>Next Assignment</Text>
-            <Text style={styles.panelSub}>{nextSchedule.startTime}</Text>
+            <Text style={styles.panelTitle}>Next Trip</Text>
+            <Text style={styles.panelSub}>
+              {nextSchedule.busId?.busNumber || 'Bus'}
+            </Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
@@ -346,6 +446,26 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
               </Text>
             </Pressable>
           )}
+        </View>
+      )}
+
+      {!nextSchedule && !currentTrip && todaySchedules.length === 0 && (
+        <View style={[styles.panel, shadow.card]}>
+          <View style={{ alignItems: 'center', paddingVertical: spacing.lg }}>
+            <Feather name="calendar" size={48} color={palette.muted} />
+            <Text style={[styles.panelTitle, { marginTop: spacing.md }]}>No trips scheduled for today</Text>
+            <Text style={styles.panelSub}>Check back tomorrow or contact admin</Text>
+          </View>
+        </View>
+      )}
+
+      {!nextSchedule && !currentTrip && todaySchedules.length > 0 && (
+        <View style={[styles.panel, shadow.card]}>
+          <View style={{ alignItems: 'center', paddingVertical: spacing.lg }}>
+            <Feather name="check-circle" size={48} color={palette.success} />
+            <Text style={[styles.panelTitle, { marginTop: spacing.md }]}>All trips completed</Text>
+            <Text style={styles.panelSub}>Great job! {todaySchedules.length} trip(s) completed today</Text>
+          </View>
         </View>
       )}
 
@@ -382,7 +502,9 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
         tripDetails={{
           route: route?.routeName || 'Route',
           time: nextSchedule?.startTime || '00:00',
-          duration: route?.estimatedDuration ? `${Math.round(route.estimatedDuration / 60)}h` : '0h'
+          duration: nextSchedule 
+            ? `${nextSchedule.startTime} - ${nextSchedule.endTime}` 
+            : '0h'
         }}
         onStart={handleStartTrip}
       />
