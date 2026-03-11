@@ -30,10 +30,6 @@ export default function RootLayout() {
             
             {/* Passenger modals and screens */}
             <Stack.Screen 
-              name="passenger/screens/route-map"
-              options={{ presentation: "card" }}
-            />
-            <Stack.Screen 
               name="passenger/screens/bus-booking"
               options={{ presentation: "card" }}
             />
