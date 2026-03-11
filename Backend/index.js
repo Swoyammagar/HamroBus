@@ -66,13 +66,17 @@ io.on('connection', (socket) => {
   
   // Passenger tracking
   socket.on('passenger:track-bus', ({ busId }) => {
-    console.log(`🚌 Passenger ${socket.id} tracking bus ${busId}`);
     socket.join(`bus:${busId}`);
+    console.log(`🚌 [PASSENGER] Socket ${socket.id} joined bus:${busId} room`);
+    
+    // Get all rooms this socket is in
+    const rooms = Array.from(socket.rooms);
+    console.log(`📋 [PASSENGER] Socket ${socket.id} is now in rooms:`, rooms);
   });
   
   socket.on('passenger:stop-tracking', ({ busId }) => {
-    console.log(`🛑 Passenger ${socket.id} stopped tracking bus ${busId}`);
     socket.leave(`bus:${busId}`);
+    console.log(`🛑 [PASSENGER] Socket ${socket.id} left bus:${busId} room`);
   });
   
   socket.on('disconnect', () => {
