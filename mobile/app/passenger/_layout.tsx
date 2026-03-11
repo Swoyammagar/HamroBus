@@ -8,26 +8,20 @@ export default function PassengerLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          animationEnabled: true,
+          animation: 'default',
         }}
       >
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
-          name="screens/route-map"
-          options={{
-            animationEnabled: true,
-          }}
-        />
-        <Stack.Screen
           name="screens/bus-booking"
           options={{
-            animationEnabled: true,
+            animation: 'default',
           }}
         />
         <Stack.Screen
           name="screens/review"
           options={{
-            animationEnabled: true,
+            animation: 'default',
           }}
         />
       </Stack>
