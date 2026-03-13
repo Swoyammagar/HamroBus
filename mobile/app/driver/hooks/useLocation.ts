@@ -3,7 +3,7 @@ import * as Location from 'expo-location';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SOCKET_URL = process.env.EXPO_PUBLIC_API_BASE?.replace('/api', '') || 'http://10.0.2.2:3000';
+const SOCKET_URL = (process.env.EXPO_PUBLIC_API_BASE?.trim().replace('/api', '') || 'http://10.0.2.2:3000').trim();
 
 export interface LocationCoords {
   latitude: number;
@@ -56,10 +56,13 @@ export const useLocation = (): UseLocationReturn => {
 
           // Initialize socket connection
           const socket = io(SOCKET_URL, {
-            transports: ['websocket'],
+            transports: ['websocket', 'polling'],
+            timeout: 20000,
             reconnection: true,
+            reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
-            reconnectionAttempts: 5,
+            reconnectionDelayMax: 10000,
+            randomizationFactor: 0.5,
           });
 
           socketRef.current = socket;
@@ -76,6 +79,15 @@ export const useLocation = (): UseLocationReturn => {
 
           socket.on('connect_error', (err) => {
             console.error('Socket connection error:', err);
+            setIsSocketConnected(false);
+          });
+
+          socket.on('reconnect_attempt', (attempt) => {
+            console.warn(`🔄 Driver socket reconnect attempt #${attempt}`);
+          });
+
+          socket.on('reconnect_failed', () => {
+            console.error('❌ Driver socket reconnect failed (will keep retrying with current settings)');
             setIsSocketConnected(false);
           });
         }
@@ -229,7 +241,7 @@ export const useLocation = (): UseLocationReturn => {
         {
           accuracy: Location.Accuracy.Balanced,
           timeInterval: 5000, // Update every 5 seconds
-          distanceInterval: 10, // Or when moved 10 meters
+          distanceInterval: 0, // Fire even if stationary so backend gets regular heartbeats
         },
         (locationData) => {
           const coords: LocationCoords = {
@@ -263,6 +275,12 @@ export const useLocation = (): UseLocationReturn => {
 
   // Stop tracking location
   const stopTracking = useCallback(() => {
+    if (socketRef.current && socketRef.current.connected && driverDataRef.current) {
+      const { driverId, busId } = driverDataRef.current;
+      socketRef.current.emit('driver:go-offline', { driverId, busId });
+      console.log('🛑 Driver offline emitted:', { driverId, busId });
+    }
+
     if (watchId) {
       watchId.remove();
       setWatchId(null);
