@@ -20,6 +20,13 @@ const io = new Server(server, {
   },
 });
 
+const normalizeBusIds = (busIds) => {
+  if (!Array.isArray(busIds)) return [];
+  return busIds
+    .map((id) => String(id || '').trim())
+    .filter((id) => id.length > 0);
+};
+
 // Socket.io connection handler
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
@@ -36,6 +43,7 @@ io.on('connection', (socket) => {
   
   // Driver joins their specific room
   socket.on('driver:join', ({ driverId }) => {
+    socket.data.driverId = driverId;
     socket.join(`driver:${driverId}`);
     console.log(`🚗 Driver ${driverId} joined room`);
   });
@@ -43,6 +51,8 @@ io.on('connection', (socket) => {
   // Driver location broadcasting
   socket.on('driver:share-location', (data) => {
     const { busId, driverId, latitude, longitude, heading, speed } = data;
+    socket.data.driverId = driverId;
+    socket.data.busId = busId;
     console.log(`📍 Driver ${driverId} location:`, { latitude, longitude });
     
     const locationPayload = {
@@ -63,6 +73,29 @@ io.on('connection', (socket) => {
     io.to('admin-room').emit('driver:location-update', locationPayload);
     console.log('✅ Broadcast to admin-room');
   });
+
+  socket.on('driver:go-offline', (data = {}) => {
+    const driverId = data.driverId || socket.data.driverId;
+    const busId = data.busId || socket.data.busId;
+
+    if (!driverId) {
+      return;
+    }
+
+    const offlinePayload = {
+      driverId,
+      busId,
+      timestamp: new Date().toISOString(),
+    };
+
+    if (busId) {
+      io.to(`bus:${busId}`).emit('driver:location-offline', offlinePayload);
+      console.log(`🛑 Broadcast offline to bus:${busId}`);
+    }
+
+    io.to('admin-room').emit('driver:location-offline', offlinePayload);
+    console.log('🛑 Broadcast offline to admin-room');
+  });
   
   // Passenger tracking
   socket.on('passenger:track-bus', ({ busId }) => {
@@ -73,13 +106,47 @@ io.on('connection', (socket) => {
     const rooms = Array.from(socket.rooms);
     console.log(`📋 [PASSENGER] Socket ${socket.id} is now in rooms:`, rooms);
   });
+
+  socket.on('passenger:track-buses', ({ busIds }) => {
+    const normalizedBusIds = normalizeBusIds(busIds);
+    normalizedBusIds.forEach((busId) => {
+      socket.join(`bus:${busId}`);
+    });
+
+    console.log(`🚌 [PASSENGER] Socket ${socket.id} joined ${normalizedBusIds.length} bus rooms`);
+    const rooms = Array.from(socket.rooms);
+    console.log(`📋 [PASSENGER] Socket ${socket.id} is now in rooms:`, rooms);
+  });
   
   socket.on('passenger:stop-tracking', ({ busId }) => {
     socket.leave(`bus:${busId}`);
     console.log(`🛑 [PASSENGER] Socket ${socket.id} left bus:${busId} room`);
   });
+
+  socket.on('passenger:stop-tracking-buses', ({ busIds }) => {
+    const normalizedBusIds = normalizeBusIds(busIds);
+    normalizedBusIds.forEach((busId) => {
+      socket.leave(`bus:${busId}`);
+    });
+    console.log(`🛑 [PASSENGER] Socket ${socket.id} left ${normalizedBusIds.length} bus rooms`);
+  });
   
   socket.on('disconnect', () => {
+    const { driverId, busId } = socket.data || {};
+    if (driverId) {
+      const offlinePayload = {
+        driverId,
+        busId,
+        timestamp: new Date().toISOString(),
+      };
+
+      if (busId) {
+        io.to(`bus:${busId}`).emit('driver:location-offline', offlinePayload);
+      }
+
+      io.to('admin-room').emit('driver:location-offline', offlinePayload);
+      console.log(`🛑 Driver ${driverId} disconnected, emitted offline`);
+    }
     console.log('Client disconnected:', socket.id);
   });
 });
