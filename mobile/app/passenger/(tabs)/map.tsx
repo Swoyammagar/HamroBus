@@ -45,11 +45,47 @@ const MapTab = () => {
   const { buses: fetchedBuses } = useBuses(selectedRouteId);
   const { schedules } = useRouteSchedules(selectedRouteId);
 
-  // Enable tracking when a bus is selected
-  const { driverLocation, isConnected, error: trackingError } = useDriverTracking({
-    busId: selectedBus?._id || selectedBus?.id || null,
-    enabled: !!selectedBus && showMap,
+  // Track all buses for the selected route so passenger can see multiple drivers.
+  const trackingBusIds = fetchedBuses
+    .map((bus) => String(bus._id || bus.id || '').trim())
+    .filter((id) => id.length > 0);
+  const trackingEnabled = showMap && trackingBusIds.length > 0;
+  
+  console.log('🔍 [MAP TAB] Driver tracking config:', {
+    selectedBus: selectedBus ? `${selectedBus._id || selectedBus.id}` : 'null',
+    showMap,
+    trackingBusIds,
+    trackingEnabled
   });
+  
+  const { driverLocations, isConnected, error: trackingError } = useDriverTracking({
+    busIds: trackingBusIds,
+    enabled: trackingEnabled,
+  });
+
+  useEffect(() => {
+    if (driverLocations.length > 0) {
+      console.log('📍 [MAP TAB] Driver locations updated:',
+        driverLocations.map((driverLocation) => ({
+          busId: driverLocation.busId,
+          driverId: driverLocation.driverId,
+          lat: driverLocation.latitude,
+          lng: driverLocation.longitude,
+          speed: driverLocation.speed
+        }))
+      );
+    }
+  }, [driverLocations]);
+
+  useEffect(() => {
+    console.log('🔌 [MAP TAB] Socket connection status:', isConnected);
+  }, [isConnected]);
+
+  useEffect(() => {
+    if (trackingError) {
+      console.error('❌ [MAP TAB] Tracking error:', trackingError);
+    }
+  }, [trackingError]);
 
   useEffect(() => {
     if (fetchedRoutes.length > 0 && routes.length === 0) {
@@ -88,6 +124,48 @@ const MapTab = () => {
       setBuses(fetchedBuses);
     }
   }, [selectedRouteForMap, fetchedBuses, setBuses]);
+
+  // Keep selection route-specific: clear stale bus when changing routes.
+  useEffect(() => {
+    if (!selectedRouteForMap) return;
+    const selectedBusId = selectedBus?._id || selectedBus?.id;
+    if (!selectedBusId) return;
+
+    const stillInCurrentRoute = fetchedBuses.some((bus) => {
+      const id = bus._id || bus.id;
+      return String(id) === String(selectedBusId);
+    });
+
+    if (!stillInCurrentRoute) {
+      console.log('🧹 [MAP TAB] Clearing stale selected bus for new route');
+      setSelectedBus(null);
+    }
+  }, [selectedRouteForMap, fetchedBuses, selectedBus, setSelectedBus]);
+
+  // Auto-select a bus so tracking starts without requiring manual bus tap.
+  useEffect(() => {
+    if (!showMap || !selectedRouteForMap) return;
+    if (!fetchedBuses.length) return;
+
+    const selectedBusId = selectedBus?._id || selectedBus?.id;
+    if (selectedBusId) {
+      const existsInRoute = fetchedBuses.some((bus) => {
+        const id = bus._id || bus.id;
+        return String(id) === String(selectedBusId);
+      });
+      if (existsInRoute) return;
+    }
+
+    const activeBus = fetchedBuses.find(
+      (bus: any) => String(bus.status || '').toLowerCase() === 'active'
+    );
+    const busToTrack = activeBus || fetchedBuses[0];
+
+    if (busToTrack) {
+      console.log('✅ [MAP TAB] Auto-selected bus for tracking:', busToTrack._id || busToTrack.id);
+      setSelectedBus(busToTrack);
+    }
+  }, [showMap, selectedRouteForMap, fetchedBuses, selectedBus, setSelectedBus]);
 
   // Filter routes based on search query
   const filteredRoutes = routeList.filter(route =>
@@ -166,25 +244,20 @@ const MapTab = () => {
             latitude: stop.latitude,
             longitude: stop.longitude,
           }))}
-          busLocation={driverLocation ? {
-            busId: driverLocation.busId,
-            latitude: driverLocation.latitude,
-            longitude: driverLocation.longitude,
-            heading: driverLocation.heading,
-          } : null}
+          driverLocations={driverLocations}
           showUserLocation={false}
         />
 
-        {driverLocation && (
+        {driverLocations.length > 0 && (
           <View style={styles.trackingInfo}>
             <View style={styles.trackingBadge}>
               <Ionicons name="location" size={16} color="#ef4444" />
               <Text style={styles.trackingText}>
-                Speed: {Math.round(driverLocation.speed)} km/h
+                Live drivers: {driverLocations.length}
               </Text>
             </View>
             <Text style={styles.trackingTime}>
-              Updated: {new Date(driverLocation.timestamp).toLocaleTimeString()}
+              Updated: {new Date(Math.max(...driverLocations.map((d) => new Date(d.timestamp).getTime()))).toLocaleTimeString()}
             </Text>
           </View>
         )}
