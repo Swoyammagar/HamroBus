@@ -3,7 +3,8 @@ import { Route } from '../services/routeService';
 import { Bus } from '../services/busService';
 
 export interface Stop {
-  id: string;
+  _id?: string;
+  id?: string;
   name: string;
   latitude: number;
   longitude: number;
@@ -28,6 +29,7 @@ export interface PassengerProfile {
   name: string;
   email: string;
   phone: string;
+  profilePicture?: string;
   totalTrips: number;
   totalSpent: number;
   averageRating: number;
@@ -36,14 +38,36 @@ export interface PassengerProfile {
 }
 
 export interface Booking {
+  id: string;
   bookingId: string;
+  passengerId: string;
+  busId: string;
+  routeId: string;
   token: string;
   seatNumber: string;
   price: number;
   bookingDate: string;
   travelDate: string;
+  status: 'confirmed' | 'ongoing' | 'completed' | 'cancelled';
   boardingStop: string;
   alightingStop: string;
+  tripStarted: boolean;
+  tripEnded: boolean;
+}
+
+export interface Review {
+  id: string;
+  bookingId: string;
+  busId: string;
+  rating: number;
+  comment: string;
+  date: string;
+  categories: {
+    cleanliness: number;
+    drivingSkill: number;
+    comfort: number;
+    timelinessCount: number;
+  };
 }
 
 interface PassengerContextType {
@@ -55,6 +79,13 @@ interface PassengerContextType {
   setSelectedBus: (bus: Bus | null) => void;
   buses: Bus[];
   setBuses: (buses: Bus[]) => void;
+  profile: PassengerProfile | null;
+  setProfile: (profile: PassengerProfile | null) => void;
+  bookings: Booking[];
+  addBooking: (booking: Booking) => void;
+  updateBooking: (bookingId: string, updates: Partial<Booking>) => void;
+  reviews: Review[];
+  addReview: (review: Review) => void;
   alerts: ServiceAlert[];
   setAlerts: (alerts: ServiceAlert[]) => void;
   getUnreadAlerts: () => ServiceAlert[];
@@ -68,7 +99,26 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [selectedBus, setSelectedBus] = useState<Bus | null>(null);
   const [buses, setBuses] = useState<Bus[]>([]);
+  const [profile, setProfile] = useState<PassengerProfile | null>(null);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
+
+  const addBooking = (booking: Booking) => {
+    setBookings(prevBookings => [booking, ...prevBookings]);
+  };
+
+  const updateBooking = (bookingId: string, updates: Partial<Booking>) => {
+    setBookings(prevBookings =>
+      prevBookings.map(booking =>
+        booking.id === bookingId ? { ...booking, ...updates } : booking
+      )
+    );
+  };
+
+  const addReview = (review: Review) => {
+    setReviews(prevReviews => [review, ...prevReviews]);
+  };
 
   const getUnreadAlerts = () => alerts.filter(alert => !alert.read);
 
@@ -91,6 +141,13 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
         setSelectedBus,
         buses,
         setBuses,
+        profile,
+        setProfile,
+        bookings,
+        addBooking,
+        updateBooking,
+        reviews,
+        addReview,
         alerts,
         setAlerts,
         getUnreadAlerts,
