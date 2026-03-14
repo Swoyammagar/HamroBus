@@ -406,7 +406,7 @@ const MyBookings = () => {
                                 <View>
                                   <Text style={styles.detailValue}>{s.name}</Text>
                                   <Text style={styles.detailTime}>
-                                    {formatTime(s.estimatedArrival)}
+                                    {formatTime(s.estimatedArrival || new Date().toISOString())}
                                   </Text>
                                 </View>
                               </View>
@@ -418,7 +418,7 @@ const MyBookings = () => {
                                 <View>
                                   <Text style={styles.detailValue}>{s.name}</Text>
                                   <Text style={styles.detailTime}>
-                                    {formatTime(s.estimatedArrival)}
+                                    {formatTime(s.estimatedArrival || new Date().toISOString())}
                                   </Text>
                                 </View>
                               </View>
