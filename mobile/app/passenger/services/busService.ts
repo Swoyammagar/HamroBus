@@ -10,7 +10,7 @@ export interface Driver {
 }
 
 export interface Bus {
-  _id: string;
+  _id?: string;
   id?: string;
   busNumber: string;
   capacity: number;

@@ -6,11 +6,12 @@ export interface BusStop {
   name: string;
   latitude: number;
   longitude: number;
+  estimatedArrival?: string;
   order: number;
 }
 
 export interface Route {
-  _id: string;
+  _id?: string;
   id?: string;
   name: string;
   stops: BusStop[];
