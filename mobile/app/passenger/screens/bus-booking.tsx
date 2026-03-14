@@ -24,7 +24,7 @@ import {
 const BusBooking = () => {
   const router = useRouter();
   const { busId, routeId } = useLocalSearchParams();
-  const { routes, addBooking } = usePassenger();
+  const { routes, selectedRoute, selectedBus, buses, addBooking } = usePassenger();
 
   const [bus, setBus] = useState<Bus | null>(null);
   const [route, setRoute] = useState<Route | null>(null);
@@ -37,18 +37,60 @@ const BusBooking = () => {
   const [loading, setLoading] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
   const [generatedBooking, setGeneratedBooking] = useState<Booking | null>(null);
+  const [resolutionAttempted, setResolutionAttempted] = useState(false);
 
   useEffect(() => {
-    const busData = mockBusesData.find(b => b.id === busId);
-    const routeData = mockRoutesData.find(r => r.id === routeId);
-    if (busData) setBus(busData);
-    if (routeData) {
-      setRoute(routeData);
-      setSelectedBoardingStop(routeData.stops[0]);
-    }
-  }, [busId, routeId]);
+    const busIdValue = Array.isArray(busId) ? busId[0] : busId;
+    const routeIdValue = Array.isArray(routeId) ? routeId[0] : routeId;
 
-  const availableSeats = bus ? bus.totalCapacity - bus.currentPassengers : 0;
+    const busFromContext = [selectedBus, ...buses].find(candidate => {
+      if (!candidate) return false;
+      const candidateId = candidate._id || candidate.id;
+      return busIdValue ? String(candidateId) === String(busIdValue) : true;
+    });
+
+    const busFromMock = mockBusesData.find(candidate => {
+      const candidateId = candidate._id || candidate.id;
+      return busIdValue ? String(candidateId) === String(busIdValue) : false;
+    });
+
+    const resolvedBus = busFromContext || busFromMock || null;
+
+    const routeFromContext = [selectedRoute, ...routes].find(candidate => {
+      if (!candidate) return false;
+      const candidateId = candidate._id || candidate.id;
+      return routeIdValue ? String(candidateId) === String(routeIdValue) : true;
+    });
+
+    const routeByResolvedBus = resolvedBus
+      ? [selectedRoute, ...routes].find(candidate => {
+          if (!candidate) return false;
+          const candidateId = candidate._id || candidate.id;
+          return String(candidateId) === String(resolvedBus.routeId);
+        })
+      : null;
+
+    const routeFromMock = mockRoutesData.find(candidate => {
+      const candidateId = candidate._id || candidate.id;
+      if (routeIdValue) {
+        return String(candidateId) === String(routeIdValue);
+      }
+      return resolvedBus ? String(candidateId) === String(resolvedBus.routeId) : false;
+    });
+
+    const resolvedRoute = routeFromContext || routeByResolvedBus || routeFromMock || null;
+
+    setBus(resolvedBus);
+    setRoute(resolvedRoute);
+    if (resolvedRoute?.stops?.length) {
+      setSelectedBoardingStop(resolvedRoute.stops[0]);
+    }
+    setResolutionAttempted(true);
+  }, [busId, routeId, selectedBus, buses, selectedRoute, routes]);
+
+  const availableSeats = bus
+    ? (bus.totalCapacity ?? bus.capacity ?? 0) - (bus.currentPassengers ?? bus.currentOccupancy ?? 0)
+    : 0;
   const bookingPrice = 150; // Fixed price per seat
 
   const generateSeatsGrid = () => {
@@ -89,7 +131,7 @@ const BusBooking = () => {
       return;
     }
 
-    if (selectedBoardingStop.order >= selectedAlightingStop.order) {
+    if ((selectedBoardingStop.order ?? 0) >= (selectedAlightingStop.order ?? 0)) {
       Alert.alert('Invalid Route', 'Alighting stop must be after boarding stop');
       return;
     }
@@ -108,14 +150,14 @@ const BusBooking = () => {
         id: bookingId,
         bookingId,
         passengerId: 'mock_passenger_id', // TODO: Replace with actual passenger ID from auth context
-        busId: bus!.id,
-        routeId: route!.id,
+        busId: String(bus!._id || bus!.id || ''),
+        routeId: String(route!._id || route!.id || ''),
         seatNumber: selectedSeats.map((_, i) => `Seat ${i + 1}`).join(', '),
         bookingDate: new Date().toISOString(),
         travelDate: new Date(Date.now() + 24 * 3600000).toISOString(),
         status: 'confirmed' as const,
-        boardingStop: selectedBoardingStop!.id,
-        alightingStop: selectedAlightingStop!.id,
+        boardingStop: String(selectedBoardingStop.id || selectedBoardingStop._id || ''),
+        alightingStop: String(selectedAlightingStop.id || selectedAlightingStop._id || ''),
         price: totalPrice,
         token,
         tripStarted: false,
@@ -150,7 +192,18 @@ const BusBooking = () => {
   if (!bus || !route) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#3b82f6" />
+        {resolutionAttempted ? (
+          <>
+            <Ionicons name="alert-circle-outline" size={44} color="#ef4444" />
+            <Text style={styles.errorTitle}>Unable to load booking details</Text>
+            <Text style={styles.errorText}>Please go back and select the bus again.</Text>
+            <TouchableOpacity style={styles.errorButton} onPress={() => router.back()}>
+              <Text style={styles.errorButtonText}>Go Back</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <ActivityIndicator size="large" color="#3b82f6" />
+        )}
       </View>
     );
   }
@@ -420,16 +473,16 @@ const BusBooking = () => {
             <ScrollView showsVerticalScrollIndicator={false}>
               {route.stops.map((stop, index) => (
                 <TouchableOpacity
-                  key={stop.id}
+                  key={stop._id || stop.id || String(index)}
                   style={[
                     styles.stopOption,
-                    selectedBoardingStop?.id === stop.id && styles.stopOptionSelected,
+                    (selectedBoardingStop?.id || selectedBoardingStop?._id) === (stop.id || stop._id) && styles.stopOptionSelected,
                   ]}
                   onPress={() => {
                     setSelectedBoardingStop(stop);
                     if (
                       selectedAlightingStop &&
-                      selectedAlightingStop.order <= stop.order
+                      (selectedAlightingStop.order ?? 0) <= (stop.order ?? 0)
                     ) {
                       setSelectedAlightingStop(null);
                     }
@@ -439,12 +492,12 @@ const BusBooking = () => {
                   <View
                     style={[
                       styles.stopOptionDot,
-                      selectedBoardingStop?.id === stop.id && styles.stopOptionDotSelected,
+                      (selectedBoardingStop?.id || selectedBoardingStop?._id) === (stop.id || stop._id) && styles.stopOptionDotSelected,
                     ]}
                   />
                   <View style={styles.stopOptionContent}>
                     <Text style={styles.stopOptionName}>{stop.name}</Text>
-                    <Text style={styles.stopOptionTime}>{formatTime(stop.estimatedArrival)}</Text>
+                    <Text style={styles.stopOptionTime}>{formatTime(stop.estimatedArrival || new Date().toISOString())}</Text>
                   </View>
                 </TouchableOpacity>
               ))}
@@ -469,31 +522,31 @@ const BusBooking = () => {
             <ScrollView showsVerticalScrollIndicator={false}>
               {route.stops.map((stop, index) => (
                 <TouchableOpacity
-                  key={stop.id}
+                  key={stop._id || stop.id || String(index)}
                   style={[
                     styles.stopOption,
-                    selectedAlightingStop?.id === stop.id && styles.stopOptionSelected,
+                    (selectedAlightingStop?.id || selectedAlightingStop?._id) === (stop.id || stop._id) && styles.stopOptionSelected,
                     selectedBoardingStop &&
-                      stop.order <= selectedBoardingStop.order &&
+                      (stop.order ?? 0) <= (selectedBoardingStop.order ?? 0) &&
                       styles.stopOptionDisabled,
                   ]}
                   onPress={() => {
-                    if (!selectedBoardingStop || stop.order > selectedBoardingStop.order) {
+                    if (!selectedBoardingStop || (stop.order ?? 0) > (selectedBoardingStop.order ?? 0)) {
                       setSelectedAlightingStop(stop);
                       setAlightingModalOpen(false);
                     }
                   }}
-                  disabled={!!selectedBoardingStop && stop.order <= selectedBoardingStop.order}
+                  disabled={!!selectedBoardingStop && (stop.order ?? 0) <= (selectedBoardingStop.order ?? 0)}
                 >
                   <View
                     style={[
                       styles.stopOptionDot,
-                      selectedAlightingStop?.id === stop.id && styles.stopOptionDotSelected,
+                      (selectedAlightingStop?.id || selectedAlightingStop?._id) === (stop.id || stop._id) && styles.stopOptionDotSelected,
                     ]}
                   />
                   <View style={styles.stopOptionContent}>
                     <Text style={styles.stopOptionName}>{stop.name}</Text>
-                    <Text style={styles.stopOptionTime}>{formatTime(stop.estimatedArrival)}</Text>
+                    <Text style={styles.stopOptionTime}>{formatTime(stop.estimatedArrival || new Date().toISOString())}</Text>
                   </View>
                 </TouchableOpacity>
               ))}
@@ -514,6 +567,31 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  errorTitle: {
+    marginTop: 14,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  errorText: {
+    marginTop: 8,
+    textAlign: 'center',
+    color: '#6b7280',
+    fontSize: 13,
+  },
+  errorButton: {
+    marginTop: 16,
+    backgroundColor: '#3b82f6',
+    borderRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  errorButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 13,
   },
   header: {
     backgroundColor: '#1f2937',
