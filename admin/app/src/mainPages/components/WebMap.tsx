@@ -15,12 +15,42 @@ interface DriverLocation {
   timestamp: string;
 }
 
+interface DriverOffline {
+  busId?: string;
+  driverId: string;
+  timestamp: string;
+}
+
 interface WebMapProps {
   route: any | null;
   routes: any[];
   selectedRouteId: string | null;
   onSelectRoute: (routeId: string) => void;
 }
+
+const normalizeEntityId = (value: any): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') return String(value._id || value.id || '');
+  return String(value);
+};
+
+const extractRouteBusIds = (route: any | null): Set<string> => {
+  const ids = new Set<string>();
+  if (!route) return ids;
+
+  (route.assignedBusIds || []).forEach((bus: any) => {
+    const id = normalizeEntityId(bus);
+    if (id) ids.add(id);
+  });
+
+  (route.schedules || []).forEach((schedule: any) => {
+    const id = normalizeEntityId(schedule?.busId);
+    if (id) ids.add(id);
+  });
+
+  return ids;
+};
 
 const WebMap: React.FC<WebMapProps> = ({
   route,
@@ -102,6 +132,15 @@ const WebMap: React.FC<WebMapProps> = ({
         const updated = new Map(prev);
         updated.set(data.driverId, data);
         console.log('✅ Updated driver locations map, total drivers:', updated.size);
+        return updated;
+      });
+    });
+
+    socket.on('driver:location-offline', (data: DriverOffline) => {
+      console.log('🛑 [ADMIN] Driver offline received:', data);
+      setDriverLocations((prev) => {
+        const updated = new Map(prev);
+        updated.delete(data.driverId);
         return updated;
       });
     });
@@ -236,6 +275,12 @@ const WebMap: React.FC<WebMapProps> = ({
         parseFloat(s.longitude),
       ]) ?? [];
 
+  const selectedRouteBusIds = extractRouteBusIds(route);
+  const visibleDriverLocations = Array.from(driverLocations.values()).filter((driver) => {
+    if (selectedRouteBusIds.size === 0) return false;
+    return selectedRouteBusIds.has(String(driver.busId));
+  });
+
   return (
     <View style={s.container}>
       {/* Route Dropdown */}
@@ -324,7 +369,7 @@ const WebMap: React.FC<WebMapProps> = ({
           ))}
 
           {/* Driver Location Markers */}
-          {Array.from(driverLocations.values()).map((driver) => {
+          {visibleDriverLocations.map((driver) => {
             if (!leaflet?.L) return null;
             
             const driverIcon = leaflet.L.divIcon({
@@ -394,13 +439,13 @@ const WebMap: React.FC<WebMapProps> = ({
         )}
 
         {/* Live Driver Status Panel */}
-        {driverLocations.size > 0 && (
+        {visibleDriverLocations.length > 0 && (
           <View style={s.driverStatusPanel}>
             <View style={s.panelHeader}>
-              <Text style={s.panelTitle}>🚌 Live Drivers ({driverLocations.size})</Text>
+              <Text style={s.panelTitle}>🚌 Live Drivers ({visibleDriverLocations.length})</Text>
             </View>
             <View style={s.driverList}>
-              {Array.from(driverLocations.values()).map((driver) => (
+              {visibleDriverLocations.map((driver) => (
                 <View key={driver.driverId} style={s.driverItem}>
                   <View style={s.driverDot} />
                   <Text style={s.driverText}>
