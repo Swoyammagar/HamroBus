@@ -16,6 +16,12 @@ const {
     getPublicBusById,
     getPublicDriverById,
 } = require('../controllers/passenger/publicData.controller');
+const {
+    createBooking,
+    cancelBooking,
+    getMyBookings,
+    getSeatAvailability,
+} = require('../controllers/passenger/booking.controller');
 const { authenticatePassenger } = require('../middlewares/mobile.auth.middleware');
 
 // Public routes
@@ -33,5 +39,9 @@ router.get('/drivers/:driverId', getPublicDriverById);
 // Protected routes (require authentication)
 router.get('/profile', authenticatePassenger, getPassengerProfile);
 router.put('/profile', authenticatePassenger, updatePassengerProfile);
+router.get('/bookings', authenticatePassenger, getMyBookings);
+router.post('/bookings', authenticatePassenger, createBooking);
+router.post('/bookings/:bookingId/cancel', authenticatePassenger, cancelBooking);
+router.get('/bookings/availability', authenticatePassenger, getSeatAvailability);
 
 module.exports = router;
