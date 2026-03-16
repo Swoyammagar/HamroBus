@@ -17,6 +17,7 @@ const mapRoute = (route) => ({
   source: route.source,
   destination: route.destination,
   distance: route.distance,
+  fareInfo: route.fareInfo,
   busesCount: Array.isArray(route.assignedBusIds) ? route.assignedBusIds.length : 0,
   stops: Array.isArray(route.stops) ? route.stops.map(mapStop) : [],
   isActive: true,
