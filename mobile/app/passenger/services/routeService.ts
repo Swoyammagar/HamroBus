@@ -19,6 +19,7 @@ export interface Route {
   destination?: string;
   distance?: number;
   busesCount?: number;
+  fareInfo?: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -27,16 +28,16 @@ export interface Route {
 export interface Schedule {
   _id: string;
   routeId?: string;
-  busId: any;
+  busId: any; // may be populated: { _id, busNumber } or a plain ObjectId string
   driverId?: any;
-  departureTime: string;
-  arrivalTime: string;
-  days: string[];
-  dayOfWeek?: string;
-  startTime?: string;
-  endTime?: string;
+  departureTime?: string;
+  arrivalTime?: string;
+  days?: string[];
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
   notes?: string;
-  isActive: boolean;
+  isActive?: boolean;
 }
 
 export const routeService = {
