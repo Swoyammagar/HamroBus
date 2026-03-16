@@ -2,6 +2,11 @@ const TripSession = require('../models/tripSession.model');
 const Driver = require('../models/driver.model');
 const Route = require('../models/route.model');
 const Bus = require('../models/bus.model');
+const {
+    syncBookingsOnTripStart,
+    completeBookingsByReachedStop,
+    completeAllInProgressBookingsForTrip,
+} = require('../services/bookingLifecycle.service');
 
 // Get driver's assigned route with schedules
 const getAssignedRoute = async (req, res) => {
@@ -199,7 +204,10 @@ const startTrip = async (req, res) => {
         await newTrip.populate('routeId', 'routeName stops source destination');
         await newTrip.populate('busId', 'busNumber');
 
+        const bookingSyncStats = await syncBookingsOnTripStart({ trip: newTrip });
+
         console.log(`✅ Trip started - Driver: ${driverId}, Bus: ${finalBusId}, Schedule: ${scheduleId}`);
+        console.log(`🎫 Booking sync on trip start - matched: ${bookingSyncStats.matched}, modified: ${bookingSyncStats.modified}`);
 
         // Emit socket event for real-time updates to specific driver
         const io = req.app.get('io');
@@ -210,7 +218,8 @@ const startTrip = async (req, res) => {
 
         res.status(201).json({
             message: "Trip started successfully",
-            trip: newTrip
+            trip: newTrip,
+            bookingSync: bookingSyncStats
         });
 
     } catch (error) {
@@ -243,6 +252,8 @@ const endTrip = async (req, res) => {
         trip.endTime = new Date();
         await trip.save();
 
+        const bookingCompletionStats = await completeAllInProgressBookingsForTrip({ trip });
+
         // Emit socket event to specific driver
         const io = req.app.get('io');
         if (io) {
@@ -252,7 +263,8 @@ const endTrip = async (req, res) => {
 
         res.status(200).json({
             message: "Trip ended successfully",
-            trip: trip
+            trip: trip,
+            bookingCompletion: bookingCompletionStats
         });
 
     } catch (error) {
@@ -398,6 +410,14 @@ const updatePassengerCount = async (req, res) => {
 
         await trip.save();
 
+        const bookingCompletionStats = normalizedStopId
+            ? await completeBookingsByReachedStop({ trip, reachedStopName: normalizedStopId })
+            : { matched: 0, modified: 0 };
+
+        if (normalizedStopId) {
+            console.log(`🎫 Booking sync on stop update (${normalizedStopId}) - matched: ${bookingCompletionStats.matched}, modified: ${bookingCompletionStats.modified}`);
+        }
+
         // Emit socket event for real-time updates to specific driver
         const io = req.app.get('io');
         if (io) {
@@ -406,7 +426,8 @@ const updatePassengerCount = async (req, res) => {
 
         res.status(200).json({
             message: "Passenger count updated",
-            trip: trip
+            trip: trip,
+            bookingCompletion: bookingCompletionStats
         });
 
     } catch (error) {
