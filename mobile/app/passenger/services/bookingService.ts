@@ -1,0 +1,78 @@
+import apiClient from './api';
+
+export interface CreateBookingPayload {
+  routeId: string;
+  busId: string;
+  scheduleId: string;
+  serviceDate: string; // "YYYY-MM-DD"
+  boardingStopName: string;
+  destinationStopName: string;
+  seatCount: number;
+  preferredSeatNumbers?: string[];
+}
+
+export interface BookingResponse {
+  id: string;
+  bookingCode: string;
+  passengerId: string;
+  routeId: string;
+  busId: string;
+  scheduleId: string;
+  tripSessionId?: string;
+  serviceDate: string;
+  dayOfWeek: string;
+  scheduleStartTime: string;
+  scheduleEndTime: string;
+  boardingStop: { stopName: string; sequence: number };
+  destinationStop: { stopName: string; sequence: number };
+  seatNumbers: string[];
+  seatCount: number;
+  farePerSeat: number;
+  totalFare: number;
+  status: 'confirmed' | 'in-progress' | 'completed' | 'cancelled';
+  cancelledAt?: string;
+  cancellationReason?: string;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SeatAvailabilityResponse {
+  availableSeats: string[];
+  takenSeats: string[];
+  totalSeats: number;
+  availableSeatCount: number;
+}
+
+export const bookingService = {
+  createBooking: async (payload: CreateBookingPayload): Promise<BookingResponse> => {
+    const response = await apiClient.post('/passenger/bookings', payload);
+    return response.data?.booking || response.data;
+  },
+
+  checkSeatAvailability: async (params: {
+    routeId: string;
+    busId: string;
+    scheduleId: string;
+    serviceDate: string;
+  }): Promise<SeatAvailabilityResponse> => {
+    const { routeId, busId, scheduleId, serviceDate } = params;
+    const response = await apiClient.get('/passenger/bookings/availability', {
+      params: { routeId, busId, scheduleId, serviceDate },
+    });
+    return response.data;
+  },
+
+  getMyBookings: async (status?: string, page: number = 1, limit: number = 20): Promise<BookingResponse[]> => {
+    const params: Record<string, any> = { page, limit };
+    if (status) params.status = status;
+    const response = await apiClient.get('/passenger/bookings', { params });
+    return response.data?.bookings || response.data || [];
+  },
+
+  cancelBooking: async (bookingId: string, reason?: string): Promise<{ message: string }> => {
+    const response = await apiClient.post(`/passenger/bookings/${bookingId}/cancel`, { reason });
+    return response.data;
+  },
+};
