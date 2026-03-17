@@ -84,6 +84,7 @@ interface PassengerContextType {
   bookings: Booking[];
   addBooking: (booking: Booking) => void;
   updateBooking: (bookingId: string, updates: Partial<Booking>) => void;
+  setBookings: (bookings: Booking[]) => void;
   reviews: Review[];
   addReview: (review: Review) => void;
   alerts: ServiceAlert[];
@@ -146,6 +147,7 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
         bookings,
         addBooking,
         updateBooking,
+        setBookings,
         reviews,
         addReview,
         alerts,
