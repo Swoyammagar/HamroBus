@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,12 +13,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { usePassenger, type Bus, type Route, type Stop, type Booking } from '../context/PassengerContext';
 import { mockBusesData, mockRoutesData } from '../utils/mockData';
+import { routeService, type Schedule } from '../services/routeService';
+import { bookingService, type SeatAvailabilityResponse } from '../services/bookingService';
 import {
-  generateBookingToken,
-  generateTicketHTML,
   formatTime,
   formatDate,
-  calculateCrowdPercentage,
 } from '../utils/helpers';
 
 const BusBooking = () => {
@@ -38,6 +37,13 @@ const BusBooking = () => {
   const [bookingComplete, setBookingComplete] = useState(false);
   const [generatedBooking, setGeneratedBooking] = useState<Booking | null>(null);
   const [resolutionAttempted, setResolutionAttempted] = useState(false);
+  // Schedule & availability state
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
+  const [serviceDate, setServiceDate] = useState<string>('');
+  const [availabilityData, setAvailabilityData] = useState<SeatAvailabilityResponse | null>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [schedulesLoading, setSchedulesLoading] = useState(false);
 
   useEffect(() => {
     const busIdValue = Array.isArray(busId) ? busId[0] : busId;
@@ -88,37 +94,101 @@ const BusBooking = () => {
     setResolutionAttempted(true);
   }, [busId, routeId, selectedBus, buses, selectedRoute, routes]);
 
-  const availableSeats = bus
-    ? (bus.totalCapacity ?? bus.capacity ?? 0) - (bus.currentPassengers ?? bus.currentOccupancy ?? 0)
-    : 0;
-  const bookingPrice = 150; // Fixed price per seat
+  // Helper: get next occurrence of a weekday as "YYYY-MM-DD"
+  const getNextOccurrenceOfDay = (dayName: string): string => {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const targetDay = days.indexOf(dayName);
+    if (targetDay < 0) return new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const todayDay = today.getDay();
+    const daysUntil = (targetDay - todayDay + 7) % 7;
+    const result = new Date(today);
+    result.setDate(result.getDate() + daysUntil);
+    return result.toISOString().split('T')[0];
+  };
+
+  // Load schedules for the resolved route, filtered to the current bus
+  useEffect(() => {
+    if (!route) return;
+    const rid = String(route._id || route.id || '');
+    if (!rid) return;
+    setSchedulesLoading(true);
+    routeService
+      .getSchedulesByRoute(rid)
+      .then((data) => {
+        const busIdVal = String(bus?._id || bus?.id || '');
+        const filtered = data.filter((s) => {
+          const sBusId = String(
+            s.busId && typeof s.busId === 'object' ? (s.busId._id || '') : (s.busId || '')
+          );
+          return !busIdVal || sBusId === busIdVal;
+        });
+        setSchedules(filtered);
+        setSelectedSchedule((prev) => {
+          if (!prev) return null;
+          const stillExists = filtered.some((sched) => sched._id === prev._id);
+          return stillExists ? prev : null;
+        });
+      })
+      .catch(() => setSchedules([]))
+      .finally(() => setSchedulesLoading(false));
+  }, [route, bus]);
+
+  // Derive service date when schedule is selected
+  useEffect(() => {
+    if (!selectedSchedule) return;
+    setServiceDate(getNextOccurrenceOfDay(selectedSchedule.dayOfWeek));
+    // Clear seats when schedule changes so stale selections are removed
+    setSelectedSeats([]);
+    setAvailabilityData(null);
+  }, [selectedSchedule]);
+
+  // Fetch real seat availability whenever schedule + bus + route + serviceDate are ready
+  useEffect(() => {
+    if (!selectedSchedule || !route || !bus || !serviceDate) return;
+    const rid = String(route._id || route.id || '');
+    const bid = String(bus._id || bus.id || '');
+    const sid = String(selectedSchedule._id || '');
+    if (!rid || !bid || !sid) return;
+
+    setAvailabilityLoading(true);
+    bookingService
+      .checkSeatAvailability({ routeId: rid, busId: bid, scheduleId: sid, serviceDate })
+      .then((data) => setAvailabilityData(data))
+      .catch(() => setAvailabilityData(null))
+      .finally(() => setAvailabilityLoading(false));
+  }, [selectedSchedule, route, bus, serviceDate]);
+
+  const bookingPrice = route?.fareInfo ?? 150;
 
   const generateSeatsGrid = () => {
-    const totalSeats = bus?.totalCapacity || 50;
+    const totalSeats = availabilityData?.totalSeats || bus?.totalCapacity || bus?.capacity || 50;
     const seatsPerRow = 4;
-    const rows = Math.ceil(totalSeats / seatsPerRow);
     const seats = [];
 
     for (let i = 1; i <= totalSeats; i++) {
+      const label = `${String.fromCharCode(65 + Math.floor((i - 1) / seatsPerRow))}${
+        ((i - 1) % seatsPerRow) + 1
+      }`;
+      const isTaken = availabilityData
+        ? availabilityData.takenSeats.includes(label)
+        : false;
       seats.push({
-        number: `${String.fromCharCode(65 + Math.floor((i - 1) / seatsPerRow))}${
-          ((i - 1) % seatsPerRow) + 1
-        }`,
-        id: `seat_${i}`,
-        available: i <= availableSeats,
+        id: label,
+        number: label,
+        available: !isTaken,
       });
     }
 
     return seats;
   };
 
-  const handleSeatToggle = (seatId: string, seatNumber: string) => {
-    if (selectedSeats.includes(seatId)) {
-      setSelectedSeats(selectedSeats.filter(id => id !== seatId));
+  const handleSeatToggle = (seatLabel: string) => {
+    if (selectedSeats.includes(seatLabel)) {
+      setSelectedSeats(selectedSeats.filter((s) => s !== seatLabel));
     } else {
       if (selectedSeats.length < 4) {
-        // Limit to 4 seats per booking
-        setSelectedSeats([...selectedSeats, seatId]);
+        setSelectedSeats([...selectedSeats, seatLabel]);
       } else {
         Alert.alert('Limit Reached', 'You can book maximum 4 seats per booking');
       }
@@ -126,11 +196,14 @@ const BusBooking = () => {
   };
 
   const handleCompleteBooking = async () => {
+    if (!selectedSchedule) {
+      Alert.alert('Missing Schedule', 'Please select a schedule before booking');
+      return;
+    }
     if (!selectedBoardingStop || !selectedAlightingStop || selectedSeats.length === 0) {
       Alert.alert('Incomplete', 'Please select boarding stop, alighting stop, and seats');
       return;
     }
-
     if ((selectedBoardingStop.order ?? 0) >= (selectedAlightingStop.order ?? 0)) {
       Alert.alert('Invalid Route', 'Alighting stop must be after boarding stop');
       return;
@@ -139,27 +212,31 @@ const BusBooking = () => {
     setLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const token = generateBookingToken();
-      const bookingId = `HB${Date.now()}`;
-      const totalPrice = bookingPrice * selectedSeats.length;
+      const result = await bookingService.createBooking({
+        routeId: String(route!._id || route!.id || ''),
+        busId: String(bus!._id || bus!.id || ''),
+        scheduleId: String(selectedSchedule._id || ''),
+        serviceDate,
+        boardingStopName: selectedBoardingStop.name,
+        destinationStopName: selectedAlightingStop.name,
+        seatCount: selectedSeats.length,
+        preferredSeatNumbers: selectedSeats,
+      });
 
       const newBooking: Booking = {
-        id: bookingId,
-        bookingId,
-        passengerId: 'mock_passenger_id', // TODO: Replace with actual passenger ID from auth context
-        busId: String(bus!._id || bus!.id || ''),
-        routeId: String(route!._id || route!.id || ''),
-        seatNumber: selectedSeats.map((_, i) => `Seat ${i + 1}`).join(', '),
-        bookingDate: new Date().toISOString(),
-        travelDate: new Date(Date.now() + 24 * 3600000).toISOString(),
-        status: 'confirmed' as const,
-        boardingStop: String(selectedBoardingStop.id || selectedBoardingStop._id || ''),
-        alightingStop: String(selectedAlightingStop.id || selectedAlightingStop._id || ''),
-        price: totalPrice,
-        token,
+        id: String(result.id),
+        bookingId: result.bookingCode,
+        passengerId: String(result.passengerId),
+        busId: String(result.busId),
+        routeId: String(result.routeId),
+        token: result.bookingCode,
+        seatNumber: (result.seatNumbers || []).join(', '),
+        price: result.totalFare,
+        bookingDate: result.createdAt,
+        travelDate: result.serviceDate,
+        status: 'confirmed',
+        boardingStop: result.boardingStop?.stopName || selectedBoardingStop.name,
+        alightingStop: result.destinationStop?.stopName || selectedAlightingStop.name,
         tripStarted: false,
         tripEnded: false,
       };
@@ -167,8 +244,10 @@ const BusBooking = () => {
       addBooking(newBooking);
       setGeneratedBooking(newBooking);
       setBookingComplete(true);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to complete booking. Please try again.');
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message || 'Failed to complete booking. Please try again.';
+      Alert.alert('Booking Failed', message);
     } finally {
       setLoading(false);
     }
@@ -254,14 +333,14 @@ const BusBooking = () => {
                 <View style={styles.ticketRow}>
                   <Text style={styles.ticketLabel}>From</Text>
                   <Text style={styles.ticketValue}>
-                    {route?.stops.find(s => s.id === selectedBoardingStop?.id)?.name}
+                    {generatedBooking.boardingStop || selectedBoardingStop?.name}
                   </Text>
                 </View>
 
                 <View style={styles.ticketRow}>
                   <Text style={styles.ticketLabel}>To</Text>
                   <Text style={styles.ticketValue}>
-                    {route?.stops.find(s => s.id === selectedAlightingStop?.id)?.name}
+                    {generatedBooking.alightingStop || selectedAlightingStop?.name}
                   </Text>
                 </View>
 
@@ -323,6 +402,50 @@ const BusBooking = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Schedule Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Select Schedule</Text>
+
+          {schedulesLoading ? (
+            <ActivityIndicator size="small" color="#3b82f6" style={{ marginVertical: 8 }} />
+          ) : schedules.length === 0 ? (
+            <Text style={styles.noScheduleText}>No schedules found for this bus.</Text>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.scheduleList}
+            >
+              {schedules.map((sched) => {
+                const isSelected = selectedSchedule?._id === sched._id;
+                return (
+                  <TouchableOpacity
+                    key={sched._id}
+                    style={[styles.scheduleChip, isSelected && styles.scheduleChipSelected]}
+                    onPress={() => setSelectedSchedule(sched)}
+                  >
+                    <Text style={[styles.scheduleChipDay, isSelected && styles.scheduleChipTextSelected]}>
+                      {sched.dayOfWeek}
+                    </Text>
+                    <Text style={[styles.scheduleChipTime, isSelected && styles.scheduleChipTextSelected]}>
+                      {sched.startTime} – {sched.endTime}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          {selectedSchedule && (
+            <View style={styles.selectedScheduleInfo}>
+              <Ionicons name="calendar-outline" size={14} color="#3b82f6" />
+              <Text style={styles.selectedScheduleText}>
+                Travel date: {serviceDate}
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* Route Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Route Information</Text>
@@ -369,37 +492,44 @@ const BusBooking = () => {
           <View style={styles.seatsHeader}>
             <Text style={styles.sectionTitle}>Select Seats</Text>
             <Text style={styles.seatsCount}>
-              {selectedSeats.length}/4 Selected • {availableSeats} Available
+              {selectedSeats.length}/4 Selected •{' '}
+              {availabilityData ? availabilityData.availableSeatCount : '—'} Available
             </Text>
           </View>
 
-          <View style={styles.seatsGrid}>
-            {Array.from({ length: Math.ceil(seats.length / seatsPerRow) }).map((_, rowIndex) => (
-              <View key={rowIndex} style={styles.seatsRow}>
-                {seats.slice(rowIndex * seatsPerRow, (rowIndex + 1) * seatsPerRow).map(seat => (
-                  <TouchableOpacity
-                    key={seat.id}
-                    style={[
-                      styles.seat,
-                      !seat.available && styles.seatUnavailable,
-                      selectedSeats.includes(seat.id) && styles.seatSelected,
-                    ]}
-                    onPress={() => seat.available && handleSeatToggle(seat.id, seat.number)}
-                    disabled={!seat.available}
-                  >
-                    <Text
+          {!selectedSchedule ? (
+            <Text style={styles.noScheduleText}>Select a schedule above to see seat availability.</Text>
+          ) : availabilityLoading ? (
+            <ActivityIndicator size="small" color="#3b82f6" style={{ marginVertical: 12 }} />
+          ) : (
+            <View style={styles.seatsGrid}>
+              {Array.from({ length: Math.ceil(seats.length / seatsPerRow) }).map((_, rowIndex) => (
+                <View key={rowIndex} style={styles.seatsRow}>
+                  {seats.slice(rowIndex * seatsPerRow, (rowIndex + 1) * seatsPerRow).map(seat => (
+                    <TouchableOpacity
+                      key={seat.id}
                       style={[
-                        styles.seatText,
-                        selectedSeats.includes(seat.id) && styles.seatTextSelected,
+                        styles.seat,
+                        !seat.available && styles.seatUnavailable,
+                        selectedSeats.includes(seat.id) && styles.seatSelected,
                       ]}
+                      onPress={() => seat.available && handleSeatToggle(seat.id)}
+                      disabled={!seat.available}
                     >
-                      {seat.number}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ))}
-          </View>
+                      <Text
+                        style={[
+                          styles.seatText,
+                          selectedSeats.includes(seat.id) && styles.seatTextSelected,
+                        ]}
+                      >
+                        {seat.number}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ))}
+            </View>
+          )}
 
           <View style={styles.seatsLegend}>
             <View style={styles.legendItem}>
@@ -424,13 +554,18 @@ const BusBooking = () => {
           <View style={styles.priceSummary}>
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>
-                {selectedSeats.length} Seat{selectedSeats.length !== 1 ? 's' : ''} × Rs. 150
+                {selectedSeats.length} Seat{selectedSeats.length !== 1 ? 's' : ''} × Rs.{' '}
+                {bookingPrice}
               </Text>
               <Text style={styles.priceValue}>Rs. {bookingPrice * selectedSeats.length}</Text>
             </View>
-
+            {selectedSeats.length > 0 && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>Seats</Text>
+                <Text style={styles.priceValue}>{selectedSeats.join(', ')}</Text>
+              </View>
+            )}
             <View style={styles.priceDivider} />
-
             <View style={styles.priceRow}>
               <Text style={styles.priceLabelBold}>Total</Text>
               <Text style={styles.priceValueBold}>Rs. {bookingPrice * selectedSeats.length}</Text>
@@ -988,6 +1123,56 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  // Schedule selection styles
+  scheduleList: {
+    paddingBottom: 4,
+    gap: 8,
+    flexDirection: 'row',
+  },
+  scheduleChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#d1d5db',
+    backgroundColor: '#f9fafb',
+    alignItems: 'center',
+    minWidth: 110,
+  },
+  scheduleChipSelected: {
+    borderColor: '#3b82f6',
+    backgroundColor: '#eff6ff',
+  },
+  scheduleChipDay: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 2,
+  },
+  scheduleChipTime: {
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  scheduleChipTextSelected: {
+    color: '#1d4ed8',
+  },
+  selectedScheduleInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 6,
+  },
+  selectedScheduleText: {
+    fontSize: 12,
+    color: '#3b82f6',
+    marginLeft: 4,
+  },
+  noScheduleText: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center',
+    paddingVertical: 8,
   },
 });
 
