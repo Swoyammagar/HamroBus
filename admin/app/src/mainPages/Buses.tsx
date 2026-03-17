@@ -235,7 +235,15 @@ const Buses: React.FC = () => {
   if (routeId !== undefined) {
     updatePayload.assignedRouteId = routeId;
   }
-  
+
+  const originalRouteId = getIdValue(editingBus.assignedRouteId);
+  const newRouteId = routeId !== undefined ? routeId : originalRouteId;
+  if(originalRouteId !== newRouteId) {
+    const confirmChange = confirm(
+      "Are you sure? The assigned schedule needs to be changed manually."
+    );
+    if (!confirmChange) return;
+  }
   setIsSubmitting(true);
   const result = await updateBus(editingBus._id, updatePayload);
   setIsSubmitting(false);
