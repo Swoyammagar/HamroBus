@@ -108,14 +108,20 @@ const MapTab = () => {
 
   // Handle routeId from navigation (coming from home screen)
   useEffect(() => {
-    // Only auto-show map if we're not already showing it (prevents re-trigger after back)
-    if (routeIdValue && !showMap) {
-      const route = routeList.find(r => (r._id || r.id) === routeIdValue);
-      if (route) {
-        handleRoutePress(route);
-      }
-    }
-  }, [routeIdValue, routeList]);
+    if (!routeIdValue) return;
+
+    const route = routeList.find((r) => String(r._id || r.id) === String(routeIdValue));
+    if (!route) return;
+
+    const currentRouteId = String(selectedRouteForMap?._id || selectedRouteForMap?.id || '');
+    const incomingRouteId = String(routeIdValue);
+    if (showMap && currentRouteId === incomingRouteId) return;
+
+    setSelectedRoute(route);
+    setSelectedRouteForMap(route);
+    setShowMap(true);
+    setShowBusesPanel(false);
+  }, [routeIdValue, routeList, showMap, selectedRouteForMap, setSelectedRoute]);
 
   // Fetch buses for selected route
   useEffect(() => {
