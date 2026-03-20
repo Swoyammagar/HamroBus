@@ -216,37 +216,39 @@ const WebMap: React.FC<WebMapProps> = ({
 
   const fetchRoute = async () => {
     try {
-      let fullPath: any[] = [];
+      const coords = route.stops
+        .map((s: any) => `${s.longitude},${s.latitude}`)
+        .join(';');
 
-      for (let i = 0; i < route.stops.length - 1; i++) {
-        const start = route.stops[i];
-        const end = route.stops[i + 1];
+      const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
 
-        const url = `https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      const data = await res.json();
 
-        const res = await fetch(url);
-        const data = await res.json();
+      if (data.routes?.length > 0) {
+        const formatted = data.routes[0].geometry.coordinates.map((c: any) => [
+          c[1],
+          c[0],
+        ]);
 
-        if (data.routes?.length > 0) {
-          const coords = data.routes[0].geometry.coordinates;
-
-          const formatted = coords.map((c: any) => [
-            c[1], // lat
-            c[0], // lon
-          ]);
-
-          fullPath = [...fullPath, ...formatted];
-        }
+        setRoutePath(formatted);
       }
-
-      setRoutePath(fullPath);
     } catch (err) {
       console.error('Routing failed:', err);
     }
   };
 
   fetchRoute();
-}, [route]);
+}, [route]);;
+
+  const positions = React.useMemo(() => {
+    return route?.stops
+      ?.filter((s: any) => s.latitude && s.longitude)
+      .map((s: any) => [
+        parseFloat(s.latitude),
+        parseFloat(s.longitude),
+      ]) ?? [];
+  }, [route]);
 
   /* ---------------- Loading State ---------------- */
   if (!leaflet)
@@ -267,13 +269,7 @@ const WebMap: React.FC<WebMapProps> = ({
         ]
       : [27.7172, 85.324];
 
-  const positions =
-    route?.stops
-      ?.filter((s: any) => s.latitude && s.longitude)
-      .map((s: any) => [
-        parseFloat(s.latitude),
-        parseFloat(s.longitude),
-      ]) ?? [];
+  
 
   const selectedRouteBusIds = extractRouteBusIds(route);
   const visibleDriverLocations = Array.from(driverLocations.values()).filter((driver) => {
@@ -339,7 +335,6 @@ const WebMap: React.FC<WebMapProps> = ({
       {/* Map */}
       <View style={s.mapContainer}>
         <MapContainer
-          key={route?._id ?? 'map'}
           center={center}
           zoom={12}
           style={{ height: '100%', width: '100%' }}
