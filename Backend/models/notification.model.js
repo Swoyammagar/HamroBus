@@ -19,6 +19,7 @@ const notificationSchema = new mongoose.Schema({
     sentBy: {
         type: String,
         enum: ['admin', 'driver', 'system'],
+        default: 'admin',
         required: true
     },
     senderDetails: {
@@ -55,7 +56,35 @@ const notificationSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }],
-
+    status: {
+        type: String,
+        enum: ['pending', 'sent', 'failed'],
+        default: 'pending'
+    },
+    readBy: [{
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            refPath: 'readBy.userType'
+        },
+        userType: {
+            type: String,
+            enum: ['Driver', 'Passenger'],
+            required: true
+        },
+        readAt: {
+            type: Date,
+            default: Date.now
+        }
+    }],
+    priority: {
+        type: String,
+        enum: ['low', 'medium', 'high', 'urgent'],
+        default: 'medium'
+    },
+    expiresAt: {
+        type: Date,
+        required: false
+    }
 }, {
     timestamps: true
 });
@@ -64,6 +93,7 @@ const notificationSchema = new mongoose.Schema({
 notificationSchema.index({ targetAudience: 1, createdAt: -1 });
 notificationSchema.index({ 'readBy.userId': 1 });
 notificationSchema.index({ status: 1 });
-notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 2592000 }); // 30 days
+notificationSchema.index({ sentBy: 1, createdAt: -1 });
 
 module.exports = mongoose.models.Notification || mongoose.model("Notification", notificationSchema);
