@@ -41,6 +41,23 @@ io.on('connection', (socket) => {
     console.log('📋 Current rooms for this socket:', rooms);
   });
   
+  // ===================== NOTIFICATION ROOMS =====================
+  // Driver joins notification room
+  socket.on('driver:join-notifications', ({ driverId }) => {
+    socket.data.driverId = driverId;
+    socket.join('drivers-room');
+    console.log(`🚗 Driver ${driverId} joined drivers-room for notifications`);
+  });
+
+  // Passenger joins notification room
+  socket.on('passenger:join-notifications', ({ passengerId }) => {
+    socket.data.passengerId = passengerId;
+    socket.join('passengers-room');
+    console.log(`👥 Passenger ${passengerId} joined passengers-room for notifications`);
+  });
+
+  // ===================== END NOTIFICATION ROOMS =====================
+  
   // Driver joins their specific room
   socket.on('driver:join', ({ driverId }) => {
     socket.data.driverId = driverId;
@@ -132,7 +149,9 @@ io.on('connection', (socket) => {
   });
   
   socket.on('disconnect', () => {
-    const { driverId, busId } = socket.data || {};
+    const { driverId, busId, passengerId } = socket.data || {};
+    
+    // Handle driver disconnect
     if (driverId) {
       const offlinePayload = {
         driverId,
@@ -147,6 +166,12 @@ io.on('connection', (socket) => {
       io.to('admin-room').emit('driver:location-offline', offlinePayload);
       console.log(`🛑 Driver ${driverId} disconnected, emitted offline`);
     }
+
+    // Handle passenger disconnect
+    if (passengerId) {
+      console.log(`🛑 Passenger ${passengerId} disconnected`);
+    }
+
     console.log('Client disconnected:', socket.id);
   });
 });
