@@ -57,7 +57,7 @@ async function authenticateAdmin(req, res, next) {
         res.cookie('access_token', newAccessToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
           maxAge: 15 * 60 * 1000 // 15 minutes
         });
 
