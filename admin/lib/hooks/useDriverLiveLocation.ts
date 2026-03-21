@@ -21,7 +21,7 @@ interface UseDriverLiveLocationReturn {
   leaveAdminRoom: () => void;
 }
 
-const SOCKET_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:3000';
+const SOCKET_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://hamrobus-auos.onrender.com';
 
 export const useDriverLiveLocation = (): UseDriverLiveLocationReturn => {
   const [locations, setLocations] = useState<Map<string, DriverLocation>>(new Map());
