@@ -9,7 +9,7 @@ const { v4: uuidv4 } = require('uuid');
  */
 const sendNotification = async (req, res, io) => {
   try {
-    const { title, message, targetAudience } = req.body;
+    const { title, message, targetAudience, type = 'info', severity = 'medium' } = req.body;
     const adminId = req.user?.id || req.user?._id;
 
     // Validation
@@ -27,12 +27,32 @@ const sendNotification = async (req, res, io) => {
       });
     }
 
+    // Validate type and severity
+    const validTypes = ['alert', 'info', 'maintenance', 'announcement', 'emergency'];
+    const validSeverities = ['low', 'medium', 'high', 'critical'];
+
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid type. Must be: ${validTypes.join(', ')}`
+      });
+    }
+
+    if (!validSeverities.includes(severity)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid severity. Must be: ${validSeverities.join(', ')}`
+      });
+    }
+
     // Create notification document
     const notificationId = `notif_${uuidv4()}`;
     const newNotification = new Notification({
       notificationId,
       title,
       message,
+      type,
+      severity,
       sentBy: 'admin',
       senderDetails: {
         senderId: adminId,
@@ -53,6 +73,8 @@ const sendNotification = async (req, res, io) => {
         notificationId: savedNotification.notificationId,
         title: savedNotification.title,
         message: savedNotification.message,
+        type: savedNotification.type,
+        severity: savedNotification.severity,
         sentBy: savedNotification.sentBy,
         targetAudience: savedNotification.targetAudience,
         createdAt: savedNotification.createdAt,
@@ -87,6 +109,8 @@ const sendNotification = async (req, res, io) => {
         notificationId: savedNotification.notificationId,
         title: savedNotification.title,
         message: savedNotification.message,
+        type: savedNotification.type,
+        severity: savedNotification.severity,
         sentBy: savedNotification.sentBy,
         targetAudience: savedNotification.targetAudience,
         status: savedNotification.status,
