@@ -18,7 +18,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const API_BASE =
-  process.env.EXPO_PUBLIC_API_BASE || 'http://localhost:3000/api';
+  process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
 
 // Always send cookies
 axios.defaults.withCredentials = true;
