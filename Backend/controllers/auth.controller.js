@@ -28,7 +28,7 @@ const refreshAccessToken = async (req, res) => {
   res.cookie('access_token', accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 15 * 60 * 1000 // 15 minutes
   });
   
@@ -56,12 +56,12 @@ const logout = async (req, res) => {
   res.clearCookie('access_token', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax'
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
   });
   res.clearCookie('refresh_token', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax'
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
   });
   
   res.status(200).json({ message: 'Logged out' });
