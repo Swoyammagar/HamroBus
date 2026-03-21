@@ -76,6 +76,18 @@ const notificationSchema = new mongoose.Schema({
             default: Date.now
         }
     }],
+    type: {
+        type: String,
+        enum: ['alert', 'info', 'maintenance', 'announcement', 'emergency'],
+        default: 'info',
+        required: true
+    },
+    severity: {
+        type: String,
+        enum: ['low', 'medium', 'high', 'critical'],
+        default: 'medium',
+        required: true
+    },
     priority: {
         type: String,
         enum: ['low', 'medium', 'high', 'urgent'],
