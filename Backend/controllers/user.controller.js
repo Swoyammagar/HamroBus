@@ -196,7 +196,15 @@ const requestSignupOTP = async (req, res) => {
 
     await tempUser.save();
 
-    await sendVerificationEmail(email, "User", otp);
+    const emailResult = await sendVerificationEmail(email, "User", otp);
+
+    if (!emailResult?.success) {
+      return res.status(502).json({
+        success: false,
+        message: "OTP could not be sent to email. Please try again.",
+        error: emailResult?.error || "EMAIL_DELIVERY_FAILED",
+      });
+    }
 
     res.status(200).json({
       success: true,
