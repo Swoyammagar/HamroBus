@@ -220,7 +220,10 @@ export const useTripActions = () => {
             const data = await driverService.startTrip(routeId, busId, scheduleId);
             return data.trip;
         } catch (err: any) {
-            const errorMsg = err.message || 'Failed to start trip';
+            const errorMsg =
+                err?.response?.data?.message ||
+                err?.message ||
+                'Failed to start trip';
             setError(errorMsg);
             throw err;
         } finally {
