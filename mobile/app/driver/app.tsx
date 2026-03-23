@@ -8,7 +8,6 @@ import { StatusBar } from 'expo-status-bar';
 import RootNavigator from './navigation/RootNavigator';
 import Header from './component/DriverHeader';
 import SideMenu from './component/SideMenu';
-import AnnouncementBanner from './component/AnnouncementBanner';
 import EmergencySOSModal from './component/EmergencySOSModal';
 import { palette } from './theme';
 import { useAuth } from '../context/AuthContext';
@@ -20,11 +19,6 @@ export default function App() {
   const [showSOS, setShowSOS] = useState(false);
   const { getCurrentUser, isLoading, token } = useAuth();
 
-  const [announcement, setAnnouncement] = useState({
-    show: true,
-    message: 'Route 42 - Minor delay expected on Main St due to traffic',
-    type: 'warning' as 'info' | 'warning' | 'emergency',
-  });
 
   // ✅ FETCH CURRENT USER DATA ONLY AFTER AUTH IS LOADED
   useEffect(() => {
@@ -49,15 +43,6 @@ export default function App() {
               onToggleOnline={() => setIsOnline(prev => !prev)}
               onMenuPress={() => setMenuOpen(true)}
             />
-
-            {/* Announcements */}
-            {announcement.show && (
-              <AnnouncementBanner
-                message={announcement.message}
-                type={announcement.type}
-                onClose={() => setAnnouncement({ ...announcement, show: false })}
-              />
-            )}
 
             {/* Main App Navigation */}
             <View style={styles.content}>

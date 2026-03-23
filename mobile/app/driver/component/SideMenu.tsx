@@ -12,7 +12,6 @@ interface Props {
 
 const menuItems = [
   { icon: 'settings', label: 'Settings' },
-  { icon: 'bell', label: 'Notifications' },
   { icon: 'file-text', label: 'Documents' },
   { icon: 'shield', label: 'Safety & Support' },
   { icon: 'help-circle', label: 'Help Center' },
