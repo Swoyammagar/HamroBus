@@ -141,14 +141,21 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       const busId = nextSchedule.busId?._id || nextSchedule.busId;
       const scheduleId = nextSchedule._id;
 
+      // Guard against stale local state: backend may still have an active trip.
+      const existingTrip = await driverService.getCurrentTrip();
+      if (existingTrip) {
+        Alert.alert('Trip already active', 'You already have an ongoing trip. Please end it before starting a new one.');
+        return;
+      }
+
       console.log('Starting trip with:', { routeId: route._id, busId, scheduleId });
 
       await startTrip(route._id, busId, scheduleId);
-      // Context will auto-update via WebSocket
       setShowStartTrip(false);
       Alert.alert('Success', 'Trip started successfully');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to start trip');
+      const apiMessage = error?.response?.data?.message;
+      Alert.alert('Error', apiMessage || error.message || 'Failed to start trip');
     }
   };
 
