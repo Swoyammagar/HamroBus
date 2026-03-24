@@ -44,8 +44,10 @@ const Profile = () => {
       const { user: userData, passenger: passengerData } = response.data;
 
       // Map to PassengerProfile format
+      const passengerId = passengerData._id || userData._id;
       const profileData = {
-        id: passengerData._id || userData._id,
+        id: passengerId,
+        passengerId: passengerId,
         name: `${userData.firstName} ${userData.lastName}`,
         email: userData.email,
         phone: userData.phoneNumber || 'N/A',

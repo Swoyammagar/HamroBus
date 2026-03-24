@@ -6,26 +6,103 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
-  FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePassenger, type ServiceAlert } from '../context/PassengerContext';
+import { useAuth } from '../../context/AuthContext';
 import { formatTime, formatDate } from '../utils/helpers';
-import { mockAlertsData } from '../utils/mockData';
+import {
+  notificationService,
+  type PassengerNotificationApiRecord,
+} from '../services/notificationService';
+import passengerNotificationSocket from '../services/passengerNotificationSocket';
 
 const Notifications = () => {
-  const { markAlertRead } = usePassenger();
-  const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
+  const { passenger } = useAuth();
+  const { alerts, setAlerts, markAlertRead } = usePassenger();
   const [selectedAlert, setSelectedAlert] = useState<ServiceAlert | null>(null);
   const [alertDetailModal, setAlertDetailModal] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'unread'>('all');
+  const [loading, setLoading] = useState(false);
+
+  const mapApiToAlert = (
+    item: PassengerNotificationApiRecord,
+    passengerId?: string
+  ): ServiceAlert | null => {
+    const id = String(item?._id || item?.id || '').trim();
+    if (!id) return null;
+
+    const isRead = (item.readBy || []).some((entry) => {
+      const readUserId = String(entry?.userId || '').trim();
+      return passengerId ? readUserId === String(passengerId) : false;
+    });
+
+    return {
+      id,
+      type: (item.type || 'info') as 'alert' | 'info' | 'maintenance' | 'announcement' | 'emergency',
+      title: item.title || 'Notification',
+      message: item.message || '',
+      severity: (item.severity || 'medium') as 'low' | 'medium' | 'high' | 'critical',
+      timestamp: item.createdAt || new Date().toISOString(),
+      read: isRead,
+    };
+  };
+
+  const fetchPassengerNotifications = async () => {
+    try {
+      setLoading(true);
+      const data = await notificationService.getPassengerNotifications();
+      const mapped = data
+        .map((item) => mapApiToAlert(item, passenger?.id))
+        .filter(Boolean) as ServiceAlert[];
+      setAlerts(mapped);
+    } catch (error) {
+      console.error('Failed to load passenger notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Initialize with mock data if empty
-    if (alerts.length === 0) {
-      setAlerts(mockAlertsData);
+    fetchPassengerNotifications();
+  }, [passenger?.id]);
+
+  useEffect(() => {
+    if (!passenger?.id) return;
+
+    let mounted = true;
+
+    const setupSocket = async () => {
+      await passengerNotificationSocket.connect(passenger.id);
+
+      const onIncoming = (payload: PassengerNotificationApiRecord) => {
+        if (!mounted) return;
+
+        const mapped = mapApiToAlert(payload, passenger.id);
+        if (!mapped) return;
+
+        setAlerts((prev) => {
+          const exists = prev.some((a) => a.id === mapped.id);
+          return exists ? prev : [mapped, ...prev];
+        });
+      };
+
+      passengerNotificationSocket.onNotification(onIncoming);
+
+      return () => {
+        passengerNotificationSocket.offNotification(onIncoming);
+      };
+    };
+
+    const teardownPromise = setupSocket();
+
+    return () => {
+      mounted = false;
+      teardownPromise.then((teardown) => teardown && teardown());
+      passengerNotificationSocket.disconnect();
     }
-  }, []);
+  }, [passenger?.id]);
 
   const filteredAlerts = alerts.filter(alert => {
     if (filterType === 'unread') {
@@ -37,24 +114,36 @@ const Notifications = () => {
   const handleAlertPress = (alert: ServiceAlert) => {
     setSelectedAlert(alert);
     setAlertDetailModal(true);
+
     if (!alert.read) {
       markAlertRead(alert.id);
-      setAlerts(alerts.map(a => (a.id === alert.id ? { ...a, read: true } : a)));
+      notificationService.markNotificationRead(alert.id).catch((error) => {
+        console.error('Failed to mark notification read:', error);
+      });
     }
   };
 
-  const handleClearAll = () => {
-    setAlerts(alerts.map(a => ({ ...a, read: true })));
+  const handleClearAll = async () => {
+    const unread = alerts.filter((a) => !a.read);
+    setAlerts(alerts.map((a) => ({ ...a, read: true })));
+
+    try {
+      await Promise.all(unread.map((a) => notificationService.markNotificationRead(a.id)));
+    } catch (error) {
+      console.error('Failed to mark all read:', error);
+    }
   };
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'critical':
         return '#991b1b';
-      case 'warning':
+      case 'high':
         return '#d97706';
-      case 'info':
-        return '#0284c7';
+      case 'medium':
+        return '#f59e0b';
+      case 'low':
+        return '#10b981';
       default:
         return '#6b7280';
     }
@@ -64,10 +153,12 @@ const Notifications = () => {
     switch (severity) {
       case 'critical':
         return '#fee2e2';
-      case 'warning':
+      case 'high':
         return '#fef3c7';
-      case 'info':
-        return '#e0f2fe';
+      case 'medium':
+        return '#f3f4f6';
+      case 'low':
+        return '#f0fdf4';
       default:
         return '#f3f4f6';
     }
@@ -75,16 +166,16 @@ const Notifications = () => {
 
   const getAlertIcon = (type: string) => {
     switch (type) {
-      case 'delay':
-        return 'time-outline';
-      case 'detour':
-        return 'navigate-outline';
-      case 'accident':
+      case 'alert':
         return 'alert-circle-outline';
-      case 'cancellation':
-        return 'close-circle-outline';
+      case 'info':
+        return 'information-circle-outline';
       case 'maintenance':
         return 'build-outline';
+      case 'announcement':
+        return 'megaphone-outline';
+      case 'emergency':
+        return 'warning-outline';
       default:
         return 'information-circle-outline';
     }
@@ -183,9 +274,14 @@ const Notifications = () => {
 
       {/* Alerts List */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {filteredAlerts.length > 0 ? (
+        {loading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color="#3b82f6" />
+            <Text style={styles.loadingText}>Loading notifications...</Text>
+          </View>
+        ) : filteredAlerts.length > 0 ? (
           <View style={styles.alertsList}>
-            {filteredAlerts.map(alert => (
+            {filteredAlerts.map((alert) => (
               <AlertCard
                 key={alert.id}
                 alert={alert}
@@ -289,19 +385,6 @@ const Notifications = () => {
                     )}
                   </View>
                 </View>
-
-                {/* Action Buttons */}
-                <View style={styles.actionButtonsContainer}>
-                  <TouchableOpacity style={styles.actionButtonPrimary}>
-                    <Ionicons name="notifications" size={18} color="#ffffff" />
-                    <Text style={styles.actionButtonText}>Enable Notifications</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.actionButtonSecondary}>
-                    <Ionicons name="share-social" size={18} color="#3b82f6" />
-                    <Text style={styles.actionButtonSecondaryText}>Share Alert</Text>
-                  </TouchableOpacity>
-                </View>
               </ScrollView>
             )}
           </View>
@@ -327,6 +410,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
     marginBottom: 4,
+  },
+  loadingWrap: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#6b7280',
+    fontSize: 14,
   },
   headerSubtitle: {
     fontSize: 14,
