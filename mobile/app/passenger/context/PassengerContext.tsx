@@ -14,12 +14,12 @@ export interface Stop {
 
 export interface ServiceAlert {
   id: string;
-  type: 'delay' | 'detour' | 'accident' | 'cancellation' | 'maintenance' | 'info';
+  type: 'alert' | 'info' | 'maintenance' | 'announcement' | 'emergency';
   routeId?: string;
   busId?: string;
   title: string;
   message: string;
-  severity: 'critical' | 'warning' | 'info';
+  severity: 'low' | 'medium' | 'high' | 'critical';
   timestamp: string;
   read: boolean;
 }
@@ -88,7 +88,7 @@ interface PassengerContextType {
   reviews: Review[];
   addReview: (review: Review) => void;
   alerts: ServiceAlert[];
-  setAlerts: (alerts: ServiceAlert[]) => void;
+  setAlerts: React.Dispatch<React.SetStateAction<ServiceAlert[]>>;
   getUnreadAlerts: () => ServiceAlert[];
   markAlertRead: (alertId: string) => void;
 }
