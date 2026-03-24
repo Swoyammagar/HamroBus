@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
@@ -98,6 +98,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [driver, setDriver] = useState<Driver | null>(null);
   const [passenger, setPassenger] = useState<Passenger | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const refreshRequestRef = useRef<Promise<boolean> | null>(null);
 
   // Initialize auth state from AsyncStorage
   useEffect(() => {
@@ -121,9 +122,11 @@ useEffect(() => {
     (response) => response,
     async (error) => {
       const originalRequest = error.config;
+      const requestUrl = originalRequest?.url || '';
+      const isRefreshRequest = typeof requestUrl === 'string' && requestUrl.includes('/auth/refresh-mobile');
 
       // If 401 and we haven't already tried to refresh
-      if (error.response?.status === 401 && !originalRequest._retry) {
+      if (error.response?.status === 401 && !originalRequest?._retry && !isRefreshRequest) {
         originalRequest._retry = true;
 
         const refreshed = await refreshToken();
@@ -132,10 +135,6 @@ useEffect(() => {
           const newToken = await AsyncStorage.getItem('authToken');
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           return axios(originalRequest);
-        } else {
-          // Refresh failed, logout
-          await logout();
-          return Promise.reject(error);
         }
       }
 
@@ -344,7 +343,10 @@ const logout = async () => {
 
 const getCurrentUser = async () => {
   try {
-    if (!token) {
+    // Fallback to persisted token to avoid race right after login
+    const activeToken = token || (await AsyncStorage.getItem('authToken'));
+
+    if (!activeToken) {
       console.log('⚠️ getCurrentUser: No token available, skipping');
       return;
     }
@@ -376,7 +378,7 @@ const getCurrentUser = async () => {
     console.log(`📡 Fetching current user from ${API_URL}${endpoint}`);
     
     const response = await axios.get(`${API_URL}${endpoint}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${activeToken}` },
       timeout: 10000, // 10 second timeout
     });
     
@@ -420,8 +422,17 @@ const getCurrentUser = async () => {
   }
 };
 
+const isInvalidRefreshTokenError = (status?: number) => {
+  return status === 400 || status === 401 || status === 403;
+};
+
 // ✅ FIX: Implement proper refresh token handling for mobile
 const refreshToken = async () => {
+  if (refreshRequestRef.current) {
+    return refreshRequestRef.current;
+  }
+
+  const refreshPromise = (async () => {
   try {
     const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
     if (!storedRefreshToken) {
@@ -431,21 +442,39 @@ const refreshToken = async () => {
 
     const response = await axios.post(
       `${API_URL}/auth/refresh-mobile`, 
-      { refreshToken: storedRefreshToken }
+      { refreshToken: storedRefreshToken },
+      { timeout: 10000 }
     );
     
     const { accessToken: newToken } = response.data;
+    if (!newToken) {
+      console.error('Token refresh response missing accessToken');
+      return false;
+    }
+
     await AsyncStorage.setItem('authToken', newToken);
     setToken(newToken);
     
     console.log('✅ Token refreshed successfully');
     return true;
   } catch (error: any) {
-    console.error('Token refresh error:', error.message);
-    // If refresh fails, logout user
-    await logout();
+    const status = error?.response?.status;
+    console.error('Token refresh error:', status || error.message);
+
+    // Logout only when refresh token is invalid/expired/revoked.
+    // For temporary network issues, keep local session and retry later.
+    if (isInvalidRefreshTokenError(status)) {
+      await logout();
+    }
+
     return false;
+  } finally {
+    refreshRequestRef.current = null;
   }
+  })();
+
+  refreshRequestRef.current = refreshPromise;
+  return refreshPromise;
 };
 
 
