@@ -33,7 +33,7 @@ type DriverContextValue = {
 const DriverContext = createContext<DriverContextValue | undefined>(undefined);
 
 const API_BASE =
-  process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
+  process.env.EXPO_PUBLIC_API_BASE || 'http://localhost:3000/api';
 
 axios.defaults.withCredentials = true;
 

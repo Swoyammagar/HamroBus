@@ -35,8 +35,15 @@ export type ScheduleRecord = {
   startTime: string;
   endTime: string;
   notes?: string;
+  stopArrivals?: StopArrivalRecord[];
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type StopArrivalRecord = {
+  stopName: string;
+  stopSequence?: number;
+  arrivalTime: string;
 };
 
 export type RouteRecord = {
@@ -84,6 +91,7 @@ type ScheduleInput = {
   startTime: string;
   endTime: string;
   notes?: string;
+  stopArrivals?: StopArrivalRecord[];
 };
 
 type UpdateScheduleInput = Partial<ScheduleInput>;
@@ -112,7 +120,7 @@ type RouteContextValue = {
 const RouteContext = createContext<RouteContextValue | undefined>(undefined);
 
 const API_BASE =
-  process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
+  process.env.EXPO_PUBLIC_API_BASE || 'http://localhost:3000/api';
 
 axios.defaults.withCredentials = true;
 
