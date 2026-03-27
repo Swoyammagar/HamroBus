@@ -20,6 +20,23 @@ const stopSchema = new mongoose.Schema({
     },
 }, { _id: false });
 
+const stopArrivalSchema = new mongoose.Schema({
+    stopName: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    stopSequence: {
+        type: Number,
+        required: true
+    },
+    arrivalTime: {
+        type: String,
+        required: true,
+        description: "Format: HH:MM (24-hour)"
+    }
+}, { _id: false });
+
 const scheduleSchema = new mongoose.Schema({
     dayOfWeek: {
         type: String,
@@ -50,6 +67,10 @@ const scheduleSchema = new mongoose.Schema({
         type: String,
         required: false,
         trim: true
+    },
+    stopArrivals: {
+        type: [stopArrivalSchema],
+        default: []
     }
 }, { timestamps: true });
 
