@@ -8,6 +8,7 @@ const {
     updateRoute,
     deleteRoute,
     getRouteSchedules,
+    getRouteStopArrivals,
     addSchedule,
     updateSchedule,
     deleteSchedule
@@ -17,6 +18,7 @@ const {
 router.get("/", getAllRoutes);
 router.get("/:routeId", getRouteById);
 router.get("/:routeId/schedules", getRouteSchedules);
+router.get("/:routeId/stops/:stopName/arrivals", getRouteStopArrivals);
 
 // Admin write
 router.post("/", authenticateAdmin, createRoute);
