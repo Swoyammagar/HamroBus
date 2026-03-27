@@ -6,9 +6,19 @@ import {
   StyleSheet,
 } from "react-native";
 import { Tabs, SearchBar, Table, Modal, Picker, Button, Input, type TableColumn } from '../../components/ui';
-import { useRoute, DayOfWeek, ScheduleRecord } from '../../context/RouteContext';
+import { useRoute, DayOfWeek, ScheduleRecord, StopArrivalRecord } from '../../context/RouteContext';
 import { useBus } from '../../context/BusContext';
 import { useDriver } from '../../context/DriverContext';
+
+const toStopArrivalTimeMap = (stopArrivals?: StopArrivalRecord[]) => {
+  const initialMap: Record<string, string> = {};
+  (stopArrivals || []).forEach((entry) => {
+    if (entry?.stopName) {
+      initialMap[entry.stopName] = entry.arrivalTime || '';
+    }
+  });
+  return initialMap;
+};
 
 const Schedules: React.FC = () => {
   const { routes, fetchAllRoutes, addSchedule, updateSchedule, deleteSchedule, getRouteSchedules } = useRoute();
@@ -33,9 +43,33 @@ const Schedules: React.FC = () => {
     startTime?: string;
     endTime?: string;
     notes?: string;
+    stopArrivalTimes?: Record<string, string>;
   }
   
   const [editFields, setEditFields] = useState<ScheduleFormFields>({});
+
+  const selectedRoute = useMemo(
+    () => routes.find((r) => r._id === selectedRouteId),
+    [routes, selectedRouteId]
+  );
+
+  const selectedRouteStops = useMemo(
+    () => [...(selectedRoute?.stops || [])].sort((a, b) => Number(a.sequence) - Number(b.sequence)),
+    [selectedRoute]
+  );
+
+  const buildStopArrivalsPayload = () => {
+    if (!selectedRouteStops.length) {
+      return [] as StopArrivalRecord[];
+    }
+
+    return selectedRouteStops
+      .map((stop) => ({
+        stopName: stop.stopName,
+        arrivalTime: String(editFields.stopArrivalTimes?.[stop.stopName] || '').trim(),
+      }))
+      .filter((entry) => entry.arrivalTime);
+  };
 
   // Load schedules when route is selected
   useEffect(() => {
@@ -43,7 +77,7 @@ const Schedules: React.FC = () => {
       const route = routes.find(r => r._id === selectedRouteId);
       setSchedules(route?.schedules || []);
       // Clear bus selection when route changes to avoid showing invalid bus
-      setEditFields(prev => ({ ...prev, busId: undefined, driverId: undefined }));
+      setEditFields(prev => ({ ...prev, busId: undefined, driverId: undefined, stopArrivalTimes: {} }));
     } else {
       setSchedules([]);
     }
@@ -157,6 +191,17 @@ const Schedules: React.FC = () => {
       render: (item) => item.notes ?? '-',
     },
     {
+      key: 'stopArrivals',
+      header: 'Stop Arrivals',
+      flex: 1.2,
+      render: (item) => {
+        const count = item.stopArrivals?.length || 0;
+        if (!count) return '-';
+        const firstStop = item.stopArrivals?.[0];
+        return `${count} stop${count > 1 ? 's' : ''}${firstStop ? ` (${firstStop.stopName}: ${firstStop.arrivalTime})` : ''}`;
+      },
+    },
+    {
       key: 'actions',
       header: 'Actions',
       width: 160,
@@ -174,6 +219,7 @@ const Schedules: React.FC = () => {
                 startTime: item.startTime,
                 endTime: item.endTime,
                 notes: item.notes,
+                stopArrivalTimes: toStopArrivalTimeMap(item.stopArrivals),
               });
               setModalVisible(true);
             }}
@@ -244,6 +290,7 @@ const Schedules: React.FC = () => {
         startTime: editFields.startTime as string,
         endTime: editFields.endTime as string,
         notes: editFields.notes as string | undefined,
+        stopArrivals: buildStopArrivalsPayload(),
       });
 
       if (result.success) {
@@ -298,6 +345,7 @@ const Schedules: React.FC = () => {
         startTime: editFields.startTime as string,
         endTime: editFields.endTime as string,
         notes: editFields.notes as string | undefined,
+        stopArrivals: buildStopArrivalsPayload(),
       });
 
       if (result.success) {
@@ -482,6 +530,30 @@ const Schedules: React.FC = () => {
                 onChangeText={(t) => setEditFields(s => ({ ...s, notes: t }))}
                 placeholder="Add any notes..."
               />
+
+              {!!selectedRouteStops.length && (
+                <View style={styles.stopArrivalsContainer}>
+                  <Text style={styles.stopArrivalsTitle}>Stop Arrival Times (Optional)</Text>
+                  <Text style={styles.stopArrivalsHint}>Set arrival time per stop for this bus schedule.</Text>
+                  {selectedRouteStops.map((stop) => (
+                    <Input
+                      key={`edit-stop-${stop.stopName}`}
+                      label={`${stop.sequence}. ${stop.stopName}`}
+                      type="text"
+                      value={String(editFields.stopArrivalTimes?.[stop.stopName] || '')}
+                      onChangeText={(value) => setEditFields((prev) => ({
+                        ...prev,
+                        stopArrivalTimes: {
+                          ...(prev.stopArrivalTimes || {}),
+                          [stop.stopName]: value,
+                        },
+                      }))}
+                      placeholder="HH:MM"
+                      containerStyle={{ marginBottom: 8 }}
+                    />
+                  ))}
+                </View>
+              )}
             </View>
           </Modal>
         </>
@@ -563,6 +635,30 @@ const Schedules: React.FC = () => {
               placeholder="Add any notes..."
             />
 
+            {!!selectedRouteStops.length && (
+              <View style={styles.stopArrivalsContainer}>
+                <Text style={styles.stopArrivalsTitle}>Stop Arrival Times (Optional)</Text>
+                <Text style={styles.stopArrivalsHint}>Set arrival time per stop for this bus schedule.</Text>
+                {selectedRouteStops.map((stop) => (
+                  <Input
+                    key={`add-stop-${stop.stopName}`}
+                    label={`${stop.sequence}. ${stop.stopName}`}
+                    type="text"
+                    value={String(editFields.stopArrivalTimes?.[stop.stopName] || '')}
+                    onChangeText={(value) => setEditFields((prev) => ({
+                      ...prev,
+                      stopArrivalTimes: {
+                        ...(prev.stopArrivalTimes || {}),
+                        [stop.stopName]: value,
+                      },
+                    }))}
+                    placeholder="HH:MM"
+                    containerStyle={{ marginBottom: 8 }}
+                  />
+                ))}
+              </View>
+            )}
+
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16, gap: 8 }}>
               <Button 
                 variant="secondary" 
@@ -623,6 +719,24 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: '#6b7280',
+  },
+  stopArrivalsContainer: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#f9fafb',
+  },
+  stopArrivalsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  stopArrivalsHint: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 8,
   },
 });
 

@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = process.env.EXPO_PUBLIC_API_BASE?.replace('/api', '') || 'https://hamrobus-auos.onrender.com';
+const SOCKET_URL = process.env.EXPO_PUBLIC_API_BASE?.replace('/api', '') || 'http://localhost:3000';
 
 interface DriverLocation {
   busId: string;
