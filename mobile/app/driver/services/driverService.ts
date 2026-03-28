@@ -7,6 +7,13 @@ export interface Stop {
     sequence: number;
 }
 
+export interface StopArrival {
+    stopName: string;
+    stopSequence: number;
+    arrivalTime: string; // HH:MM format
+}
+
+
 export interface ScheduleItem {
     _id: string;
     dayOfWeek: string;
@@ -18,6 +25,7 @@ export interface ScheduleItem {
     startTime: string;
     endTime: string;
     notes?: string;
+    stopArrivals?: StopArrival[];
 }
 
 export interface Route {
@@ -43,6 +51,8 @@ export interface TripSession {
         _id: string;
         busNumber: string;
     };
+    scheduleId?: string;
+    stopArrivals?: StopArrival[];
     status: 'scheduled' | 'in-progress' | 'on-break' | 'completed' | 'cancelled';
     startTime?: Date;
     endTime?: Date;
@@ -63,6 +73,30 @@ export interface TripSession {
     notes?: string;
     createdAt: Date;
     updatedAt: Date;
+}
+
+export interface DriverSeatReservation {
+    seatNumber: string;
+    bookingCode?: string;
+    status?: string;
+    passengerName: string;
+    passengerPhone: string;
+}
+
+export interface DriverScheduleSeatMap {
+    routeId: string;
+    routeName: string;
+    busId: string;
+    busNumber: string;
+    totalSeats: number;
+    schedule: {
+        _id: string;
+        dayOfWeek: string;
+        startTime: string;
+        endTime: string;
+    };
+    serviceDate: string;
+    reservedSeats: DriverSeatReservation[];
 }
 
 const driverService = {
@@ -155,7 +189,15 @@ const driverService = {
     getTodayCompletedTrips: async () => {
         const response = await apiClient.get('/trips/today-completed');
         return response.data;
-    }
+    },
+
+    // Get seat map for a specific schedule/date (driver view)
+    getScheduleSeatMap: async (scheduleId: string, serviceDate: string): Promise<DriverScheduleSeatMap> => {
+        const response = await apiClient.get('/trips/schedule-seat-map', {
+            params: { scheduleId, serviceDate }
+        });
+        return response.data;
+    },
 };
 
 export default driverService;
