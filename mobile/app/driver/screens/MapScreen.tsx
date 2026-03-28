@@ -7,6 +7,7 @@ import { useAppContext } from '../context/AppContext';
 import { useTripActions } from '../hooks/useDriver';
 import RouteStopsPanel from '../component/RouteStopsPanel';
 import PassengerLogModal from '../component/PassengerLogModal';
+import StopDetailModal from '../component/StopDetailModal';
 import OpenStreetMap from '../component/RealTimeMap';
 
 interface Props {
@@ -20,7 +21,9 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
     assignedRoute, 
     routeLoading, 
     currentTrip, 
-    tripLoading 
+    tripLoading,
+    schedules,
+    stopArrivals
   } = useAppContext();
   
   const { updatePassengers, error: tripError } = useTripActions();
@@ -29,6 +32,9 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
   const [tempPassengerCount, setTempPassengerCount] = useState(0);
   const [showStopsPanel, setShowStopsPanel] = useState(false);
   const [showPassengerLog, setShowPassengerLog] = useState(false);
+  const [showStopDetail, setShowStopDetail] = useState(false);
+  const [selectedStop, setSelectedStop] = useState<any>(null);
+  const [isMarkingStop, setIsMarkingStop] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
   const pendingAutoStopRef = useRef<Set<string>>(new Set());
@@ -144,6 +150,28 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
     ? assignedRoute.stops.findIndex(stop => !completedStopSet.has(stop.stopName))
     : -1;
 
+  const resolvedStopArrivals = useMemo(() => {
+    const scheduleId = currentTrip?.scheduleId;
+    const fromAssignedSchedule = scheduleId
+      ? schedules?.find((schedule: any) => String(schedule?._id) === String(scheduleId))?.stopArrivals
+      : null;
+
+    return fromAssignedSchedule || currentTrip?.stopArrivals || stopArrivals || [];
+  }, [currentTrip?.scheduleId, currentTrip?.stopArrivals, schedules, stopArrivals]);
+
+  const getStopArrivalTime = useCallback(
+    (stopName: string) => {
+      const normalized = stopName.trim().toLowerCase();
+      return (
+        resolvedStopArrivals.find(
+          (arrival: { stopName?: string; arrivalTime?: string }) =>
+            arrival?.stopName?.trim?.().toLowerCase?.() === normalized
+        )?.arrivalTime || 'No schedule'
+      );
+    },
+    [resolvedStopArrivals]
+  );
+
   const busStops = assignedRoute?.stops
     ? assignedRoute.stops.map((stop, index) => ({
         id: index + 1,
@@ -154,7 +182,7 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
             ? 'active'
             : 'upcoming' as any,
         passengers: currentTrip?.completedStops?.[index]?.passengersBoarded || 0,
-        time: `${String(8 + Math.floor(index / 4)).padStart(2, '0')}:${String((index * 15) % 60).padStart(2, '0')} AM`,
+        time: getStopArrivalTime(stop.stopName),
         latitude: stop.latitude,
         longitude: stop.longitude
       }))
@@ -284,6 +312,56 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
     }
   };
 
+  // Handle stop marker press - show detail modal
+  const handleStopPress = useCallback((stop: any) => {
+    console.log('🗺️ Stop marker pressed:', stop.name);
+    setSelectedStop(stop);
+    setShowStopDetail(true);
+  }, []);
+
+  // Mark current stop as arrived
+  const handleMarkAsArrived = useCallback(async () => {
+    if (!currentTrip?._id || !selectedStop?.name) {
+      Alert.alert('Error', 'Trip or stop data not available');
+      return;
+    }
+
+    try {
+      setIsMarkingStop(true);
+      // Update with 0 passengers since this is just marking arrival
+      await updatePassengers(currentTrip._id, selectedStop.name, 0, 0);
+      console.log('✅ Stop marked as arrived:', selectedStop.name);
+    } catch (err: any) {
+      throw err;
+    } finally {
+      setIsMarkingStop(false);
+    }
+  }, [currentTrip?._id, selectedStop?.name, updatePassengers]);
+
+  // Mark current stop as completed
+  const handleMarkAsCompleted = useCallback(async () => {
+    if (!currentTrip?._id || !selectedStop?.name) {
+      Alert.alert('Error', 'Trip or stop data not available');
+      return;
+    }
+
+    try {
+      setIsMarkingStop(true);
+      // Mark as completed with current passenger count
+      await updatePassengers(
+        currentTrip._id,
+        selectedStop.name,
+        0,
+        0
+      );
+      console.log('✅ Stop marked as completed:', selectedStop.name);
+    } catch (err: any) {
+      throw err;
+    } finally {
+      setIsMarkingStop(false);
+    }
+  }, [currentTrip?._id, selectedStop?.name, updatePassengers]);
+
   if (routeLoading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -320,9 +398,7 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
         busStops={busStops.length > 0 ? busStops : []}
         routePolyline={routePolyline.length > 0 ? routePolyline : []}
         loading={loading}
-        onStopPress={(stop) => {
-          console.log('Stop pressed:', stop.name);
-        }}
+        onStopPress={handleStopPress}
       />
 
       {/* Floating Action Button - Show Stops */}
@@ -390,6 +466,21 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
           capacity={35} // Typical bus capacity
         />
       )}
+
+      {/* Stop Detail Modal - Shows when stop marker is pressed */}
+      {currentTrip &&
+      <StopDetailModal
+        visible={showStopDetail}
+        stop={selectedStop}
+        isLoading={isMarkingStop}
+        onClose={() => {
+          setShowStopDetail(false);
+          setSelectedStop(null);
+        }}
+        onMarkAsArrived={handleMarkAsArrived}
+        onMarkAsCompleted={handleMarkAsCompleted}
+      />
+}
     </View>
   );
 }
