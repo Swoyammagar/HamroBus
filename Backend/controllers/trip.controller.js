@@ -2,6 +2,7 @@ const TripSession = require('../models/tripSession.model');
 const Driver = require('../models/driver.model');
 const Route = require('../models/route.model');
 const Bus = require('../models/bus.model');
+const Booking = require('../models/booking.model');
 const {
     syncBookingsOnTripStart,
     completeBookingsByReachedStop,
@@ -500,6 +501,100 @@ const getTodayCompletedTrips = async (req, res) => {
     }
 };
 
+// Get seat reservations (with passenger basic details) for a specific upcoming schedule occurrence
+const getScheduleSeatMap = async (req, res) => {
+    const driverId = req.user.id;
+    const { scheduleId, serviceDate } = req.query;
+
+    try {
+        if (!scheduleId || !serviceDate) {
+            return res.status(400).json({ message: 'scheduleId and serviceDate are required' });
+        }
+
+        const parsedServiceDate = new Date(serviceDate);
+        if (Number.isNaN(parsedServiceDate.getTime())) {
+            return res.status(400).json({ message: 'serviceDate must be a valid date (YYYY-MM-DD)' });
+        }
+
+        const dayStart = new Date(parsedServiceDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+
+        const driver = await Driver.findById(driverId).populate({
+            path: 'assignedBus',
+            select: '_id busNumber capacity assignedRouteId'
+        });
+
+        if (!driver || !driver.assignedBus || !driver.assignedBus.assignedRouteId) {
+            return res.status(404).json({ message: 'Driver bus/route assignment not found' });
+        }
+
+        const route = await Route.findById(driver.assignedBus.assignedRouteId).select('routeName schedules');
+        if (!route) {
+            return res.status(404).json({ message: 'Assigned route not found' });
+        }
+
+        const schedule = route.schedules.id(scheduleId);
+        if (!schedule) {
+            return res.status(404).json({ message: 'Schedule not found on assigned route' });
+        }
+
+        const scheduleDriverId = schedule.driverId?.toString?.() || String(schedule.driverId || '');
+        const scheduleBusId = schedule.busId?.toString?.() || String(schedule.busId || '');
+
+        if (
+            scheduleDriverId !== String(driverId) ||
+            scheduleBusId !== String(driver.assignedBus._id)
+        ) {
+            return res.status(403).json({ message: 'This schedule is not assigned to the authenticated driver' });
+        }
+
+        const bookings = await Booking.find({
+            routeId: route._id,
+            busId: driver.assignedBus._id,
+            scheduleId: scheduleId,
+            serviceDate: { $gte: dayStart, $lt: dayEnd },
+            status: { $in: ['confirmed', 'in-progress'] }
+        })
+            .populate('passengerId', 'firstName lastName phoneNumber')
+            .select('bookingCode seatNumbers passengerId status')
+            .lean();
+
+        const reservedSeats = bookings.flatMap((booking) => {
+            const passenger = booking.passengerId || {};
+            const passengerName = [passenger.firstName, passenger.lastName].filter(Boolean).join(' ').trim();
+
+            return (booking.seatNumbers || []).map((seatNumber) => ({
+                seatNumber,
+                bookingCode: booking.bookingCode,
+                status: booking.status,
+                passengerName: passengerName || 'Passenger',
+                passengerPhone: passenger.phoneNumber || ''
+            }));
+        });
+
+        return res.status(200).json({
+            routeId: route._id,
+            routeName: route.routeName,
+            busId: driver.assignedBus._id,
+            busNumber: driver.assignedBus.busNumber,
+            totalSeats: driver.assignedBus.capacity,
+            schedule: {
+                _id: schedule._id,
+                dayOfWeek: schedule.dayOfWeek,
+                startTime: schedule.startTime,
+                endTime: schedule.endTime
+            },
+            serviceDate: dayStart,
+            reservedSeats
+        });
+    } catch (error) {
+        console.error('Error fetching schedule seat map:', error);
+        return res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 module.exports = {
     getAssignedRoute,
     getDriverSchedules,
@@ -510,5 +605,6 @@ module.exports = {
     endBreak,
     updatePassengerCount,
     getTripHistory,
-    getTodayCompletedTrips
+    getTodayCompletedTrips,
+    getScheduleSeatMap
 };
