@@ -27,6 +27,7 @@ export default function OpenStreetMap({
   busStops,
   routePolyline,
   loading,
+  onStopPress,
 }: OpenStreetMapProps) {
 
   const webViewRef = useRef<WebView>(null);
@@ -321,9 +322,17 @@ function updateStepHighlight(lat,lng){
 ========================= */
 
 stops.forEach(stop=>{
-  L.marker([stop.latitude,stop.longitude])
+  const marker = L.marker([stop.latitude,stop.longitude])
     .bindPopup(stop.name)
     .addTo(map);
+
+  marker.on('click', () => {
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({ type: 'stopPressed', stop })
+      );
+    }
+  });
 });
 
 /* =========================
@@ -358,6 +367,17 @@ btn.addEventListener("click",()=>{
         onMessage={(event) => {
           const message = event.nativeEvent.data;
           console.log('📨 WebView message received:', message);
+
+          try {
+            const payload = JSON.parse(message);
+            if (payload?.type === 'stopPressed' && payload?.stop && onStopPress) {
+              onStopPress(payload.stop);
+              return;
+            }
+          } catch {
+            // Non-JSON messages are expected for lifecycle signals.
+          }
+
           if (message === 'mapReady') {
             console.log('✅ Map ready signal received!');
             setMapReady(true);

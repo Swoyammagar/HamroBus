@@ -114,7 +114,10 @@ export default function RouteStopsPanel({
 
                 <View style={styles.stopInfo}>
                   <Text style={styles.stopName}>{stop.name}</Text>
-                  <Text style={styles.stopTime}>{stop.time}</Text>
+                  <View style={styles.stopTimeContainer}>
+                    <Feather name="clock" size={12} color={palette.muted} />
+                    <Text style={styles.stopTime}>{stop.time || 'No schedule'}</Text>
+                  </View>
                 </View>
 
                 {stop.passengers > 0 && (
@@ -314,10 +317,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
+  stopTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
   stopTime: {
     color: palette.muted,
     fontSize: 12,
-    marginTop: 2,
   },
   passengerBadge: {
     flexDirection: 'row',
