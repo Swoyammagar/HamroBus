@@ -10,7 +10,8 @@ const {
     endBreak,
     updatePassengerCount,
     getTripHistory,
-    getTodayCompletedTrips
+    getTodayCompletedTrips,
+    getScheduleSeatMap
 } = require('../controllers/trip.controller');
 const { authenticateDriver } = require('../middlewares/mobile.auth.middleware');
 
@@ -19,6 +20,7 @@ router.get('/assigned-route', authenticateDriver, getAssignedRoute);
 router.get('/schedules', authenticateDriver, getDriverSchedules);
 router.get('/current', authenticateDriver, getCurrentTrip);
 router.get('/today-completed', authenticateDriver, getTodayCompletedTrips);
+router.get('/schedule-seat-map', authenticateDriver, getScheduleSeatMap);
 router.post('/start', authenticateDriver, startTrip);
 router.post('/end', authenticateDriver, endTrip);
 router.post('/break/start', authenticateDriver, startBreak);
