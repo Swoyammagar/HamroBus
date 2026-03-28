@@ -1,5 +1,5 @@
 import { useContext, createContext, useState, useCallback, useEffect, useRef } from 'react';
-import { Route, Stop, TripSession } from '../services/driverService';
+import { Route, Stop, TripSession, StopArrival } from '../services/driverService';
 import driverService from '../services/driverService';
 import socketService from '../services/socketService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,6 +25,9 @@ type DriverContextType = {
   currentTrip: TripSession | null;
   tripLoading: boolean;
   tripError: string | null;
+  // Stop Arrivals Data
+  stopArrivals: StopArrival[] | null;
+  stopArrivalsLoading: boolean;
 
   // Refresh Functions
   refreshRoute: () => Promise<void>;
@@ -53,6 +56,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentTrip, setCurrentTrip] = useState<TripSession | null>(null);
   const [tripLoading, setTripLoading] = useState(false);
   const [tripError, setTripError] = useState<string | null>(null);
+    // Stop arrivals data
+    const [stopArrivals, setStopArrivals] = useState<StopArrival[] | null>(null);
+    const [stopArrivalsLoading, setStopArrivalsLoading] = useState(false);
+
   
   const [announcement, setAnnouncement] = useState({
     show: false,
@@ -140,7 +147,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshTrip = useCallback(async () => {
     await fetchCurrentTrip(false);
   }, [fetchCurrentTrip]);
-
+  
   const refreshAll = useCallback(async () => {
     await Promise.all([
       fetchAssignedRoute(false),
@@ -218,6 +225,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchAssignedRoute, fetchCurrentTrip]);
 
+  // Fetch stop arrivals when trip is in-progress.
+  useEffect(() => {
+    if (!currentTrip?.scheduleId || !Array.isArray(schedules)) {
+      setStopArrivals(null);
+      setStopArrivalsLoading(false);
+      return;
+    }
+
+    setStopArrivalsLoading(true);
+    const matchedSchedule = schedules.find(
+      (schedule: any) => String(schedule?._id) === String(currentTrip.scheduleId)
+    );
+
+    setStopArrivals(matchedSchedule?.stopArrivals || null);
+    setStopArrivalsLoading(false);
+  }, [currentTrip?.scheduleId, schedules]);
+
   return (
     <AppContext.Provider value={{
       isOnline,
@@ -233,6 +257,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currentTrip,
       tripLoading,
       tripError,
+        stopArrivals,
+        stopArrivalsLoading,
       refreshRoute,
       refreshTrip,
       refreshAll,
