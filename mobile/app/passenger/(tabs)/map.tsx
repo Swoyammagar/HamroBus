@@ -16,10 +16,12 @@ import PassengerMap from '../components/PassengerMap';
 import FloatingBusButton from '../components/FloatingBusButton';
 import BusesPanelSheet from '../components/BusesPanelSheet';
 import BusDetailsModal from '../components/BusDetailsModal';
+import StopArrivalsModal from '../components/StopArrivalsModal';
 import { useRoutes } from '../hooks/useRoutes';
 import { useBuses } from '../hooks/useBuses';
 import { useRouteSchedules } from '../hooks/useRouteSchedules';
 import { useDriverTracking } from '../hooks/useDriverTracking';
+import { routeService, type StopArrivalItem } from '../services/routeService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -35,6 +37,10 @@ const MapTab = () => {
   const [selectedBusModal, setSelectedBusModal] = useState(false);
   const [selectedBusForModal, setSelectedBusForModal] = useState<Bus | null>(null);
   const [showBusesPanel, setShowBusesPanel] = useState(false);
+  const [showStopArrivalsModal, setShowStopArrivalsModal] = useState(false);
+  const [selectedStopName, setSelectedStopName] = useState('');
+  const [stopArrivals, setStopArrivals] = useState<StopArrivalItem[]>([]);
+  const [stopArrivalsLoading, setStopArrivalsLoading] = useState(false);
   const routeIdValue = Array.isArray(routeId) ? routeId[0] : routeId;
   const routeList = Array.isArray(routes) && routes.length > 0
     ? routes
@@ -201,6 +207,27 @@ const MapTab = () => {
     setSelectedBusModal(true);
   };
 
+  const handleStopPress = async (stop: { name: string }) => {
+    if (!selectedRouteForMap) return;
+
+    const routeIdParam = String(selectedRouteForMap._id || selectedRouteForMap.id || '');
+    if (!routeIdParam) return;
+
+    setSelectedStopName(stop.name);
+    setShowStopArrivalsModal(true);
+    setStopArrivalsLoading(true);
+
+    try {
+      const data = await routeService.getStopArrivalsByStop(routeIdParam, stop.name);
+      setStopArrivals(data.arrivals || []);
+    } catch (error: any) {
+      setStopArrivals([]);
+      Alert.alert('Could not load arrivals', error?.response?.data?.message || 'Please try again.');
+    } finally {
+      setStopArrivalsLoading(false);
+    }
+  };
+
   const selectedBusSchedules = React.useMemo(() => {
     if (!selectedBusForModal) return [];
     const busIdValue = selectedBusForModal._id || selectedBusForModal.id;
@@ -251,6 +278,7 @@ const MapTab = () => {
             longitude: stop.longitude,
           }))}
           driverLocations={driverLocations}
+          onStopPress={handleStopPress}
           showUserLocation={false}
         />
 
@@ -292,6 +320,14 @@ const MapTab = () => {
           schedules={selectedBusSchedules}
           onClose={() => setSelectedBusModal(false)}
           onBookNow={handleBookBus}
+        />
+
+        <StopArrivalsModal
+          visible={showStopArrivalsModal}
+          loading={stopArrivalsLoading}
+          stopName={selectedStopName}
+          arrivals={stopArrivals}
+          onClose={() => setShowStopArrivalsModal(false)}
         />
       </View>
     );
