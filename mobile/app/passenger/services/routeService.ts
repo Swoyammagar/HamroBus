@@ -40,6 +40,34 @@ export interface Schedule {
   isActive?: boolean;
 }
 
+export interface StopArrivalItem {
+  scheduleId?: string;
+  dayOfWeek?: string;
+  arrivalTime: string;
+  bus?: {
+    _id?: string;
+    busNumber?: string;
+    registrationNumber?: string;
+  };
+  driver?: {
+    _id?: string;
+    firstName?: string;
+    lastName?: string;
+  };
+}
+
+export interface StopArrivalsResponse {
+  routeId?: string;
+  routeName?: string;
+  stop?: {
+    stopName?: string;
+    sequence?: number;
+    latitude?: number;
+    longitude?: number;
+  };
+  arrivals: StopArrivalItem[];
+}
+
 export const routeService = {
   // Get all routes
   getAllRoutes: async (): Promise<Route[]> => {
@@ -57,6 +85,19 @@ export const routeService = {
   getSchedulesByRoute: async (routeId: string): Promise<Schedule[]> => {
     const response = await apiClient.get(`/passenger/routes/${routeId}/schedules`);
     return response.data?.schedules || response.data || [];
+  },
+
+  // Get all scheduled arrivals for a selected stop in a route
+  getStopArrivalsByStop: async (routeId: string, stopName: string): Promise<StopArrivalsResponse> => {
+    const encodedStopName = encodeURIComponent(stopName);
+    const response = await apiClient.get(`/routes/${routeId}/stops/${encodedStopName}/arrivals`);
+
+    return {
+      routeId: response.data?.routeId,
+      routeName: response.data?.routeName,
+      stop: response.data?.stop,
+      arrivals: response.data?.arrivals || [],
+    };
   },
 
   searchRoutes: async (query: string): Promise<Route[]> => {
