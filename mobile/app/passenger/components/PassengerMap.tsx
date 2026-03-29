@@ -53,6 +53,7 @@ export default function PassengerMap({
   driverLocations,
   currentLocation,
   loading = false,
+  onStopPress,
   showUserLocation = false,
 }: PassengerMapProps) {
   const webViewRef = useRef<WebView>(null);
@@ -268,6 +269,15 @@ drawRoadRoute();
       const marker = L.marker([stop.latitude, stop.longitude], { icon })
         .bindPopup(\`<b>\${stop.name}</b><br>Stop #\${index + 1}\`)
         .addTo(map);
+
+        marker.on('click', function() {
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'stopPressed',
+              stop: stop,
+            }));
+          }
+        });
       
       busStopMarkers.push(marker);
     });
@@ -445,6 +455,16 @@ drawRoadRoute();
         onMessage={(event) => {
           const message = event.nativeEvent.data;
           console.log('📨 [PASSENGER MAP] WebView message:', message);
+
+            try {
+              const payload = JSON.parse(message);
+              if (payload?.type === 'stopPressed' && payload?.stop && onStopPress) {
+                onStopPress(payload.stop);
+                return;
+              }
+            } catch {
+              // Non-JSON lifecycle messages are expected.
+            }
           
           if (message === 'driverLocationFunctionReady') {
             console.log('✅ [PASSENGER MAP] Driver location function is ready!');
