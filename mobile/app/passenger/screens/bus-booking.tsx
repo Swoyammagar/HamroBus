@@ -163,21 +163,44 @@ const BusBooking = () => {
 
   const generateSeatsGrid = () => {
     const totalSeats = availabilityData?.totalSeats || bus?.totalCapacity || bus?.capacity || 50;
-    const seatsPerRow = 4;
+    const lastRowCount = totalSeats >= 5 ? 5 : totalSeats;
+    const regularSeatCount = totalSeats - lastRowCount;
+    const regularRowsCount = Math.ceil(regularSeatCount / 4);
     const seats = [];
 
-    for (let i = 1; i <= totalSeats; i++) {
-      const label = `${String.fromCharCode(65 + Math.floor((i - 1) / seatsPerRow))}${
-        ((i - 1) % seatsPerRow) + 1
-      }`;
-      const isTaken = availabilityData
-        ? availabilityData.takenSeats.includes(label)
-        : false;
-      seats.push({
-        id: label,
-        number: label,
-        available: !isTaken,
-      });
+    for (let rowIndex = 0; rowIndex < regularRowsCount; rowIndex++) {
+      for (let position = 1; position <= 4; position++) {
+        const seatNumber = rowIndex * 4 + position;
+        if (seatNumber > regularSeatCount) {
+          continue;
+        }
+        const label = `${String.fromCharCode(65 + rowIndex)}${position}`;
+        const isTaken = availabilityData ? availabilityData.takenSeats.includes(label) : false;
+        seats.push({
+          id: label,
+          number: label,
+          available: !isTaken,
+          rowType: 'regular' as const,
+          rowIndex,
+          position,
+        });
+      }
+    }
+
+    if (lastRowCount > 0) {
+      const lastRowIndex = regularRowsCount;
+      for (let position = 1; position <= lastRowCount; position++) {
+        const label = `${String.fromCharCode(65 + lastRowIndex)}${position}`;
+        const isTaken = availabilityData ? availabilityData.takenSeats.includes(label) : false;
+        seats.push({
+          id: label,
+          number: label,
+          available: !isTaken,
+          rowType: 'last' as const,
+          rowIndex: lastRowIndex,
+          position,
+        });
+      }
     }
 
     return seats;
@@ -387,7 +410,22 @@ const BusBooking = () => {
   }
 
   const seats = generateSeatsGrid();
-  const seatsPerRow = 4;
+  const regularSeatRows = seats
+    .filter((seat) => seat.rowType === 'regular')
+    .reduce<Record<number, typeof seats>>((acc, seat) => {
+      if (!acc[seat.rowIndex]) {
+        acc[seat.rowIndex] = [];
+      }
+      acc[seat.rowIndex].push(seat);
+      return acc;
+    }, {});
+  const orderedRegularRows = Object.keys(regularSeatRows)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((rowIndex) => regularSeatRows[rowIndex]);
+  const lastRowSeats = seats
+    .filter((seat) => seat.rowType === 'last')
+    .sort((a, b) => a.position - b.position);
 
   return (
     <View style={styles.container}>
@@ -503,13 +541,85 @@ const BusBooking = () => {
             <ActivityIndicator size="small" color="#3b82f6" style={{ marginVertical: 12 }} />
           ) : (
             <View style={styles.seatsGrid}>
-              {Array.from({ length: Math.ceil(seats.length / seatsPerRow) }).map((_, rowIndex) => (
-                <View key={rowIndex} style={styles.seatsRow}>
-                  {seats.slice(rowIndex * seatsPerRow, (rowIndex + 1) * seatsPerRow).map(seat => (
+              {orderedRegularRows.map((rowSeats, rowIndex) => {
+                const leftSeats = rowSeats.filter((seat) => seat.position <= 2);
+                const rightSeats = rowSeats.filter((seat) => seat.position >= 3);
+
+                return (
+                  <View key={`regular-${rowIndex}`} style={styles.busRegularRow}>
+                    <View style={styles.busSeatGroup}>
+                      {[0, 1].map((index) => {
+                        const seat = leftSeats[index];
+                        if (!seat) {
+                          return <View key={`regular-left-empty-${rowIndex}-${index}`} style={styles.emptySeatSlot} />;
+                        }
+                        return (
+                          <TouchableOpacity
+                            key={seat.id}
+                            style={[
+                              styles.seat,
+                              !seat.available && styles.seatUnavailable,
+                              selectedSeats.includes(seat.id) && styles.seatSelected,
+                            ]}
+                            onPress={() => seat.available && handleSeatToggle(seat.id)}
+                            disabled={!seat.available}
+                          >
+                            <Text
+                              style={[
+                                styles.seatText,
+                                selectedSeats.includes(seat.id) && styles.seatTextSelected,
+                              ]}
+                            >
+                              {seat.number}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <View style={styles.aisleGap} />
+
+                    <View style={styles.busSeatGroup}>
+                      {[0, 1].map((index) => {
+                        const seat = rightSeats[index];
+                        if (!seat) {
+                          return <View key={`regular-right-empty-${rowIndex}-${index}`} style={styles.emptySeatSlot} />;
+                        }
+                        return (
+                          <TouchableOpacity
+                            key={seat.id}
+                            style={[
+                              styles.seat,
+                              !seat.available && styles.seatUnavailable,
+                              selectedSeats.includes(seat.id) && styles.seatSelected,
+                            ]}
+                            onPress={() => seat.available && handleSeatToggle(seat.id)}
+                            disabled={!seat.available}
+                          >
+                            <Text
+                              style={[
+                                styles.seatText,
+                                selectedSeats.includes(seat.id) && styles.seatTextSelected,
+                              ]}
+                            >
+                              {seat.number}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })}
+
+              {lastRowSeats.length > 0 && (
+                <View style={styles.busLastRow}>
+                  {lastRowSeats.map((seat) => (
                     <TouchableOpacity
                       key={seat.id}
                       style={[
                         styles.seat,
+                        styles.lastRowSeat,
                         !seat.available && styles.seatUnavailable,
                         selectedSeats.includes(seat.id) && styles.seatSelected,
                       ]}
@@ -527,7 +637,7 @@ const BusBooking = () => {
                     </TouchableOpacity>
                   ))}
                 </View>
-              ))}
+              )}
             </View>
           )}
 
@@ -816,13 +926,31 @@ const styles = StyleSheet.create({
   seatsGrid: {
     marginBottom: 16,
   },
-  seatsRow: {
+  busRegularRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
   },
+  busSeatGroup: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  aisleGap: {
+    width: 26,
+  },
+  busLastRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  emptySeatSlot: {
+    width: 56,
+    aspectRatio: 1,
+  },
   seat: {
-    flex: 0.22,
+    width: 56,
     aspectRatio: 1,
     backgroundColor: '#e5e7eb',
     borderRadius: 8,
@@ -830,6 +958,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#d1d5db',
+  },
+  lastRowSeat: {
+    width: 48,
   },
   seatUnavailable: {
     backgroundColor: '#fecaca',
