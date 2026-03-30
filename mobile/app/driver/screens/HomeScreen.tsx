@@ -7,6 +7,7 @@ import { useAppContext } from '../context/AppContext';
 import { useTripActions } from '../hooks/useDriver';
 import StartTripModal from '../component/StartTripModal';
 import PassengerLogModal from '../component/PassengerLogModal';
+import NextTripSeatModal, { type SeatReservation } from '../component/NextTripSeatModal';
 import driverService from '../services/driverService';
 
 interface Props {
@@ -32,6 +33,11 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<any>(null);
   const [completedScheduleIds, setCompletedScheduleIds] = useState<Set<string>>(new Set());
+  const [showSeatMapModal, setShowSeatMapModal] = useState(false);
+  const [seatMapLoading, setSeatMapLoading] = useState(false);
+  const [seatMapError, setSeatMapError] = useState<string | null>(null);
+  const [seatMapTotalSeats, setSeatMapTotalSeats] = useState(45);
+  const [seatMapReservations, setSeatMapReservations] = useState<SeatReservation[]>([]);
 
   // Fetch today's completed trips on mount and after trip end
   useEffect(() => {
@@ -89,6 +95,20 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
         const [bHour, bMin] = b.startTime.split(':').map(Number);
         return (aHour * 60 + aMin) - (bHour * 60 + bMin);
       });
+  };
+
+  const getNextOccurrenceOfDay = (dayName: string): string => {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const targetDay = days.indexOf(dayName);
+    if (targetDay < 0) return new Date().toISOString().split('T')[0];
+
+    const today = new Date();
+    const todayDay = today.getDay();
+    const daysUntil = (targetDay - todayDay + 7) % 7;
+
+    const result = new Date(today);
+    result.setDate(result.getDate() + daysUntil);
+    return result.toISOString().split('T')[0];
   };
 
   // Get next schedule that hasn't been completed today
@@ -199,6 +219,31 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       setShowPassengerLog(true);
     } else {
       Alert.alert('Error', 'No active trip found');
+    }
+  };
+
+  const handleOpenNextTripSeatMap = async () => {
+    const schedule = getNextSchedule();
+    if (!schedule?._id) {
+      Alert.alert('No next trip', 'No upcoming schedule found for seat map.');
+      return;
+    }
+
+    const serviceDate = getNextOccurrenceOfDay(schedule.dayOfWeek || '');
+    setSelectedSchedule(schedule);
+    setShowSeatMapModal(true);
+    setSeatMapLoading(true);
+    setSeatMapError(null);
+
+    try {
+      const data = await driverService.getScheduleSeatMap(String(schedule._id), serviceDate);
+      setSeatMapTotalSeats(Number(data?.totalSeats || 45));
+      setSeatMapReservations(data?.reservedSeats || []);
+    } catch (error: any) {
+      setSeatMapReservations([]);
+      setSeatMapError(error?.response?.data?.message || 'Failed to load seat reservations');
+    } finally {
+      setSeatMapLoading(false);
     }
   };
 
@@ -425,7 +470,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       </View>
 
       {nextSchedule && !currentTrip && (
-        <View style={[styles.panel, shadow.card]}>
+        <Pressable style={[styles.panel, shadow.card]} onPress={handleOpenNextTripSeatMap}>
           <View style={styles.panelHeader}>
             <Text style={styles.panelTitle}>Next Trip</Text>
             <Text style={styles.panelSub}>
@@ -438,6 +483,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
               <Text style={styles.panelSub}>
                 {nextSchedule.startTime} - {nextSchedule.endTime}
               </Text>
+              <Text style={[styles.panelSub, { marginTop: 6 }]}>Tap to view reserved seats</Text>
             </View>
             <Feather name="chevron-right" size={18} color={palette.muted} />
           </View>
@@ -453,7 +499,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
               </Text>
             </Pressable>
           )}
-        </View>
+        </Pressable>
       )}
 
       {!nextSchedule && !currentTrip && todaySchedules.length === 0 && (
@@ -524,6 +570,16 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
         onClose={() => setShowPassengerLog(false)}
         capacity={45}
         isLoading={tripActionLoading}
+      />
+
+      <NextTripSeatModal
+        visible={showSeatMapModal}
+        loading={seatMapLoading}
+        error={seatMapError}
+        scheduleLabel={selectedSchedule ? `${selectedSchedule.dayOfWeek} • ${selectedSchedule.startTime} - ${selectedSchedule.endTime}` : 'Next Trip'}
+        totalSeats={seatMapTotalSeats}
+        reservedSeats={seatMapReservations}
+        onClose={() => setShowSeatMapModal(false)}
       />
     </ScrollView>
   );
