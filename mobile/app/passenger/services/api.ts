@@ -12,6 +12,36 @@ const apiClient = axios.create({
   },
 });
 
+let refreshPromise: Promise<string | null> | null = null;
+
+const refreshMobileAccessToken = async (): Promise<string | null> => {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const refreshToken = await AsyncStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        return null;
+      }
+
+      try {
+        const response = await axios.post(`${API_BASE_URL}/auth/refresh-mobile`, { refreshToken });
+        const newToken = response.data?.accessToken;
+        if (!newToken) {
+          return null;
+        }
+
+        await AsyncStorage.setItem('authToken', newToken);
+        return newToken;
+      } catch (error) {
+        return null;
+      }
+    })().finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
+};
+
 // Add auth token to requests
 apiClient.interceptors.request.use(
   async (config) => {
@@ -29,11 +59,27 @@ apiClient.interceptors.request.use(
 // Handle response errors
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-        router.push('/pages/mobilelogin');
-        AsyncStorage.removeItem('authToken');
+  async (error) => {
+    const originalRequest = error.config || {};
+    const status = error.response?.status;
+    const requestUrl = String(originalRequest?.url || '');
+    const isRefreshCall = requestUrl.includes('/auth/refresh-mobile');
+
+    if (status === 401 && !originalRequest._retry && !isRefreshCall) {
+      originalRequest._retry = true;
+
+      const newToken = await refreshMobileAccessToken();
+      if (newToken) {
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        return apiClient(originalRequest);
+      }
+
+      await AsyncStorage.removeItem('authToken');
+      await AsyncStorage.removeItem('refreshToken');
+      router.push('/pages/mobilelogin');
     }
+
     return Promise.reject(error);
   }
 );
