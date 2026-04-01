@@ -23,6 +23,7 @@ const {
     getSeatAvailability,
 } = require('../controllers/passenger/booking.controller');
 const { authenticatePassenger } = require('../middlewares/mobile.auth.middleware');
+const { initiateKhaltiPayment, verifyKhaltiPayment, khaltiReturnBridge } = require('../controllers/payment.comtroller');
 
 // Public routes
 router.post('/register', registerPassenger);
@@ -35,6 +36,7 @@ router.get('/buses', getPublicBuses);
 router.get('/buses/route/:routeId', getPublicBusesByRoute);
 router.get('/buses/:busId', getPublicBusById);
 router.get('/drivers/:driverId', getPublicDriverById);
+router.get('/payments/khalti-return', khaltiReturnBridge);
 
 // Protected routes (require authentication)
 router.get('/profile', authenticatePassenger, getPassengerProfile);
@@ -43,5 +45,7 @@ router.get('/bookings', authenticatePassenger, getMyBookings);
 router.post('/bookings', authenticatePassenger, createBooking);
 router.post('/bookings/:bookingId/cancel', authenticatePassenger, cancelBooking);
 router.get('/bookings/availability', authenticatePassenger, getSeatAvailability);
+router.post('/payments/initiate-khalti', authenticatePassenger, initiateKhaltiPayment);
+router.post('/payments/verify-khalti', authenticatePassenger, verifyKhaltiPayment);
 
 module.exports = router;
