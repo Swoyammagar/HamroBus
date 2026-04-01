@@ -110,6 +110,11 @@ const bookingSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
+    paymentStatus: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     status: {
       type: String,
       enum: ['confirmed', 'cancelled', 'in-progress', 'completed'],
@@ -133,6 +138,35 @@ const bookingSchema = new mongoose.Schema(
     completedAt: {
       type: Date,
       required: false,
+    },
+    payment: {
+      status: {
+        type: String,
+        enum: ['pending', 'paid', 'failed'],
+        default: 'pending',
+      },
+      method: {
+        type: String,
+        default: 'khalti',
+      },
+      khaltiToken: {
+        type: String,
+      },
+      paidAt: {
+        type: Date,
+      },
+      amount: {
+        type: Number,
+      },
+      khaltiIdx: {
+        type: String,
+      },
+      paymentUrl: {
+        type: String,
+      },
+      returnUrl: {
+        type: String,
+      },
     },
   },
   {
