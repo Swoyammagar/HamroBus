@@ -89,6 +89,7 @@ const mapBookingResponse = (booking) => ({
   seatCount: booking.seatCount,
   farePerSeat: booking.farePerSeat,
   totalFare: booking.totalFare,
+  paymentStatus: Boolean(booking.paymentStatus || booking.payment?.status === 'paid'),
   status: booking.status,
   cancelledAt: booking.cancelledAt,
   cancellationReason: booking.cancellationReason,
@@ -96,6 +97,7 @@ const mapBookingResponse = (booking) => ({
   completedAt: booking.completedAt,
   createdAt: booking.createdAt,
   updatedAt: booking.updatedAt,
+  payment: booking.payment,
 });
 
 const createBooking = async (req, res) => {
