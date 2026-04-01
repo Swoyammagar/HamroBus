@@ -1,38 +1,41 @@
-const nodemailer = require("nodemailer");
+const sgMail = require("@sendgrid/mail");
 const path = require("path");
+const fs = require("fs");
 require("dotenv").config();
+
+// Set API Key
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const sendEmail = async (email, html, subject, cc = [], bcc = []) => {
   try {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.NODE_MAILER_EMAIL,
-        pass: process.env.NODE_MAILER_PASSWORD,
-      },
-    });
+    // Read and encode image as base64 (for inline logo)
+    const logoPath = path.join(__dirname, "hamrobuslogo.png");
+    const logoBase64 = fs.readFileSync(logoPath).toString("base64");
 
-    const mailOptions = {
-      from: process.env.NODE_MAILER_EMAIL,
+    const msg = {
       to: email,
+      from: process.env.SENDGRID_VERIFIED_EMAIL, // MUST be verified in SendGrid
       subject: subject,
       html: html,
       cc: cc,
       bcc: bcc,
       attachments: [
         {
+          content: logoBase64,
           filename: "hamrobuslogo.png",
-          path: path.join(__dirname, "hamrobuslogo.png"), // Put the logo in /utils
-          cid: "hamrobuslogo", // Refer this in the HTML img tag
+          type: "image/png",
+          disposition: "inline",
+          content_id: "hamrobuslogo", // use cid:hamrobuslogo in HTML
         },
       ],
     };
 
-    const response = await transporter.sendMail(mailOptions);
+    const response = await sgMail.send(msg);
     console.log("✅ Email sent successfully.");
     return { success: true, response };
   } catch (error) {
-    console.error("❌ Email failed to send: " + error);
+    console.error("❌ Email failed to send:");
+    console.error(error.response?.body || error.message);
     return { success: false, error: error.message };
   }
 };

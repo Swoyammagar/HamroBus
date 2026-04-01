@@ -26,7 +26,7 @@ const getTemplate = (otp, username, greeting, message, note) => `
       </div>
       <p style="font-size: 14px; color: #777; text-align: center;">${note}</p>
       <p style="text-align: center; font-size: 12px; color: #aaa; margin-top: 40px;">
-        © 2025 Finance Fusion. All rights reserved.
+        © 2025 Hamro Bus. All rights reserved.
       </p>
     </div>
   </div>
