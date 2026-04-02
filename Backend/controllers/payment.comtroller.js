@@ -40,6 +40,11 @@ const lookupKhaltiByPidx = async (pidx) => {
   return { response, data };
 };
 
+const isKhaltiFailedStatus = (status) =>
+  ['expired', 'refunded', 'canceled', 'cancelled', 'failed'].includes(
+    String(status || '').toLowerCase()
+  );
+
 const khaltiReturnBridge = async (req, res) => {
   try {
     const deepLinkBase = String(process.env.MOBILE_APP_DEEP_LINK || 'mobile://khalti-return').trim();
@@ -105,7 +110,9 @@ const initiateKhaltiPayment = async (req, res) => {
         booking.payment.khaltiIdx
       );
 
-      if (lookupResponse.ok && String(lookupData?.status || '').toLowerCase() === 'completed') {
+      const khaltiStatus = String(lookupData?.status || '').toLowerCase();
+
+      if (lookupResponse.ok && khaltiStatus === 'completed') {
         booking.payment = {
           ...(booking.payment || {}),
           status: 'paid',
@@ -128,14 +135,26 @@ const initiateKhaltiPayment = async (req, res) => {
         });
       }
 
-      return res.status(200).json({
-        success: true,
-        message: 'Existing Khalti payment is still processing. Please continue with the same payment session.',
-        bookingId: booking._id,
-        paymentStatus: false,
-        pidx: booking.payment.khaltiIdx,
-        paymentUrl: booking.payment?.paymentUrl,
-      });
+      if (lookupResponse.ok && isKhaltiFailedStatus(khaltiStatus)) {
+        // Old session is no longer payable; mark failed and create a fresh session below.
+        booking.payment = {
+          ...(booking.payment || {}),
+          status: 'failed',
+          khaltiIdx: String(booking.payment?.khaltiIdx || ''),
+          paidAt: booking.payment?.paidAt,
+        };
+        booking.paymentStatus = false;
+        await booking.save();
+      } else {
+        return res.status(200).json({
+          success: true,
+          message: 'Existing Khalti payment is still processing. Please continue with the same payment session.',
+          bookingId: booking._id,
+          paymentStatus: false,
+          pidx: booking.payment.khaltiIdx,
+          paymentUrl: booking.payment?.paymentUrl,
+        });
+      }
     }
 
     const amount = Math.round(Number(booking.totalFare || 0) * 100);
@@ -163,11 +182,12 @@ const initiateKhaltiPayment = async (req, res) => {
       });
     }
 
+    const purchaseOrderId = `${String(booking._id)}-${Date.now()}`;
     const payload = {
       return_url: resolvedReturnUrl,
       website_url: resolvedWebsiteUrl,
       amount,
-      purchase_order_id: String(booking._id),
+      purchase_order_id: purchaseOrderId,
       purchase_order_name: `Bus booking ${booking.bookingCode}`,
     };
 
