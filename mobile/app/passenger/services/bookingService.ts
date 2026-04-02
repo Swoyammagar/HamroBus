@@ -29,6 +29,15 @@ export interface BookingResponse {
   seatCount: number;
   farePerSeat: number;
   totalFare: number;
+  paymentStatus?: boolean;
+  payment?: {
+    status?: 'pending' | 'paid' | 'failed';
+    method?: string;
+    khaltiToken?: string;
+    paidAt?: string;
+    amount?: number;
+    khaltiIdx?: string;
+  };
   status: 'confirmed' | 'in-progress' | 'completed' | 'cancelled';
   cancelledAt?: string;
   cancellationReason?: string;
