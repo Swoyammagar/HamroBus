@@ -20,6 +20,7 @@ export default function RootLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="pages" />
             <Stack.Screen name="driver" />
+            <Stack.Screen name="khalti-return" />
 
 
             {/* Passenger screens */}
