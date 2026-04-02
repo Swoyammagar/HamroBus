@@ -18,7 +18,7 @@ import { formatDate } from '../utils/helpers';
 import { useAuth } from '@/app/context/AuthContext';
 import axios from 'axios';
 
-const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://10.0.2.2:3000/api';
+const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
 
 const Profile = () => {
   const router = useRouter();

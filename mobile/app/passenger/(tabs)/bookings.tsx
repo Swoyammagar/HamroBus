@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -72,6 +72,7 @@ const MyBookings = () => {
         token: b.bookingCode,
         seatNumber: (b.seatNumbers || []).join(', '),
         price: b.totalFare,
+        paymentStatus: Boolean(b.paymentStatus || b.payment?.status === 'paid'),
         bookingDate: b.createdAt,
         travelDate: b.serviceDate,
         status: b.status as 'confirmed' | 'ongoing' | 'completed' | 'cancelled',
