@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = process.env.EXPO_PUBLIC_API_BASE?.replace('/api', '') || 'http://10.0.2.2:3000';
+const SOCKET_URL = process.env.EXPO_PUBLIC_API_BASE?.replace('/api', '') || 'https://hamrobus-auos.onrender.com';
 
 interface DriverLocation {
   busId: string;
