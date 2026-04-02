@@ -46,6 +46,7 @@ export interface Booking {
   token: string;
   seatNumber: string;
   price: number;
+  paymentStatus?: boolean;
   bookingDate: string;
   travelDate: string;
   status: 'confirmed' | 'ongoing' | 'completed' | 'cancelled';
