@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,14 +11,25 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { usePassenger, type Bus, type Route, type Stop, type Booking } from '../context/PassengerContext';
 import { mockBusesData, mockRoutesData } from '../utils/mockData';
 import { routeService, type Schedule } from '../services/routeService';
-import { bookingService, type SeatAvailabilityResponse } from '../services/bookingService';
+import { bookingService, type BookingResponse, type SeatAvailabilityResponse } from '../services/bookingService';
+import { paymentService } from '../services/paymentService';
 import {
   formatTime,
   formatDate,
 } from '../utils/helpers';
+
+const resolveKhaltiReturnUrl = () => {
+  const apiBase = String(process.env.EXPO_PUBLIC_API_BASE || '').trim().replace(/\/$/, '');
+  if (apiBase.startsWith('https://')) {
+    return `${apiBase}/passenger/payments/khalti-return`;
+  }
+  return undefined;
+};
 
 const BusBooking = () => {
   const router = useRouter();
@@ -32,7 +43,6 @@ const BusBooking = () => {
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [boardingModalOpen, setBoardingModalOpen] = useState(false);
   const [alightingModalOpen, setAlightingModalOpen] = useState(false);
-  const [seatsModalOpen, setSeatsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
   const [generatedBooking, setGeneratedBooking] = useState<Booking | null>(null);
@@ -44,6 +54,8 @@ const BusBooking = () => {
   const [availabilityData, setAvailabilityData] = useState<SeatAvailabilityResponse | null>(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [schedulesLoading, setSchedulesLoading] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const paymentInFlightRef = useRef(false);
 
   useEffect(() => {
     const busIdValue = Array.isArray(busId) ? busId[0] : busId;
@@ -218,61 +230,166 @@ const BusBooking = () => {
     }
   };
 
-  const handleCompleteBooking = async () => {
+  const validateBookingInput = () => {
     if (!selectedSchedule) {
       Alert.alert('Missing Schedule', 'Please select a schedule before booking');
-      return;
+      return false;
     }
     if (!selectedBoardingStop || !selectedAlightingStop || selectedSeats.length === 0) {
       Alert.alert('Incomplete', 'Please select boarding stop, alighting stop, and seats');
-      return;
+      return false;
     }
     if ((selectedBoardingStop.order ?? 0) >= (selectedAlightingStop.order ?? 0)) {
       Alert.alert('Invalid Route', 'Alighting stop must be after boarding stop');
+      return false;
+    }
+    return true;
+  };
+
+  const mapToPassengerBooking = (result: BookingResponse): Booking => ({
+    id: String(result.id),
+    bookingId: result.bookingCode,
+    passengerId: String(result.passengerId),
+    busId: String(result.busId),
+    routeId: String(result.routeId),
+    token: result.bookingCode,
+    seatNumber: (result.seatNumbers || []).join(', '),
+    price: result.totalFare,
+    paymentStatus: Boolean(result.paymentStatus || result.payment?.status === 'paid'),
+    bookingDate: result.createdAt,
+    travelDate: result.serviceDate,
+    status: 'confirmed',
+    boardingStop: result.boardingStop?.stopName || selectedBoardingStop?.name || '',
+    alightingStop: result.destinationStop?.stopName || selectedAlightingStop?.name || '',
+    tripStarted: false,
+    tripEnded: false,
+  });
+
+  const createBookingRecord = async () => {
+    const result = await bookingService.createBooking({
+      routeId: String(route!._id || route!.id || ''),
+      busId: String(bus!._id || bus!.id || ''),
+      scheduleId: String(selectedSchedule!._id || ''),
+      serviceDate,
+      boardingStopName: selectedBoardingStop!.name,
+      destinationStopName: selectedAlightingStop!.name,
+      seatCount: selectedSeats.length,
+      preferredSeatNumbers: selectedSeats,
+    });
+
+    const newBooking = mapToPassengerBooking(result);
+    addBooking(newBooking);
+    setGeneratedBooking(newBooking);
+    setBookingComplete(true);
+
+    return { apiBooking: result, bookingForContext: newBooking };
+  };
+
+  const handleCompleteBooking = async () => {
+    if (!validateBookingInput()) {
       return;
     }
 
     setLoading(true);
 
     try {
-      const result = await bookingService.createBooking({
-        routeId: String(route!._id || route!.id || ''),
-        busId: String(bus!._id || bus!.id || ''),
-        scheduleId: String(selectedSchedule._id || ''),
-        serviceDate,
-        boardingStopName: selectedBoardingStop.name,
-        destinationStopName: selectedAlightingStop.name,
-        seatCount: selectedSeats.length,
-        preferredSeatNumbers: selectedSeats,
-      });
-
-      const newBooking: Booking = {
-        id: String(result.id),
-        bookingId: result.bookingCode,
-        passengerId: String(result.passengerId),
-        busId: String(result.busId),
-        routeId: String(result.routeId),
-        token: result.bookingCode,
-        seatNumber: (result.seatNumbers || []).join(', '),
-        price: result.totalFare,
-        bookingDate: result.createdAt,
-        travelDate: result.serviceDate,
-        status: 'confirmed',
-        boardingStop: result.boardingStop?.stopName || selectedBoardingStop.name,
-        alightingStop: result.destinationStop?.stopName || selectedAlightingStop.name,
-        tripStarted: false,
-        tripEnded: false,
-      };
-
-      addBooking(newBooking);
-      setGeneratedBooking(newBooking);
-      setBookingComplete(true);
+      await createBookingRecord();
     } catch (error: any) {
       const message =
         error?.response?.data?.message || 'Failed to complete booking. Please try again.';
       Alert.alert('Booking Failed', message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePayWithKhalti = async () => {
+    if (paymentInFlightRef.current) {
+      return;
+    }
+
+    if (!validateBookingInput()) {
+      return;
+    }
+
+    paymentInFlightRef.current = true;
+    setPaymentLoading(true);
+
+    try {
+      let bookingId = generatedBooking?.id;
+
+      if (!bookingId || generatedBooking?.paymentStatus) {
+        const { apiBooking } = await createBookingRecord();
+        bookingId = String(apiBooking.id);
+      }
+
+      const appRedirectUrl = Linking.createURL('khalti-return');
+      const backendReturnUrl = resolveKhaltiReturnUrl();
+
+      const initiated = await paymentService.initiateKhaltiPayment(String(bookingId), {
+        returnUrl: backendReturnUrl,
+      });
+
+      if (!initiated?.paymentUrl || !initiated?.pidx) {
+        Alert.alert('Payment Error', 'Could not initiate Khalti payment. Booking has been created as unpaid.');
+        return;
+      }
+
+      const authResult = await WebBrowser.openAuthSessionAsync(initiated.paymentUrl, appRedirectUrl);
+      const callbackPidx =
+        authResult.type === 'success'
+          ? String((Linking.parse(authResult.url).queryParams?.pidx as string) || '')
+          : '';
+
+      const verified = await paymentService.verifyKhaltiPayment(
+        String(bookingId),
+        callbackPidx || initiated.pidx
+      );
+
+      if (verified.paymentStatus) {
+        setGeneratedBooking((prev) => (prev ? { ...prev, paymentStatus: true } : prev));
+        Alert.alert('Payment Successful', 'Khalti payment completed for this booking.');
+      } else {
+        Alert.alert('Payment Pending', 'Booking is created, but payment is not completed yet.');
+      }
+    } catch (error: any) {
+      const pidx = error?.response?.data?.pidx;
+      const paymentUrl = error?.response?.data?.paymentUrl;
+      const existingBookingId = generatedBooking?.id;
+
+      if (pidx && existingBookingId) {
+        try {
+          if (paymentUrl) {
+            const appRedirectUrl = Linking.createURL('khalti-return');
+            await WebBrowser.openAuthSessionAsync(String(paymentUrl), appRedirectUrl);
+          }
+
+          const verified = await paymentService.verifyKhaltiPayment(String(existingBookingId), String(pidx));
+          if (verified.paymentStatus) {
+            setGeneratedBooking((prev) => (prev ? { ...prev, paymentStatus: true } : prev));
+            Alert.alert('Payment Successful', 'Khalti payment completed for this booking.');
+          } else {
+            Alert.alert('Payment Processing', 'Your payment session is active but not completed yet. Finish payment in Khalti and try again.');
+          }
+          return;
+        } catch (verifyError: any) {
+          const verifyMessage =
+            verifyError?.response?.data?.message ||
+            verifyError?.message ||
+            'Payment is still being processed. Please try again shortly.';
+          Alert.alert('Payment Processing', verifyMessage);
+          return;
+        }
+      }
+
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to complete Khalti payment. Booking may still be created as unpaid.';
+      Alert.alert('Payment Failed', message);
+    } finally {
+      paymentInFlightRef.current = false;
+      setPaymentLoading(false);
     }
   };
 
@@ -375,6 +492,18 @@ const BusBooking = () => {
                 <View style={styles.ticketRow}>
                   <Text style={styles.ticketLabel}>Travel Date</Text>
                   <Text style={styles.ticketValue}>{formatDate(generatedBooking.travelDate)}</Text>
+                </View>
+
+                <View style={styles.ticketRow}>
+                  <Text style={styles.ticketLabel}>Payment</Text>
+                  <Text
+                    style={[
+                      styles.ticketValue,
+                      generatedBooking.paymentStatus ? styles.paidText : styles.unpaidText,
+                    ]}
+                  >
+                    {generatedBooking.paymentStatus ? 'Paid with Khalti' : 'Unpaid'}
+                  </Text>
                 </View>
 
                 <View style={styles.ticketDivider} />
@@ -689,7 +818,7 @@ const BusBooking = () => {
         <TouchableOpacity
           style={[styles.bookingButton, loading && styles.bookingButtonDisabled]}
           onPress={handleCompleteBooking}
-          disabled={loading}
+          disabled={loading || paymentLoading}
         >
           {loading ? (
             <ActivityIndicator color="#ffffff" />
@@ -697,6 +826,21 @@ const BusBooking = () => {
             <>
               <Ionicons name="checkmark-circle" size={20} color="#ffffff" />
               <Text style={styles.bookingButtonText}>Complete Booking</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.khaltiButton, paymentLoading && styles.bookingButtonDisabled]}
+          onPress={handlePayWithKhalti}
+          disabled={loading || paymentLoading}
+        >
+          {paymentLoading ? (
+            <ActivityIndicator color="#5b21b6" />
+          ) : (
+            <>
+              <Ionicons name="wallet" size={20} color="#5b21b6" />
+              <Text style={styles.khaltiButtonText}>Pay Now with Khalti</Text>
             </>
           )}
         </TouchableOpacity>
@@ -1059,6 +1203,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
+  khaltiButton: {
+    marginTop: 10,
+    backgroundColor: '#f5f3ff',
+    borderWidth: 1,
+    borderColor: '#c4b5fd',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: 8,
+  },
+  khaltiButtonText: {
+    color: '#5b21b6',
+    fontSize: 14,
+    fontWeight: '700',
+    marginLeft: 8,
+  },
   modalContainer: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1197,6 +1358,12 @@ const styles = StyleSheet.create({
     color: '#3b82f6',
     fontSize: 14,
     fontWeight: '700',
+  },
+  paidText: {
+    color: '#16a34a',
+  },
+  unpaidText: {
+    color: '#dc2626',
   },
   tokenBox: {
     backgroundColor: '#eff6ff',
