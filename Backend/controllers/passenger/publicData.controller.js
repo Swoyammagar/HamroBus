@@ -1,6 +1,49 @@
 const Route = require('../../models/route.model');
 const Bus = require('../../models/bus.model');
 const Driver = require('../../models/driver.model');
+const TripSession = require('../../models/tripSession.model');
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const toDateKey = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const parseTimeToMinutes = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  const [hours, minutes] = value.split(':').map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  return hours * 60 + minutes;
+};
+
+const getNextServiceDate = ({ dayOfWeek, startTime, endTime, tripSession }) => {
+  const today = new Date();
+  const targetDay = DAYS.indexOf(dayOfWeek);
+  if (targetDay < 0) return toDateKey(today);
+
+  const todayDay = today.getDay();
+  const daysUntil = (targetDay - todayDay + 7) % 7;
+  const candidate = new Date(today);
+  candidate.setDate(candidate.getDate() + daysUntil);
+
+  if (daysUntil > 0) {
+    return toDateKey(candidate);
+  }
+
+  const nowMinutes = today.getHours() * 60 + today.getMinutes();
+  const endMinutes = parseTimeToMinutes(endTime);
+  const closedStatuses = ['in-progress', 'on-break', 'completed', 'cancelled'];
+  const tripAlreadyClosed = tripSession && closedStatuses.includes(String(tripSession.status));
+
+  if (tripAlreadyClosed || (endMinutes !== null && nowMinutes > endMinutes)) {
+    candidate.setDate(candidate.getDate() + 7);
+  }
+
+  return toDateKey(candidate);
+};
 
 const mapStop = (stop, index) => ({
   id: stop._id ? stop._id.toString() : `stop-${index}`,
@@ -110,7 +153,35 @@ const getPublicRouteSchedules = async (req, res) => {
       return res.status(404).json({ message: 'Route not found' });
     }
 
-    return res.status(200).json({ schedules: route.schedules || [] });
+    const scheduleIds = (route.schedules || []).map((schedule) => schedule._id);
+    const today = new Date();
+    const dayStart = new Date(today);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
+    const tripSessions = await TripSession.find({
+      routeId: route._id,
+      scheduleId: { $in: scheduleIds },
+      startTime: { $gte: dayStart, $lt: dayEnd },
+      status: { $in: ['in-progress', 'on-break', 'completed', 'cancelled'] },
+    }).select('scheduleId status startTime endTime').lean();
+
+    const tripSessionMap = new Map(
+      tripSessions.map((trip) => [String(trip.scheduleId), trip])
+    );
+
+    const schedules = (route.schedules || []).map((schedule) => ({
+      ...schedule,
+      nextServiceDate: getNextServiceDate({
+        dayOfWeek: schedule.dayOfWeek,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        tripSession: tripSessionMap.get(String(schedule._id)),
+      }),
+    }));
+
+    return res.status(200).json({ schedules });
   } catch (error) {
     console.error('Route schedules error:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
