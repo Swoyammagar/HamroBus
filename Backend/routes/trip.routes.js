@@ -11,7 +11,8 @@ const {
     updatePassengerCount,
     getTripHistory,
     getTodayCompletedTrips,
-    getScheduleSeatMap
+    getScheduleSeatMap,
+    processMissedTrips
 } = require('../controllers/trip.controller');
 const { authenticateDriver } = require('../middlewares/mobile.auth.middleware');
 
@@ -27,5 +28,9 @@ router.post('/break/start', authenticateDriver, startBreak);
 router.post('/break/end', authenticateDriver, endBreak);
 router.post('/update-passengers', authenticateDriver, updatePassengerCount);
 router.get('/history', authenticateDriver, getTripHistory);
+
+// System endpoint for processing missed trips (can be called by cron job or admin)
+// Optional: Add authentication middleware if needed
+router.post('/system/process-missed-trips', processMissedTrips);
 
 module.exports = router;
