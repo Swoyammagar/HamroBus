@@ -8,6 +8,7 @@ const { connectDB, dropOldBusIndex } = require('./config/db');
 const mainRoute = require('./routes/index.routes');
 require('dotenv').config();
 const initializeAdmin = require('./config/initializeAdmin');
+const { processMissedTripsForToday } = require('./services/bookingLifecycle.service');
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -192,11 +193,35 @@ app.use(cookieParser());
 
 app.use('/api', mainRoute); // Handles /api/users
 
+const startMissedTripScheduler = () => {
+  const intervalMinutes = Math.max(Number(process.env.MISSED_TRIP_CHECK_INTERVAL_MINUTES) || 10, 1);
+  const intervalMs = intervalMinutes * 60 * 1000;
+
+  const runMissedTripCheck = async () => {
+    try {
+      const result = await processMissedTripsForToday();
+      if ((result?.totalCancelled || 0) > 0) {
+        console.log(
+          `🕒 Missed-trip check: cancelled ${result.totalCancelled} booking(s) across ${result.processed} schedule(s)`
+        );
+      }
+    } catch (error) {
+      console.error('Missed-trip scheduler error:', error);
+    }
+  };
+
+  // Run once shortly after startup, then on interval.
+  setTimeout(runMissedTripCheck, 15 * 1000);
+  setInterval(runMissedTripCheck, intervalMs);
+  console.log(`🕒 Missed-trip scheduler started (every ${intervalMinutes} minute(s))`);
+};
+
 // Initialize database and drop old indexes
 const startServer = async () => {
   await connectDB();
   await dropOldBusIndex();
   await initializeAdmin();
+  startMissedTripScheduler();
   
   const PORT = process.env.PORT || 5000;
   server.listen(PORT, '0.0.0.0', () => {
