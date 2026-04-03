@@ -91,21 +91,34 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName }) => {
 };
 
 const completeAllInProgressBookingsForTrip = async ({ trip }) => {
-  if (!trip || !trip._id) {
+  if (!trip || !trip._id || !trip.routeId || !trip.busId || !trip.scheduleId) {
+    return { matched: 0, modified: 0 };
+  }
+  const tripDate = normalizeDateOnly(trip.startTime || trip.endTime ||new Date());
+
+  if (!tripDate) {
     return { matched: 0, modified: 0 };
   }
 
-  const result = await Booking.updateMany(
-    {
+  const result = await Booking.updateMany({
+    routeId: trip.routeId,
+    busId: trip.busId,
+    scheduleId: trip.scheduleId,
+    serviceDate: tripDate,
+    status: {$in: ['in-progress', 'on-break']},
+    $or: [
+      { tripSessionId: trip._id },
+      { tripSessionId: {$exists: false} },
+      { tripSessionId: null },
+    ],
+  },
+  {
+    $set: {
+      status: 'completed',
+      completedAt: new Date(),
       tripSessionId: trip._id,
-      status: 'in-progress',
     },
-    {
-      $set: {
-        status: 'completed',
-        completedAt: new Date(),
-      },
-    }
+  }
   );
 
   return {
