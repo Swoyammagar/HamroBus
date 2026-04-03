@@ -7,6 +7,7 @@ const {
     syncBookingsOnTripStart,
     completeBookingsByReachedStop,
     completeAllInProgressBookingsForTrip,
+    processMissedTripsForToday,
 } = require('../services/bookingLifecycle.service');
 
 // Get driver's assigned route with schedules
@@ -445,17 +446,17 @@ const getTripHistory = async (req, res) => {
     try {
         const trips = await TripSession.find({
             driverId: driverId,
-            status: 'completed'
+            status: { $in: ['completed', 'cancelled'] }
         })
             .populate('routeId', 'routeName source destination')
             .populate('busId', 'busNumber')
-            .sort({ endTime: -1 })
+            .sort({ updatedAt: -1 })
             .limit(parseInt(limit))
             .skip(parseInt(skip));
 
         const total = await TripSession.countDocuments({
             driverId: driverId,
-            status: 'completed'
+            status: { $in: ['completed', 'cancelled'] }
         });
 
         res.status(200).json({
@@ -558,7 +559,7 @@ const getScheduleSeatMap = async (req, res) => {
             status: { $in: ['confirmed', 'in-progress'] }
         })
             .populate('passengerId', 'firstName lastName phoneNumber')
-            .select('bookingCode seatNumbers passengerId status')
+            .select('bookingCode seatNumbers passengerId status paymentStatus payment')
             .lean();
 
         const reservedSeats = bookings.flatMap((booking) => {
@@ -570,7 +571,9 @@ const getScheduleSeatMap = async (req, res) => {
                 bookingCode: booking.bookingCode,
                 status: booking.status,
                 passengerName: passengerName || 'Passenger',
-                passengerPhone: passenger.phoneNumber || ''
+                passengerPhone: passenger.phoneNumber || '',
+                paymentStatus: booking.paymentStatus || false,
+                payment: booking.payment || null
             }));
         });
 
@@ -595,6 +598,30 @@ const getScheduleSeatMap = async (req, res) => {
     }
 };
 
+/**
+ * Process missed trips for today
+ * This endpoint should be called periodically or after schedule end times
+ * Admin/System only endpoint
+ */
+const processMissedTrips = async (req, res) => {
+    try {
+        const result = await processMissedTripsForToday();
+
+        return res.status(200).json({
+            message: 'Missed trips processed',
+            stats: {
+                processedSchedules: result.processed,
+                totalCancelledBookings: result.totalCancelled,
+                errors: result.errors,
+            },
+            result,
+        });
+    } catch (error) {
+        console.error('Error processing missed trips:', error);
+        return res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 module.exports = {
     getAssignedRoute,
     getDriverSchedules,
@@ -606,5 +633,6 @@ module.exports = {
     updatePassengerCount,
     getTripHistory,
     getTodayCompletedTrips,
-    getScheduleSeatMap
+    getScheduleSeatMap,
+    processMissedTrips
 };
