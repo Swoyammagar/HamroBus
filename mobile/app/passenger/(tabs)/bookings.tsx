@@ -102,7 +102,7 @@ const MyBookings = () => {
 
   const getTabBookings = () => {
     const filtered = bookings.filter(b => {
-      if (activeTab === 'upcoming') return b.status === 'confirmed';
+      if (activeTab === 'upcoming') return b.status === 'confirmed'|| b.status === 'ongoing';
       if (activeTab === 'completed') return b.status === 'completed';
       if (activeTab === 'cancelled') return b.status === 'cancelled';
       return false;
@@ -170,6 +170,7 @@ const MyBookings = () => {
 
   const BookingCard = ({ booking }: { booking: Booking }) => {
     const isUpcoming = booking.status === 'confirmed';
+    const isOngoing = booking.status === 'ongoing';
     const isCompleted = booking.status === 'completed';
     const isCancelled = booking.status === 'cancelled';
 
@@ -195,6 +196,8 @@ const MyBookings = () => {
             seatCount: booking.seatNumber.split(', ').length,
             farePerSeat: Math.floor(booking.price / booking.seatNumber.split(', ').length),
             totalFare: booking.price,
+            paymentStatus: booking.paymentStatus,
+            payment: undefined,
             status: booking.status as any,
             createdAt: booking.bookingDate,
             updatedAt: booking.bookingDate,
@@ -215,6 +218,8 @@ const MyBookings = () => {
               {
                 backgroundColor: isUpcoming
                   ? '#dcfce7'
+                  : isOngoing
+                  ? '#dbeafe'
                   : isCompleted
                   ? '#f3e8ff'
                   : '#fee2e2',
@@ -227,6 +232,8 @@ const MyBookings = () => {
                 {
                   color: isUpcoming
                     ? '#166534'
+                    : isOngoing
+                    ? '#1d4ed8'
                     : isCompleted
                     ? '#6b21a8'
                     : '#991b1b',
@@ -270,6 +277,30 @@ const MyBookings = () => {
           <View style={styles.footerItem}>
             <Ionicons name="pricetag" size={14} color="#3b82f6" />
             <Text style={styles.footerText}>Rs. {booking.price}</Text>
+          </View>
+          <View
+            style={[
+              styles.paymentBadge,
+              {
+                backgroundColor: booking.paymentStatus ? '#dcfce7' : '#fecaca',
+              },
+            ]}
+          >
+            <Ionicons
+              name={booking.paymentStatus ? 'checkmark-circle' : 'alert-circle'}
+              size={14}
+              color={booking.paymentStatus ? '#16a34a' : '#dc2626'}
+            />
+            <Text
+              style={[
+                styles.paymentBadgeText,
+                {
+                  color: booking.paymentStatus ? '#16a34a' : '#dc2626',
+                },
+              ]}
+            >
+              {booking.paymentStatus ? 'Paid' : 'Unpaid'}
+            </Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -471,6 +502,34 @@ const MyBookings = () => {
                   <View style={[styles.detailRow, styles.priceRow]}>
                     <Text style={styles.detailLabelBold}>Total Price</Text>
                     <Text style={styles.detailValueBold}>Rs. {selectedBooking.totalFare}</Text>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Payment Status</Text>
+                    <View
+                      style={[
+                        styles.paymentStatusBadge,
+                        {
+                          backgroundColor: selectedBooking.paymentStatus ? '#dcfce7' : '#fecaca',
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={selectedBooking.paymentStatus ? 'checkmark-circle' : 'alert-circle'}
+                        size={16}
+                        color={selectedBooking.paymentStatus ? '#16a34a' : '#dc2626'}
+                      />
+                      <Text
+                        style={[
+                          styles.paymentStatusText,
+                          {
+                            color: selectedBooking.paymentStatus ? '#16a34a' : '#dc2626',
+                          },
+                        ]}
+                      >
+                        {selectedBooking.paymentStatus ? 'Paid' : 'Not Paid'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
 
@@ -710,6 +769,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#6b7280',
   },
+  paymentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  paymentBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -802,6 +873,18 @@ const styles = StyleSheet.create({
   priceRow: {
     borderBottomWidth: 0,
     paddingVertical: 10,
+  },
+  paymentStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 6,
+  },
+  paymentStatusText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   tokenSection: {
     backgroundColor: '#eff6ff',
