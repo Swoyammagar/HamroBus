@@ -38,6 +38,7 @@ export interface Schedule {
   endTime: string;
   notes?: string;
   isActive?: boolean;
+  nextServiceDate?: string;
 }
 
 export interface StopArrivalItem {
