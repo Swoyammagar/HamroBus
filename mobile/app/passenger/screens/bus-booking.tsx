@@ -14,7 +14,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { usePassenger, type Bus, type Route, type Stop, type Booking } from '../context/PassengerContext';
-import { mockBusesData, mockRoutesData } from '../utils/mockData';
 import { routeService, type Schedule } from '../services/routeService';
 import { bookingService, type BookingResponse, type SeatAvailabilityResponse } from '../services/bookingService';
 import { paymentService } from '../services/paymentService';
@@ -67,12 +66,7 @@ const BusBooking = () => {
       return busIdValue ? String(candidateId) === String(busIdValue) : true;
     });
 
-    const busFromMock = mockBusesData.find(candidate => {
-      const candidateId = candidate._id || candidate.id;
-      return busIdValue ? String(candidateId) === String(busIdValue) : false;
-    });
-
-    const resolvedBus = busFromContext || busFromMock || null;
+    const resolvedBus = busFromContext || null;
 
     const routeFromContext = [selectedRoute, ...routes].find(candidate => {
       if (!candidate) return false;
@@ -88,15 +82,7 @@ const BusBooking = () => {
         })
       : null;
 
-    const routeFromMock = mockRoutesData.find(candidate => {
-      const candidateId = candidate._id || candidate.id;
-      if (routeIdValue) {
-        return String(candidateId) === String(routeIdValue);
-      }
-      return resolvedBus ? String(candidateId) === String(resolvedBus.routeId) : false;
-    });
-
-    const resolvedRoute = routeFromContext || routeByResolvedBus || routeFromMock || null;
+    const resolvedRoute = routeFromContext || routeByResolvedBus || null;
 
     setBus(resolvedBus);
     setRoute(resolvedRoute);
@@ -138,8 +124,8 @@ const BusBooking = () => {
         setSchedules(filtered);
         setSelectedSchedule((prev) => {
           if (!prev) return null;
-          const stillExists = filtered.some((sched) => sched._id === prev._id);
-          return stillExists ? prev : null;
+          const refreshed = filtered.find((sched) => sched._id === prev._id);
+          return refreshed || null;
         });
       })
       .catch(() => setSchedules([]))
@@ -149,7 +135,7 @@ const BusBooking = () => {
   // Derive service date when schedule is selected
   useEffect(() => {
     if (!selectedSchedule) return;
-    setServiceDate(getNextOccurrenceOfDay(selectedSchedule.dayOfWeek));
+    setServiceDate(selectedSchedule.nextServiceDate || getNextOccurrenceOfDay(selectedSchedule.dayOfWeek));
     // Clear seats when schedule changes so stale selections are removed
     setSelectedSeats([]);
     setAvailabilityData(null);
