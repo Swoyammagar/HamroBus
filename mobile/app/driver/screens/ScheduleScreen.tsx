@@ -130,43 +130,6 @@ export default function ScheduleScreen() {
     return [...matchesForDay].sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
   }, [schedules, selectedDayName]);
 
-  const statusStyle = (status?: string) => {
-    switch (status) {
-      case 'completed':
-        return { bg: '#DCFCE7', text: '#15803D' };
-      case 'in-progress':
-      case 'active':
-        return { bg: '#DBEAFE', text: '#1D4ED8' };
-      case 'upcoming':
-      case 'scheduled':
-        return { bg: '#FEF9C3', text: '#92400E' };
-      case 'on-break':
-        return { bg: '#FED7AA', text: '#9D4C1E' };
-      default:
-        return { bg: '#E2E8F0', text: '#0F172A' };
-    }
-  };
-
-  const getScheduleStatus = (schedule: ScheduleItem) => {
-    if (schedule.status) {
-      return schedule.status;
-    }
-
-    if (currentTrip && currentTrip.startTime) {
-      const scheduleStart = new Date(`2024-01-01 ${schedule.startTime}`);
-      const scheduleEnd = new Date(`2024-01-01 ${schedule.endTime}`);
-      const now = new Date();
-      const currentTime = new Date(`2024-01-01 ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`);
-
-      if (currentTime >= scheduleStart && currentTime < scheduleEnd) {
-        return 'in-progress';
-      } else if (currentTime > scheduleEnd) {
-        return 'completed';
-      }
-    }
-    return 'scheduled';
-  };
-
   const calculateWorkingHours = () => {
     if (currentSchedules.length === 0) return '0h';
     
@@ -239,8 +202,6 @@ export default function ScheduleScreen() {
 
       {currentSchedules.length > 0 ? (
         currentSchedules.map((schedule, index) => {
-          const status = getScheduleStatus(schedule);
-          const style = statusStyle(status);
           return (
             <View key={schedule._id || index} style={[styles.card, shadow.card]}>
               <View style={styles.cardHeader}>
@@ -250,9 +211,6 @@ export default function ScheduleScreen() {
                     <Feather name="clock" size={14} color={palette.muted} />
                     <Text style={styles.metaText}>{schedule.startTime} - {schedule.endTime}</Text>
                   </View>
-                </View>
-                <View style={[styles.statusPill, { backgroundColor: style.bg }]}>
-                  <Text style={[styles.statusText, { color: style.text }]}>{status}</Text>
                 </View>
               </View>
 
