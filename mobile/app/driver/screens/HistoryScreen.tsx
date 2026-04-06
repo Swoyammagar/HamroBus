@@ -14,7 +14,7 @@ import { palette, spacing, radius, shadow } from '../theme';
 import { useTripHistory } from '../hooks/useDriver';
 import { TripSession } from '../services/driverService';
 
-const statusFilters = ['all', 'completed', 'in-progress', 'on-break'] as const;
+const statusFilters = ['all', 'completed', 'cancelled', 'in-progress', 'on-break'] as const;
 type StatusFilter = typeof statusFilters[number];
 
 const getTripDate = (trip: TripSession) => {
@@ -57,7 +57,7 @@ const statusToLabel: Record<string, string> = {
   'in-progress': 'In Progress',
   'on-break': 'On Break',
   scheduled: 'Scheduled',
-  cancelled: 'Cancelled',
+  cancelled: 'Missed',
 };
 
 const statusToPillStyle: Record<string, { bg: string; text: string; icon: any }> = {
@@ -183,7 +183,7 @@ export default function HistoryScreen() {
                 onPress={() => setStatusFilter(item)}
               >
                 <Text style={[styles.chipText, statusFilter === item && styles.chipTextActive]}>
-                  {item.replace('-', ' ')}
+                  {item === 'cancelled' ? 'missed' : item.replace('-', ' ')}
                 </Text>
               </Pressable>
             ))}
