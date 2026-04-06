@@ -3,7 +3,7 @@ import * as Location from 'expo-location';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SOCKET_URL = (process.env.EXPO_PUBLIC_API_BASE?.trim().replace('/api', '') || 'http://10.0.2.2:3000').trim();
+const SOCKET_URL = (process.env.EXPO_PUBLIC_API_BASE?.trim().replace('/api', '') || 'https://hamrobus-auos.onrender.com').trim();
 
 export interface LocationCoords {
   latitude: number;
@@ -47,7 +47,6 @@ export const useLocation = (): UseLocationReturn => {
         
         if (driverProfile && user) {
           const driver = JSON.parse(driverProfile);
-          const userData = JSON.parse(user);
           
           driverDataRef.current = {
             driverId: driver.id,

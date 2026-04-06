@@ -1,0 +1,39 @@
+# Node modules (these are installed on build server automatically)
+node_modules
+.expo
+
+# Git stuff
+.git
+.gitignore
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Android/iOS local build folders
+android/build
+android/app/build
+android/.gradle
+android/local.properties
+ios/build
+ios/Pods
+
+# Local caches
+.expo-shared
+*.expo
+
+# Bundled assets you don't need
+*.keystore
+*.jks
+*.p12
+*.pfx
+
+# Misc
+.vscode
+.env
+.env.*
+*.iml
+*.idea
+.DS_Store

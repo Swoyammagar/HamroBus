@@ -2,11 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-// For Expo emulator development:
-// Android Emulator: 10.0.2.2 (host machine gateway) on port 5000
-// iOS Simulator: localhost or your machine IP on port 5000
-// Physical device: your machine's local IP (192.168.x.x) on port 5000
-const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://10.0.2.2:3000/api' ;
+const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
 interface Driver {
   id: string; // MongoDB _id
   licenseNo: string;
