@@ -9,6 +9,12 @@ export type SeatReservation = {
   status?: string;
   passengerName: string;
   passengerPhone: string;
+  paymentStatus?: boolean;
+  payment?: {
+    status?: 'pending' | 'paid' | 'failed';
+    method?: string;
+    amount?: number;
+  };
 };
 
 type Props = {
@@ -241,9 +247,33 @@ export default function NextTripSeatModal({
               <View style={styles.detailCard}>
                 {selectedSeat ? (
                   <>
-                    <Text style={styles.detailTitle}>Seat {selectedSeat.seatNumber}</Text>
+                    <View style={styles.detailHeader}>
+                      <Text style={styles.detailTitle}>Seat {selectedSeat.seatNumber}</Text>
+                      <View
+                        style={[
+                          styles.paymentBadge,
+                          {
+                            backgroundColor: selectedSeat.paymentStatus ? '#dcfce7' : '#fee2e2',
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.paymentBadgeText,
+                            {
+                              color: selectedSeat.paymentStatus ? '#166534' : '#991b1b',
+                            },
+                          ]}
+                        >
+                          {selectedSeat.paymentStatus ? '✓ Paid' : '○ Unpaid'}
+                        </Text>
+                      </View>
+                    </View>
                     <Text style={styles.detailLine}>Passenger: {selectedSeat.passengerName}</Text>
                     <Text style={styles.detailLine}>Phone: {selectedSeat.passengerPhone || 'N/A'}</Text>
+                    {selectedSeat.payment?.amount && (
+                      <Text style={styles.detailLine}>Amount: Rs. {selectedSeat.payment.amount / 100}</Text>
+                    )}
                   </>
                 ) : (
                   <Text style={styles.detailHint}>Tap a reserved seat to view passenger details.</Text>
@@ -292,6 +322,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  paymentBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+  },
+  paymentBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   legendRow: {
     flexDirection: 'row',
