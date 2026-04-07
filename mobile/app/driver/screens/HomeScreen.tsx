@@ -39,6 +39,16 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
   const [seatMapTotalSeats, setSeatMapTotalSeats] = useState(45);
   const [seatMapReservations, setSeatMapReservations] = useState<SeatReservation[]>([]);
 
+  const getScheduleId = (value: any): string => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object') {
+      if (value._id) return String(value._id);
+      if (value.id) return String(value.id);
+    }
+    return String(value);
+  };
+
   // Fetch today's completed trips on mount and after trip end
   useEffect(() => {
     fetchCompletedTrips();
@@ -142,6 +152,35 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     return null; // All schedules for today are completed
   };
 
+  // Get schedule to show in seat map:
+  // 1) If a trip is ongoing, show that trip's schedule bookings.
+  // 2) Otherwise show next upcoming not-completed schedule.
+  const getSeatMapTargetSchedule = () => {
+    const todaySchedules = getTodaySchedules();
+
+    if (currentTrip?.scheduleId && todaySchedules.length > 0) {
+      const currentTripScheduleId = getScheduleId(currentTrip.scheduleId);
+      const activeSchedule = todaySchedules.find((schedule: any) => {
+        const scheduleId = getScheduleId(schedule._id);
+        return scheduleId && scheduleId === currentTripScheduleId;
+      });
+
+      if (activeSchedule) {
+        return activeSchedule;
+      }
+    }
+
+    return getNextSchedule();
+  };
+
+  const getScheduleBusNumber = (schedule: any): string => {
+    if (!schedule?.busId) return 'Bus';
+    if (typeof schedule.busId === 'object') {
+      return schedule.busId.busNumber || 'Bus';
+    }
+    return 'Bus';
+  };
+
   const handleStartTrip = async () => {
     try {
       if (!route) {
@@ -223,13 +262,16 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
   };
 
   const handleOpenNextTripSeatMap = async () => {
-    const schedule = getNextSchedule();
+    const schedule = getSeatMapTargetSchedule();
     if (!schedule?._id) {
-      Alert.alert('No next trip', 'No upcoming schedule found for seat map.');
+      Alert.alert('No trip found', 'No relevant schedule found for seat map.');
       return;
     }
 
-    const serviceDate = getNextOccurrenceOfDay(schedule.dayOfWeek || '');
+    const serviceDate = currentTrip?.scheduleId
+      ? new Date(currentTrip.startTime || Date.now()).toISOString().split('T')[0]
+      : getNextOccurrenceOfDay(schedule.dayOfWeek || '');
+
     setSelectedSchedule(schedule);
     setShowSeatMapModal(true);
     setSeatMapLoading(true);
@@ -288,6 +330,12 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
 
   // Get next upcoming schedule
   const nextSchedule = getNextSchedule();
+  const seatMapTargetSchedule = getSeatMapTargetSchedule();
+  const seatMapTargetServiceDate = seatMapTargetSchedule
+    ? currentTrip?.scheduleId
+      ? new Date(currentTrip.startTime || Date.now()).toISOString().split('T')[0]
+      : getNextOccurrenceOfDay(seatMapTargetSchedule.dayOfWeek || '')
+    : '';
   const todaySchedules = getTodaySchedules();
 
   // Calculate stats from current trip
@@ -470,7 +518,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       </View>
 
       {nextSchedule && !currentTrip && (
-        <Pressable style={[styles.panel, shadow.card]} onPress={handleOpenNextTripSeatMap}>
+        <View style={[styles.panel, shadow.card]}>
           <View style={styles.panelHeader}>
             <Text style={styles.panelTitle}>Next Trip</Text>
             <Text style={styles.panelSub}>
@@ -483,7 +531,6 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
               <Text style={styles.panelSub}>
                 {nextSchedule.startTime} - {nextSchedule.endTime}
               </Text>
-              <Text style={[styles.panelSub, { marginTop: 6 }]}>Tap to view reserved seats</Text>
             </View>
             <Feather name="chevron-right" size={18} color={palette.muted} />
           </View>
@@ -499,7 +546,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
               </Text>
             </Pressable>
           )}
-        </Pressable>
+        </View>
       )}
 
       {!nextSchedule && !currentTrip && todaySchedules.length === 0 && (
@@ -542,6 +589,30 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
           <Text style={styles.quickSub}>Update count</Text>
         </Pressable>
       </View>
+
+      <Pressable
+        style={[styles.panel, shadow.card, !seatMapTargetSchedule && { opacity: 0.6 }]}
+        onPress={handleOpenNextTripSeatMap}
+        disabled={!seatMapTargetSchedule}
+      >
+        <View style={styles.panelHeader}>
+          <Text style={styles.panelTitle}>Seat Bookings</Text>
+          <Feather name="layout" size={18} color={palette.primary} />
+        </View>
+        <Text style={styles.panelSub}>
+          {seatMapTargetSchedule
+            ? currentTrip
+              ? `Current trip • ${seatMapTargetSchedule.startTime} - ${seatMapTargetSchedule.endTime}`
+              : `Upcoming trip • ${seatMapTargetSchedule.startTime} - ${seatMapTargetSchedule.endTime}`
+            : 'No trip schedule available'}
+        </Text>
+        {seatMapTargetSchedule && (
+          <Text style={[styles.panelSub, { marginTop: 2 }]}>
+            {`${getScheduleBusNumber(seatMapTargetSchedule)} • ${seatMapTargetServiceDate}`}
+          </Text>
+        )}
+        <Text style={[styles.panelSub, { marginTop: 4 }]}>Tap to view reserved seats and passenger details</Text>
+      </Pressable>
 
       {tripActionError && (
         <View style={styles.errorCard}>
