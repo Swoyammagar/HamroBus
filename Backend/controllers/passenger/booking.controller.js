@@ -269,10 +269,26 @@ const createBooking = async (req, res) => {
 
     const farePerSeat = Number(route.fareInfo || 0);
     const totalFare = farePerSeat * parsedSeatCount;
+    const bookingId = new mongoose.Types.ObjectId();
+    const bookingCode = makeBookingCode();
     const qrToken = makeQrToken();
+    const bookingStatus = 'confirmed';
+    const qrRawPayload = buildBookingQrRawPayload({
+      _id: bookingId,
+      bookingCode,
+      qrToken,
+      routeId: route._id,
+      busId: bus._id,
+      scheduleId: schedule._id,
+      serviceDate: normalizedServiceDate,
+      seatNumbers: selectedSeats,
+      status: bookingStatus,
+    });
+    const qrPayload = encodeBookingQrPayload(qrRawPayload);
 
     const booking = await Booking.create({
-      bookingCode: makeBookingCode(),
+      _id: bookingId,
+      bookingCode,
       passengerId: toObjectId(passengerId),
       routeId: route._id,
       busId: bus._id,
@@ -293,17 +309,11 @@ const createBooking = async (req, res) => {
       seatCount: parsedSeatCount,
       farePerSeat,
       totalFare,
-      status: 'confirmed',
+      status: bookingStatus,
       qrToken,
-      qrPayload: '',
+      qrPayload,
       qrGeneratedAt: new Date(),
     });
-
-    const qrRawPayload = buildBookingQrRawPayload(booking);
-    const qrPayload = encodeBookingQrPayload(qrRawPayload);
-    booking.qrPayload = qrPayload;
-    booking.qrGeneratedAt = new Date();
-    await booking.save();
 
     const qrCodeDataUrl = await generateQrDataUrlFromPayload(qrPayload);
 
