@@ -168,6 +168,21 @@ const bookingSchema = new mongoose.Schema(
         type: String,
       },
     },
+    qrToken: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+      trim: true,
+    },
+    qrPayload:{
+      type: String,
+      required: true,
+    },
+    qrGeneratedAt: {
+      type: Date,
+      required: true,
+    },
   },
   {
     timestamps: true,

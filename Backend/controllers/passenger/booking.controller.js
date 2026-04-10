@@ -3,10 +3,13 @@ const Route = require('../../models/route.model');
 const Bus = require('../../models/bus.model');
 const Booking = require('../../models/booking.model');
 const TripSession = require('../../models/tripSession.model');
+const crypto = require('crypto');
+const QRCode = require('qrcode');
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const BOOKING_ACTIVE_STATUSES = ['confirmed', 'in-progress', 'completed'];
 const BOOKING_CANCELLABLE_STATUS = 'confirmed';
+const QR_SCHEMA_VERSION = 1;
 
 const normalizeDateOnly = (value) => {
   const input = value ? new Date(value) : new Date();
@@ -57,6 +60,33 @@ const makeBookingCode = () => `BK${Date.now().toString(36).toUpperCase()}${Math.
   .toString()
   .padStart(4, '0')}`;
 
+const makeQrToken = () => crypto.randomBytes(16).toString('hex');
+
+const buildBookingQrRawPayload = (booking) => ({
+  v: QR_SCHEMA_VERSION,
+  type: 'passenger-booking',
+  bookingId: String(booking._id),
+  bookingCode: booking.bookingCode,
+  qrToken: booking.qrToken,
+  trip: {
+    routeId: String(booking.routeId),
+    busId: String(booking.busId),
+    scheduleId: String(booking.scheduleId),
+    serviceDate: new Date(booking.serviceDate).toISOString(),
+  },
+  seats: (booking.seatNumbers || []).map((seat) => String(seat).trim().toUpperCase()),
+  status: booking.status,
+});
+
+const encodeBookingQrPayload = (rawPayload) => JSON.stringify(rawPayload);
+
+const generateQrDataUrlFromPayload = async (payloadString) =>
+  QRCode.toDataURL(payloadString, {
+    errorCorrectionLevel: 'M',
+    margin: 2,
+    width: 280,
+  });
+
 const getTakenSeats = async ({ routeId, busId, scheduleId, serviceDate }) => {
   const bookings = await Booking.find({
     routeId,
@@ -98,6 +128,9 @@ const mapBookingResponse = (booking) => ({
   createdAt: booking.createdAt,
   updatedAt: booking.updatedAt,
   payment: booking.payment,
+  qrToken: booking.qrToken,
+  qrPayload: booking.qrPayload,
+  qrGeneratedAt: booking.qrGeneratedAt,
 });
 
 const createBooking = async (req, res) => {
@@ -236,6 +269,7 @@ const createBooking = async (req, res) => {
 
     const farePerSeat = Number(route.fareInfo || 0);
     const totalFare = farePerSeat * parsedSeatCount;
+    const qrToken = makeQrToken();
 
     const booking = await Booking.create({
       bookingCode: makeBookingCode(),
@@ -260,11 +294,25 @@ const createBooking = async (req, res) => {
       farePerSeat,
       totalFare,
       status: 'confirmed',
+      qrToken,
+      qrPayload: '',
+      qrGeneratedAt: new Date(),
     });
+
+    const qrRawPayload = buildBookingQrRawPayload(booking);
+    const qrPayload = encodeBookingQrPayload(qrRawPayload);
+    booking.qrPayload = qrPayload;
+    booking.qrGeneratedAt = new Date();
+    await booking.save();
+
+    const qrCodeDataUrl = await generateQrDataUrlFromPayload(qrPayload);
 
     return res.status(201).json({
       message: 'Booking created successfully',
       booking: mapBookingResponse(booking),
+      qrCodeDataUrl,
+      qrPayload,
+      qrRawPayload,
     });
   } catch (error) {
     console.error('Create booking error:', error);
@@ -328,7 +376,7 @@ const getMyBookings = async (req, res) => {
     const parsedLimit = Math.min(Math.max(Number(limit) || 30, 1), 100);
     const parsedSkip = Math.max(Number(skip) || 0, 0);
 
-    const [bookings, total] = await Promise.all([
+    const [bookingRows, total] = await Promise.all([
       Booking.find(query)
         .populate('routeId', 'routeNumber routeName source destination')
         .populate('busId', 'busNumber capacity')
@@ -338,8 +386,22 @@ const getMyBookings = async (req, res) => {
       Booking.countDocuments(query),
     ]);
 
+    const bookings = await Promise.all(
+      bookingRows.map(async (booking) => {
+        const bookingResponse = mapBookingResponse(booking);
+        const qrCodeDataUrl = booking.qrPayload
+          ? await generateQrDataUrlFromPayload(booking.qrPayload)
+          : null;
+
+        return {
+          ...bookingResponse,
+          qrCodeDataUrl,
+        };
+      })
+    );
+
     return res.status(200).json({
-      bookings: bookings.map(mapBookingResponse),
+      bookings,
       total,
       hasMore: parsedSkip + bookings.length < total,
     });
