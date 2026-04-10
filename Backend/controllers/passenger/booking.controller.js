@@ -386,19 +386,7 @@ const getMyBookings = async (req, res) => {
       Booking.countDocuments(query),
     ]);
 
-    const bookings = await Promise.all(
-      bookingRows.map(async (booking) => {
-        const bookingResponse = mapBookingResponse(booking);
-        const qrCodeDataUrl = booking.qrPayload
-          ? await generateQrDataUrlFromPayload(booking.qrPayload)
-          : null;
-
-        return {
-          ...bookingResponse,
-          qrCodeDataUrl,
-        };
-      })
-    );
+    const bookings = bookingRows.map(mapBookingResponse);
 
     return res.status(200).json({
       bookings,
@@ -460,9 +448,48 @@ const getSeatAvailability = async (req, res) => {
   }
 };
 
+const getBookingQr = async (req, res) => {
+  const passengerId = req.user.id;
+  const { bookingId } = req.params;
+  try {    
+    if (!isValidObjectId(bookingId)) {
+      return res.status(400).json({ message: 'Invalid bookingId' });
+    }
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      passengerId,
+    });
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+    if (!booking.qrToken) {
+      booking.qrToken = makeQrToken();
+    }
+    if (!booking.qrPayload) {
+      const qrRawPayload = buildBookingQrRawPayload(booking);
+      booking.qrPayload = encodeBookingQrPayload(qrRawPayload);
+      booking.qrGeneratedAt = new Date();
+      await booking.save();
+    }
+    const qrCodeDataUrl = await generateQrDataUrlFromPayload(booking.qrPayload);
+    return res.status(200).json({
+      bookingId: String(booking._id),
+      bookingCode: booking.bookingCode,
+      qrToken: booking.qrToken,
+      qrPayload: booking.qrPayload,
+      qrGeneratedAt: booking.qrGeneratedAt,
+      qrCodeDataUrl,
+    });
+  } catch (error) {
+    console.error('Get booking QR error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
 module.exports = {
   createBooking,
   cancelBooking,
   getMyBookings,
   getSeatAvailability,
+  getBookingQr,
 };
