@@ -10,6 +10,28 @@ const {
     processMissedTripsForToday,
 } = require('../services/bookingLifecycle.service');
 
+const parseQrPayload = (rawQrData) => {
+    try {
+        if (typeof rawQrData !== 'string') return null;
+        const parsed = JSON.parse(rawQrData);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (error) {
+        console.error("Error parsing QR payload:", error);
+        return null;
+    }
+}
+
+const getUtcDayRange = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    
+    const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+
+    return { start, end };
+};
+
 // Get driver's assigned route with schedules
 const getAssignedRoute = async (req, res) => {
     const driverId = req.user.id; // From JWT middleware
@@ -559,7 +581,7 @@ const getScheduleSeatMap = async (req, res) => {
             status: { $in: ['confirmed', 'in-progress'] }
         })
             .populate('passengerId', 'firstName lastName phoneNumber')
-            .select('bookingCode seatNumbers passengerId status paymentStatus payment')
+            .select('bookingCode seatNumbers passengerId status paymentStatus payment isBoarded boardedAt')
             .lean();
 
         const reservedSeats = bookings.flatMap((booking) => {
@@ -573,7 +595,9 @@ const getScheduleSeatMap = async (req, res) => {
                 passengerName: passengerName || 'Passenger',
                 passengerPhone: passenger.phoneNumber || '',
                 paymentStatus: booking.paymentStatus || false,
-                payment: booking.payment || null
+                payment: booking.payment || null,
+                boarded: Boolean(booking.isBoarded),
+                boardedAt: booking.boardedAt || null
             }));
         });
 
@@ -622,6 +646,131 @@ const processMissedTrips = async (req, res) => {
     }
 };
 
+const scanBookingQr = async (req, res) => {
+  const driverId = req.user.id;
+  const { qrData } = req.body || {};
+
+  try {
+    if (!qrData) {
+      return res.status(400).json({ message: 'qrData is required' });
+    }
+
+    const payload = parseQrPayload(qrData);
+    if (!payload) {
+      return res.status(400).json({ message: 'Invalid QR payload format' });
+    }
+
+    if (payload.type !== 'passenger-booking') {
+      return res.status(400).json({ message: 'Invalid QR type' });
+    }
+
+    const bookingId = String(payload.bookingId || '').trim();
+    const qrToken = String(payload.qrToken || '').trim();
+
+    if (!bookingId || !qrToken) {
+      return res.status(400).json({ message: 'Invalid QR payload fields' });
+    }
+
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      qrToken,
+      status: { $in: ['confirmed', 'in-progress'] },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found or invalid QR token' });
+    }
+
+    const activeTrip = await TripSession.findOne({
+      driverId,
+      status: { $in: ['in-progress', 'on-break'] },
+    });
+
+    if (!activeTrip) {
+      return res.status(409).json({ message: 'No active trip. Start trip before scanning.' });
+    }
+
+    if (
+      String(activeTrip.routeId) !== String(booking.routeId) ||
+      String(activeTrip.busId) !== String(booking.busId) ||
+      String(activeTrip.scheduleId) !== String(booking.scheduleId)
+    ) {
+      return res.status(409).json({
+        message: 'This booking does not belong to your current trip',
+      });
+    }
+
+    const bookingDay = getUtcDayRange(booking.serviceDate);
+    const tripStart = activeTrip.startTime ? new Date(activeTrip.startTime) : new Date();
+
+    if (!bookingDay || tripStart < bookingDay.start || tripStart >= bookingDay.end) {
+      return res.status(409).json({
+        message: 'This booking is not for today active trip service date',
+      });
+    }
+
+    booking.lastScannedAt = new Date();
+    booking.boardingScanCount = Number(booking.boardingScanCount || 0) + 1;
+
+    if (booking.isBoarded) {
+      await booking.save();
+
+      return res.status(200).json({
+        message: 'Passenger already boarded',
+        alreadyBoarded: true,
+                bookingId: String(booking._id),
+        bookingCode: booking.bookingCode,
+        seatNumbers: booking.seatNumbers,
+        isBoarded: booking.isBoarded,
+        boardedAt: booking.boardedAt,
+      });
+    }
+
+    booking.isBoarded = true;
+    booking.boardedAt = new Date();
+    booking.boardedByDriverId = driverId;
+    booking.boardedTripSessionId = activeTrip._id;
+
+    // Optional: move confirmed booking to in-progress when boarded.
+    booking.status = 'in-progress';
+
+    await booking.save();
+
+    // Optional: increment passenger count by seatCount on first successful boarding.
+    activeTrip.passengerCount = Math.max(
+      0,
+      Number(activeTrip.passengerCount || 0) + Number(booking.seatCount || 0)
+    );
+    await activeTrip.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`driver:${driverId}`).emit('trip:seat-boarded', {
+        bookingId: String(booking._id),
+        bookingCode: booking.bookingCode,
+        seatNumbers: booking.seatNumbers,
+        isBoarded: true,
+        boardedAt: booking.boardedAt,
+      });
+      io.to(`driver:${driverId}`).emit('trip:updated', activeTrip);
+    }
+
+    return res.status(200).json({
+      message: 'Passenger marked as boarded',
+      alreadyBoarded: false,
+            bookingId: String(booking._id),
+      bookingCode: booking.bookingCode,
+      seatNumbers: booking.seatNumbers,
+      isBoarded: booking.isBoarded,
+      boardedAt: booking.boardedAt,
+      passengerCount: activeTrip.passengerCount,
+    });
+  } catch (error) {
+    console.error('Error scanning booking QR:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 module.exports = {
     getAssignedRoute,
     getDriverSchedules,
@@ -634,5 +783,6 @@ module.exports = {
     getTripHistory,
     getTodayCompletedTrips,
     getScheduleSeatMap,
-    processMissedTrips
+    processMissedTrips,
+    scanBookingQr
 };
