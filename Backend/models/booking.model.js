@@ -183,6 +183,35 @@ const bookingSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    isBoarded: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    boardedAt: {
+      type: Date,
+      required: false,
+    },
+    boardedByDriverId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Driver',
+      required: false,
+      index: true,
+    },
+    boardedTripSessionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'TripSession',
+      required: false,
+      index: true,
+    },
+    boardingScanCount: {
+      type: Number,
+      default: 0,
+    },
+    lastScannedAt: {
+      type: Date,
+      required: false,
+    },
   },
   {
     timestamps: true,
@@ -195,6 +224,7 @@ bookingSchema.index({
   scheduleId: 1,
   serviceDate: 1,
   status: 1,
+  isBoarded: 1,
 });
 
 bookingSchema.index({
