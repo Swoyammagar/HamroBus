@@ -54,6 +54,15 @@ export interface SeatAvailabilityResponse {
   availableSeatCount: number;
 }
 
+export interface BookingQrResponse {
+  bookingId: string;
+  bookingCode: string;
+  qrToken: string;
+  qrPayload: string;
+  qrGeneratedAt?: string;
+  qrCodeDataUrl: string;
+}
+
 export const bookingService = {
   createBooking: async (payload: CreateBookingPayload): Promise<BookingResponse> => {
     const response = await apiClient.post('/passenger/bookings', payload);
@@ -82,6 +91,11 @@ export const bookingService = {
 
   cancelBooking: async (bookingId: string, reason?: string): Promise<{ message: string }> => {
     const response = await apiClient.post(`/passenger/bookings/${bookingId}/cancel`, { reason });
+    return response.data;
+  },
+
+  getBookingQr: async (bookingId: string): Promise<BookingQrResponse> => {
+    const response = await apiClient.get(`/passenger/bookings/${bookingId}/qr`);
     return response.data;
   },
 };
