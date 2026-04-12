@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Modal,
   Alert,
   ActivityIndicator,
   RefreshControl,
@@ -16,6 +15,7 @@ import { useFocusEffect } from 'expo-router';
 import { usePassenger, type Booking } from '../context/PassengerContext';
 import { bookingService, type BookingResponse } from '../services/bookingService';
 import { formatDate } from '../utils/helpers';
+import BookingDetailModal from '@/app/passenger/components/BookingDetailModal';
 
 const MyBookings = () => {
   const { bookings, updateBooking, setBookings } = usePassenger();
@@ -141,19 +141,6 @@ const MyBookings = () => {
     );
   };
 
-  const handleShareBooking = async (booking: Booking & { scheduleStartTime?: string; scheduleEndTime?: string }) => {
-    try {
-      const message = `🎫 My Bus Booking\n\nBooking ID: ${booking.bookingId}\nToken: ${booking.token}\n\nBus: ${booking.busId}\nFrom: ${booking.boardingStop}\nTo: ${booking.alightingStop}\nSeats: ${booking.seatNumber}\n\nDate: ${formatDate(booking.travelDate)}\nPrice: Rs. ${booking.price}\n\nShow this token to the driver while boarding.`;
-
-      await Share.share({
-        message,
-        title: 'My Bus Booking Ticket',
-      });
-    } catch (err) {
-      console.error('Share error:', err);
-    }
-  };
-
   const handleShareBookingAPI = async (booking: BookingResponse) => {
     try {
       const busLabel = getBusLabel(booking.busId);
@@ -166,6 +153,27 @@ const MyBookings = () => {
     } catch (err) {
       console.error('Share error:', err);
     }
+  };
+
+  const handleCancelBookingAPI = (booking: BookingResponse) => {
+    handleCancelBooking({
+      id: booking.id,
+      bookingId: booking.bookingCode,
+      passengerId: booking.passengerId,
+      busId: String(booking.busId),
+      routeId: String(booking.routeId),
+      token: booking.bookingCode,
+      seatNumber: booking.seatNumbers.join(', '),
+      price: booking.totalFare,
+      paymentStatus: Boolean(booking.paymentStatus || booking.payment?.status === 'paid'),
+      bookingDate: booking.createdAt,
+      travelDate: booking.serviceDate,
+      status: booking.status === 'in-progress' ? 'ongoing' : booking.status,
+      boardingStop: booking.boardingStop.stopName,
+      alightingStop: booking.destinationStop.stopName,
+      tripStarted: booking.status === 'in-progress' || booking.status === 'completed',
+      tripEnded: booking.status === 'completed',
+    });
   };
 
   const BookingCard = ({ booking }: { booking: Booking }) => {
@@ -409,201 +417,14 @@ const MyBookings = () => {
         </ScrollView>
       )}
 
-      {/* Booking Detail Modal */}
-      <Modal visible={bookingDetailModal} animationType="slide" transparent>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setBookingDetailModal(false)}
-            >
-              <Ionicons name="close" size={24} color="#1f2937" />
-            </TouchableOpacity>
-
-            {selectedBooking && (
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-                <Text style={styles.modalTitle}>Booking Details</Text>
-
-                {/* Booking Header */}
-                <View style={styles.detailsSection}>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Booking ID</Text>
-                    <Text style={styles.detailValue} selectable>
-                      {selectedBooking.bookingCode}
-                    </Text>
-                  </View>
-
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Status</Text>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor:
-                            selectedBooking.status === 'confirmed'
-                              ? '#dcfce7'
-                              : selectedBooking.status === 'completed'
-                              ? '#f3e8ff'
-                              : '#fee2e2',
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statusText,
-                          {
-                            color:
-                              selectedBooking.status === 'confirmed'
-                                ? '#166534'
-                                : selectedBooking.status === 'completed'
-                                ? '#6b21a8'
-                                : '#991b1b',
-                          },
-                        ]}
-                      >
-                        {selectedBooking.status.charAt(0).toUpperCase() + selectedBooking.status.slice(1)}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Route Info */}
-                <View style={styles.detailsSection}>
-                  <Text style={styles.sectionTitle}>Journey Details</Text>
-
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>From</Text>
-                    <Text style={styles.detailValue}>{selectedBooking.boardingStop.stopName}</Text>
-                  </View>
-
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>To</Text>
-                    <Text style={styles.detailValue}>{selectedBooking.destinationStop.stopName}</Text>
-                  </View>
-
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Travel Date</Text>
-                    <Text style={styles.detailValue}>{formatDate(selectedBooking.serviceDate)}</Text>
-                  </View>
-                </View>
-
-                {/* Seat & Price Info */}
-                <View style={styles.detailsSection}>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Seats</Text>
-                    <Text style={styles.detailValue}>{selectedBooking.seatNumbers.join(', ')}</Text>
-                  </View>
-
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Price per Seat</Text>
-                    <Text style={styles.detailValue}>Rs. {selectedBooking.farePerSeat}</Text>
-                  </View>
-
-                  <View style={[styles.detailRow, styles.priceRow]}>
-                    <Text style={styles.detailLabelBold}>Total Price</Text>
-                    <Text style={styles.detailValueBold}>Rs. {selectedBooking.totalFare}</Text>
-                  </View>
-
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Payment Status</Text>
-                    <View
-                      style={[
-                        styles.paymentStatusBadge,
-                        {
-                          backgroundColor: selectedBooking.paymentStatus ? '#dcfce7' : '#fecaca',
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name={selectedBooking.paymentStatus ? 'checkmark-circle' : 'alert-circle'}
-                        size={16}
-                        color={selectedBooking.paymentStatus ? '#16a34a' : '#dc2626'}
-                      />
-                      <Text
-                        style={[
-                          styles.paymentStatusText,
-                          {
-                            color: selectedBooking.paymentStatus ? '#16a34a' : '#dc2626',
-                          },
-                        ]}
-                      >
-                        {selectedBooking.paymentStatus ? 'Paid' : 'Not Paid'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Token Section */}
-                <View style={styles.tokenSection}>
-                  <Text style={styles.tokenSectionTitle}>Your Booking Token</Text>
-                  <View style={styles.tokenBox}>
-                    <Text style={styles.tokenValue} selectable>
-                      {selectedBooking.bookingCode}
-                    </Text>
-                  </View>
-                  <Text style={styles.tokenNote}>
-                    Show this token to the driver when boarding the bus
-                  </Text>
-                </View>
-
-                {/* Action Buttons */}
-                {selectedBooking.status === 'confirmed' && (
-                  <>
-                    <TouchableOpacity
-                      style={styles.actionButton}
-                      onPress={() => handleShareBookingAPI(selectedBooking)}
-                    >
-                      <Ionicons name="share-social" size={18} color="#ffffff" />
-                      <Text style={styles.actionButtonText}>Share Booking</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.cancelButton]}
-                      onPress={() => handleCancelBooking({
-                        id: selectedBooking.id,
-                        bookingId: selectedBooking.bookingCode,
-                        passengerId: selectedBooking.passengerId,
-                        busId: selectedBooking.busId,
-                        routeId: selectedBooking.routeId,
-                        token: selectedBooking.bookingCode,
-                        seatNumber: selectedBooking.seatNumbers.join(', '),
-                        price: selectedBooking.totalFare,
-                        bookingDate: selectedBooking.createdAt,
-                        travelDate: selectedBooking.serviceDate,
-                        status: 'confirmed',
-                        boardingStop: selectedBooking.boardingStop.stopName,
-                        alightingStop: selectedBooking.destinationStop.stopName,
-                        tripStarted: false,
-                        tripEnded: false,
-                      })}
-                      disabled={cancelling}
-                    >
-                      {cancelling ? (
-                        <ActivityIndicator color="#ef4444" size="small" />
-                      ) : (
-                        <>
-                          <Ionicons name="close-circle" size={18} color="#ef4444" />
-                          <Text style={styles.cancelButtonText}>Cancel Booking</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  </>
-                )}
-
-                {selectedBooking.status === 'completed' && (
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleShareBookingAPI(selectedBooking)}
-                  >
-                    <Ionicons name="share-social" size={18} color="#ffffff" />
-                    <Text style={styles.actionButtonText}>Share Receipt</Text>
-                  </TouchableOpacity>
-                )}
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
+      <BookingDetailModal
+        visible={bookingDetailModal}
+        booking={selectedBooking}
+        cancelling={cancelling}
+        onClose={() => setBookingDetailModal(false)}
+        onShare={handleShareBookingAPI}
+        onCancel={handleCancelBookingAPI}
+      />
     </View>
   );
 };
@@ -949,6 +770,36 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#ef4444',
   },
+  qrSection: {
+    marginTop: 4,
+    marginBottom: 20,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#f8fafc',
+},
+qrTitle: {
+  fontSize: 14,
+  fontWeight: '700',
+  color: '#1f2937',
+  marginBottom: 8,
+},
+qrImage: {
+  width: 220,
+  height: 220,
+  borderRadius: 8,
+  backgroundColor: '#ffffff',
+},
+qrError: {
+  color: '#b91c1c',
+  fontSize: 13,
+  textAlign: 'center',
+  paddingHorizontal: 12,
+},
+qrHint: {
+  color: '#6b7280',
+  fontSize: 13,
+},
 });
 
 export default MyBookings;
