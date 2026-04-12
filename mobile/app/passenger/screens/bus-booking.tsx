@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  Modal,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,10 +16,8 @@ import { usePassenger, type Bus, type Route, type Stop, type Booking } from '../
 import { routeService, type Schedule } from '../services/routeService';
 import { bookingService, type BookingResponse, type SeatAvailabilityResponse } from '../services/bookingService';
 import { paymentService } from '../services/paymentService';
-import {
-  formatTime,
-  formatDate,
-} from '../utils/helpers';
+import StopSelectionModal from '@/app/passenger/components/StopSelectionModal';
+import BookingSuccessTicket from '@/app/passenger/components/BookingSuccessTicket';
 
 const resolveKhaltiReturnUrl = () => {
   const apiBase = String(process.env.EXPO_PUBLIC_API_BASE || '').trim().replace(/\/$/, '');
@@ -415,112 +412,14 @@ const BusBooking = () => {
 
   if (bookingComplete && generatedBooking) {
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.push('../(tabs)/bookings')}
-            style={styles.backButton}
-          >
-            <Ionicons name="chevron-back" size={28} color="#ffffff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Booking Confirmed!</Text>
-        </View>
-
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.successContainer}>
-            <View style={styles.successIcon}>
-              <Ionicons name="checkmark-circle" size={64} color="#10b981" />
-            </View>
-
-            <Text style={styles.successTitle}>Booking Confirmed!</Text>
-            <Text style={styles.successSubtitle}>Your seats have been reserved</Text>
-
-            <View style={styles.ticketBox}>
-              <View style={styles.ticketHeader}>
-                <Text style={styles.ticketBusNumber}>{bus.busNumber}</Text>
-                <Text style={styles.ticketRoute}>{route.name}</Text>
-              </View>
-
-              <View style={styles.ticketDivider} />
-
-              <View style={styles.ticketDetails}>
-                <View style={styles.ticketRow}>
-                  <Text style={styles.ticketLabel}>Booking ID</Text>
-                  <Text style={styles.ticketValue}>{generatedBooking.bookingId}</Text>
-                </View>
-
-                <View style={styles.ticketRow}>
-                  <Text style={styles.ticketLabel}>Token</Text>
-                  <Text style={[styles.ticketValue, { fontFamily: 'monospace', fontSize: 18 }]}>
-                    {generatedBooking.token}
-                  </Text>
-                </View>
-
-                <View style={styles.ticketRow}>
-                  <Text style={styles.ticketLabel}>From</Text>
-                  <Text style={styles.ticketValue}>
-                    {generatedBooking.boardingStop || selectedBoardingStop?.name}
-                  </Text>
-                </View>
-
-                <View style={styles.ticketRow}>
-                  <Text style={styles.ticketLabel}>To</Text>
-                  <Text style={styles.ticketValue}>
-                    {generatedBooking.alightingStop || selectedAlightingStop?.name}
-                  </Text>
-                </View>
-
-                <View style={styles.ticketRow}>
-                  <Text style={styles.ticketLabel}>Seats</Text>
-                  <Text style={styles.ticketValue}>{generatedBooking.seatNumber}</Text>
-                </View>
-
-                <View style={styles.ticketRow}>
-                  <Text style={styles.ticketLabel}>Travel Date</Text>
-                  <Text style={styles.ticketValue}>{formatDate(generatedBooking.travelDate)}</Text>
-                </View>
-
-                <View style={styles.ticketRow}>
-                  <Text style={styles.ticketLabel}>Payment</Text>
-                  <Text
-                    style={[
-                      styles.ticketValue,
-                      generatedBooking.paymentStatus ? styles.paidText : styles.unpaidText,
-                    ]}
-                  >
-                    {generatedBooking.paymentStatus ? 'Paid with Khalti' : 'Unpaid'}
-                  </Text>
-                </View>
-
-                <View style={styles.ticketDivider} />
-
-                <View style={styles.ticketRow}>
-                  <Text style={styles.ticketLabelBold}>Total Price</Text>
-                  <Text style={[styles.ticketValue, styles.priceText]}>
-                    Rs. {generatedBooking.price}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.tokenBox}>
-                <Text style={styles.tokenLabel}>Booking Token</Text>
-                <Text style={styles.tokenValue}>{generatedBooking.token}</Text>
-                <Text style={styles.tokenNote}>Present this code to the driver</Text>
-              </View>
-            </View>
-
-            <TouchableOpacity style={styles.downloadButton} onPress={handleDownloadTicket}>
-              <Ionicons name="download" size={20} color="#ffffff" />
-              <Text style={styles.downloadButtonText}>Download Ticket (PDF)</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.shareButton} onPress={handleViewTicket}>
-              <Ionicons name="share-social" size={20} color="#3b82f6" />
-              <Text style={styles.shareButtonText}>Share Ticket</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </View>
+      <BookingSuccessTicket
+        bus={bus}
+        route={route}
+        booking={generatedBooking}
+        onBackToBookings={() => router.push('../(tabs)/bookings')}
+        onDownloadTicket={handleDownloadTicket}
+        onShareTicket={handleViewTicket}
+      />
     );
   }
 
@@ -832,103 +731,37 @@ const BusBooking = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Boarding Stop Modal */}
-      <Modal visible={boardingModalOpen} animationType="slide" transparent>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setBoardingModalOpen(false)}
-            >
-              <Ionicons name="close" size={24} color="#1f2937" />
-            </TouchableOpacity>
+      <StopSelectionModal
+        visible={boardingModalOpen}
+        title="Select Boarding Stop"
+        stops={route.stops}
+        selectedStopId={String(selectedBoardingStop?._id || selectedBoardingStop?.id || '')}
+        onClose={() => setBoardingModalOpen(false)}
+        onSelect={(stop) => {
+          setSelectedBoardingStop(stop);
+          if (selectedAlightingStop && (selectedAlightingStop.order ?? 0) <= (stop.order ?? 0)) {
+            setSelectedAlightingStop(null);
+          }
+          setBoardingModalOpen(false);
+        }}
+      />
 
-            <Text style={styles.modalTitle}>Select Boarding Stop</Text>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {route.stops.map((stop, index) => (
-                <TouchableOpacity
-                  key={stop._id || stop.id || String(index)}
-                  style={[
-                    styles.stopOption,
-                    (selectedBoardingStop?.id || selectedBoardingStop?._id) === (stop.id || stop._id) && styles.stopOptionSelected,
-                  ]}
-                  onPress={() => {
-                    setSelectedBoardingStop(stop);
-                    if (
-                      selectedAlightingStop &&
-                      (selectedAlightingStop.order ?? 0) <= (stop.order ?? 0)
-                    ) {
-                      setSelectedAlightingStop(null);
-                    }
-                    setBoardingModalOpen(false);
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.stopOptionDot,
-                      (selectedBoardingStop?.id || selectedBoardingStop?._id) === (stop.id || stop._id) && styles.stopOptionDotSelected,
-                    ]}
-                  />
-                  <View style={styles.stopOptionContent}>
-                    <Text style={styles.stopOptionName}>{stop.name}</Text>
-                    <Text style={styles.stopOptionTime}>{formatTime(stop.estimatedArrival || new Date().toISOString())}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Alighting Stop Modal */}
-      <Modal visible={alightingModalOpen} animationType="slide" transparent>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setAlightingModalOpen(false)}
-            >
-              <Ionicons name="close" size={24} color="#1f2937" />
-            </TouchableOpacity>
-
-            <Text style={styles.modalTitle}>Select Alighting Stop</Text>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {route.stops.map((stop, index) => (
-                <TouchableOpacity
-                  key={stop._id || stop.id || String(index)}
-                  style={[
-                    styles.stopOption,
-                    (selectedAlightingStop?.id || selectedAlightingStop?._id) === (stop.id || stop._id) && styles.stopOptionSelected,
-                    selectedBoardingStop &&
-                      (stop.order ?? 0) <= (selectedBoardingStop.order ?? 0) &&
-                      styles.stopOptionDisabled,
-                  ]}
-                  onPress={() => {
-                    if (!selectedBoardingStop || (stop.order ?? 0) > (selectedBoardingStop.order ?? 0)) {
-                      setSelectedAlightingStop(stop);
-                      setAlightingModalOpen(false);
-                    }
-                  }}
-                  disabled={!!selectedBoardingStop && (stop.order ?? 0) <= (selectedBoardingStop.order ?? 0)}
-                >
-                  <View
-                    style={[
-                      styles.stopOptionDot,
-                      (selectedAlightingStop?.id || selectedAlightingStop?._id) === (stop.id || stop._id) && styles.stopOptionDotSelected,
-                    ]}
-                  />
-                  <View style={styles.stopOptionContent}>
-                    <Text style={styles.stopOptionName}>{stop.name}</Text>
-                    <Text style={styles.stopOptionTime}>{formatTime(stop.estimatedArrival || new Date().toISOString())}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      <StopSelectionModal
+        visible={alightingModalOpen}
+        title="Select Alighting Stop"
+        stops={route.stops}
+        selectedStopId={String(selectedAlightingStop?._id || selectedAlightingStop?.id || '')}
+        onClose={() => setAlightingModalOpen(false)}
+        isStopDisabled={(stop) =>
+          Boolean(selectedBoardingStop && (stop.order ?? 0) <= (selectedBoardingStop.order ?? 0))
+        }
+        onSelect={(stop) => {
+          if (!selectedBoardingStop || (stop.order ?? 0) > (selectedBoardingStop.order ?? 0)) {
+            setSelectedAlightingStop(stop);
+            setAlightingModalOpen(false);
+          }
+        }}
+      />
     </View>
   );
 };
