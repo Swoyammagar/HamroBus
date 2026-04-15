@@ -11,8 +11,9 @@ const {
   rejectDriver,
   getAllDrivers
 } = require('../controllers/driver.controller');
-const { authenticateAdmin } = require('../middlewares/admin.auth.middleware'); // ✅ Updated import
+const { authenticateAdmin } = require('../middlewares/admin.auth.middleware');
 const { authenticateDriver } = require('../middlewares/mobile.auth.middleware');
+const { getMyRatingSummary } = require('../controllers/driver/review.controller');
 
 // Public routes
 router.post('/register', registerDriver);
@@ -30,5 +31,6 @@ router.post('/location', authenticateDriver, updateDriverLocation);
 
 // Public route (you might want to protect this too)
 router.get('/location/:driverId', getDriverLocationHistory);
+router.get('/reviews/summary', authenticateDriver, getMyRatingSummary);
 
 module.exports = router;

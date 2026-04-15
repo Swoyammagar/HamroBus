@@ -25,6 +25,11 @@ const {
 } = require('../controllers/passenger/booking.controller');
 const { authenticatePassenger } = require('../middlewares/mobile.auth.middleware');
 const { initiateKhaltiPayment, verifyKhaltiPayment, khaltiReturnBridge } = require('../controllers/payment.comtroller');
+const {
+  createBookingReview,
+  getMyReviewableBookings,
+  getMyReviews,
+} = require('../controllers/passenger/review.controller');
 
 // Public routes
 router.post('/register', registerPassenger);
@@ -49,5 +54,9 @@ router.get('/bookings/availability', authenticatePassenger, getSeatAvailability)
 router.get('/bookings/:bookingId/qr', authenticatePassenger, getBookingQr);
 router.post('/payments/initiate-khalti', authenticatePassenger, initiateKhaltiPayment);
 router.post('/payments/verify-khalti', authenticatePassenger, verifyKhaltiPayment);
+
+router.get('/bookings/reviewable', authenticatePassenger, getMyReviewableBookings);
+router.post('/bookings/:bookingId/review', authenticatePassenger, createBookingReview);
+router.get('/reviews/me', authenticatePassenger, getMyReviews);
 
 module.exports = router;
