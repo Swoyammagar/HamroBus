@@ -1,70 +1,51 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
-const reviewSchema = new mongoose.Schema({
-    reviewId: {
-        type: String,
-        required: true,
-        unique: true
-    },
-    scheduleId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Schedule',
-        required: true
+const reviewSchema = new mongoose.Schema(
+  {
+    bookingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Booking',
+      required: true,
+      unique: true,
+      index: true,
     },
     passengerId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Passenger',
-        required: true
-    },
-    passengerName: {
-        type: String,
-        required: true
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Passenger',
+      required: true,
+      index: true,
     },
     driverId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Driver',
-        required: false
-    },
-    busId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Bus',
-        required: false
-    },
-    routeId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Route',
-        required: false
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Driver',
+      required: true,
+      index: true,
     },
     rating: {
-        type: Number,
-        required: true,
-        min: 1,
-        max: 5
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5,
     },
     comment: {
-        type: String,
-        required: false,
-        trim: true,
-        maxlength: 500
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: '',
     },
-    tags: [{
-        type: String,
-        enum: ['polite', 'rash_driving', 'clean_bus', 'dirty_bus', 'on_time', 'delayed', 'helpful', 'safe_driving', 'good_condition', 'poor_condition']
-    }],
-    tripDate: {
-        type: Date,
-        required: true
+    isEdited: {
+      type: Boolean,
+      default: false,
     },
-}, {
-    timestamps: true
-});
+    reviewedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { timestamps: true }
+);
 
-// Index for frequently queried fields
-reviewSchema.index({ driverId: 1 });
-reviewSchema.index({ busId: 1 });
-reviewSchema.index({ routeId: 1 });
-reviewSchema.index({ passengerId: 1 });
-reviewSchema.index({ status: 1 });
-reviewSchema.index({ createdAt: -1 });
+reviewSchema.index({ driverId: 1, createdAt: -1 });
+reviewSchema.index({ passengerId: 1, createdAt: -1 });
 
-module.exports = mongoose.models.Review || mongoose.model("Review", reviewSchema);
+module.exports = mongoose.models.Review || mongoose.model('Review', reviewSchema);
