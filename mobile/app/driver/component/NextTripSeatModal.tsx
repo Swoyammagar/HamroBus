@@ -10,6 +10,8 @@ export type SeatReservation = {
   passengerName: string;
   passengerPhone: string;
   paymentStatus?: boolean;
+  boarded?: boolean;
+  boardedAt?: string | null;
   payment?: {
     status?: 'pending' | 'paid' | 'failed';
     method?: string;
@@ -25,6 +27,7 @@ type Props = {
   totalSeats: number;
   reservedSeats: SeatReservation[];
   onClose: () => void;
+  onScanQrPress: () => void;
 };
 
 export default function NextTripSeatModal({
@@ -35,6 +38,7 @@ export default function NextTripSeatModal({
   totalSeats,
   reservedSeats,
   onClose,
+  onScanQrPress
 }: Props) {
   const [selectedSeat, setSelectedSeat] = useState<SeatReservation | null>(null);
 
@@ -127,6 +131,10 @@ export default function NextTripSeatModal({
               <Text style={styles.title}>Next Trip Seat Map</Text>
               <Text style={styles.subtitle}>{scheduleLabel}</Text>
             </View>
+            <Pressable onPress={onScanQrPress} style={styles.scanBtn}>
+              <Feather name="camera" size={16} color={palette.primary} />
+              <Text style={styles.scanBtnText}>Scan QR</Text>
+            </Pressable>
             <Pressable onPress={onClose} style={styles.closeBtn}>
               <Feather name="x" size={18} color={palette.text} />
             </Pressable>
@@ -144,6 +152,10 @@ export default function NextTripSeatModal({
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
               <Text style={styles.legendText}>Selected</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#16A34A' }]} />
+              <Text style={styles.legendText}>Boarded</Text>
             </View>
           </View>
 
@@ -173,13 +185,16 @@ export default function NextTripSeatModal({
                               return <View key={`regular-left-empty-${rowIndex}-${index}`} style={styles.emptySeatSlot} />;
                             }
                             const isReserved = reservedMap.has(seat.id);
+                            const reservation = reservedMap.get(seat.id);
+                            const isBoarded = Boolean(reservation?.boarded);
                             const isSelected = selectedSeat?.seatNumber?.trim().toUpperCase() === seat.id;
                             return (
                               <Pressable
                                 key={seat.id}
                                 style={[
                                   styles.seat,
-                                  isReserved && styles.seatReserved,
+                                  isBoarded && styles.seatBoarded,
+                                  !isBoarded && isReserved && styles.seatReserved,
                                   isSelected && styles.seatSelected,
                                 ]}
                                 onPress={() => handleSeatPress(seat.id)}
@@ -199,13 +214,16 @@ export default function NextTripSeatModal({
                               return <View key={`regular-right-empty-${rowIndex}-${index}`} style={styles.emptySeatSlot} />;
                             }
                             const isReserved = reservedMap.has(seat.id);
+                            const reservation = reservedMap.get(seat.id);
+                            const isBoarded = Boolean(reservation?.boarded);
                             const isSelected = selectedSeat?.seatNumber?.trim().toUpperCase() === seat.id;
                             return (
                               <Pressable
                                 key={seat.id}
                                 style={[
                                   styles.seat,
-                                  isReserved && styles.seatReserved,
+                                  isBoarded && styles.seatBoarded,
+                                  !isBoarded && isReserved && styles.seatReserved,
                                   isSelected && styles.seatSelected,
                                 ]}
                                 onPress={() => handleSeatPress(seat.id)}
@@ -223,6 +241,8 @@ export default function NextTripSeatModal({
                     <View style={styles.busLastRow}>
                       {lastRowSeats.map((seat) => {
                         const isReserved = reservedMap.has(seat.id);
+                        const reservation = reservedMap.get(seat.id);
+                        const isBoarded = Boolean(reservation?.boarded);
                         const isSelected = selectedSeat?.seatNumber?.trim().toUpperCase() === seat.id;
                         return (
                           <Pressable
@@ -230,7 +250,8 @@ export default function NextTripSeatModal({
                             style={[
                               styles.seat,
                               styles.lastRowSeat,
-                              isReserved && styles.seatReserved,
+                              isBoarded && styles.seatBoarded,
+                              !isBoarded && isReserved && styles.seatReserved,
                               isSelected && styles.seatSelected,
                             ]}
                             onPress={() => handleSeatPress(seat.id)}
@@ -253,7 +274,11 @@ export default function NextTripSeatModal({
                         style={[
                           styles.paymentBadge,
                           {
-                            backgroundColor: selectedSeat.paymentStatus ? '#dcfce7' : '#fee2e2',
+                              backgroundColor: selectedSeat.boarded
+                                ? '#dcfce7'
+                                : selectedSeat.paymentStatus
+                                ? '#dcfce7'
+                                : '#fee2e2',
                           },
                         ]}
                       >
@@ -261,11 +286,19 @@ export default function NextTripSeatModal({
                           style={[
                             styles.paymentBadgeText,
                             {
-                              color: selectedSeat.paymentStatus ? '#166534' : '#991b1b',
+                                color: selectedSeat.boarded
+                                  ? '#166534'
+                                  : selectedSeat.paymentStatus
+                                  ? '#166534'
+                                  : '#991b1b',
                             },
                           ]}
                         >
-                          {selectedSeat.paymentStatus ? '✓ Paid' : '○ Unpaid'}
+                            {selectedSeat.boarded
+                              ? '✓ Boarded'
+                              : selectedSeat.paymentStatus
+                              ? '✓ Paid'
+                              : '○ Unpaid'}
                         </Text>
                       </View>
                     </View>
@@ -322,6 +355,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  scanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 10,
+    marginRight: 8,
+  },
+  scanBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.primary,
   },
   detailHeader: {
     flexDirection: 'row',
@@ -403,6 +451,10 @@ const styles = StyleSheet.create({
   seatReserved: {
     backgroundColor: '#FECACA',
     borderColor: '#DC2626',
+  },
+  seatBoarded: {
+    backgroundColor: '#BBF7D0',
+    borderColor: '#16A34A',
   },
   seatSelected: {
     backgroundColor: '#2563EB',
