@@ -8,6 +8,7 @@ import { useTripActions } from '../hooks/useDriver';
 import StartTripModal from '../component/StartTripModal';
 import PassengerLogModal from '../component/PassengerLogModal';
 import NextTripSeatModal, { type SeatReservation } from '../component/NextTripSeatModal';
+import BookingQrScannerModal from '../component/BookingQrScannerModal';
 import driverService from '../services/driverService';
 
 interface Props {
@@ -38,6 +39,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
   const [seatMapError, setSeatMapError] = useState<string | null>(null);
   const [seatMapTotalSeats, setSeatMapTotalSeats] = useState(45);
   const [seatMapReservations, setSeatMapReservations] = useState<SeatReservation[]>([]);
+  const [showQrScanner, setShowQrScanner] = useState(false);
 
   const getScheduleId = (value: any): string => {
     if (!value) return '';
@@ -261,6 +263,31 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     }
   };
 
+  const loadSeatMap = async (schedule: any, serviceDate: string) => {
+    if (!schedule?._id) return;
+
+    setSelectedSchedule(schedule);
+    setShowSeatMapModal(true);
+    setSeatMapLoading(true);
+    setSeatMapError(null);
+
+    try {
+      const data = await driverService.getScheduleSeatMap(String(schedule._id), serviceDate);
+      setSeatMapTotalSeats(Number(data?.totalSeats || 45));
+      setSeatMapReservations(
+        (data?.reservedSeats || []).map((seat: any) => ({
+          ...seat,
+          payment: seat.payment || undefined,
+        }))
+      );
+    } catch (error: any) {
+      setSeatMapReservations([]);
+      setSeatMapError(error?.response?.data?.message || 'Failed to load seat reservations');
+    } finally {
+      setSeatMapLoading(false);
+    }
+  };
+
   const handleOpenNextTripSeatMap = async () => {
     const schedule = getSeatMapTargetSchedule();
     if (!schedule?._id) {
@@ -272,20 +299,27 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       ? new Date(currentTrip.startTime || Date.now()).toISOString().split('T')[0]
       : getNextOccurrenceOfDay(schedule.dayOfWeek || '');
 
-    setSelectedSchedule(schedule);
-    setShowSeatMapModal(true);
-    setSeatMapLoading(true);
-    setSeatMapError(null);
+    await loadSeatMap(schedule, serviceDate);
+  };
 
+  const handleScanPassengerQr = async (qrData: string) => {
     try {
-      const data = await driverService.getScheduleSeatMap(String(schedule._id), serviceDate);
-      setSeatMapTotalSeats(Number(data?.totalSeats || 45));
-      setSeatMapReservations(data?.reservedSeats || []);
+      const result = await driverService.scanBookingQr(qrData);
+
+      Alert.alert(
+        'Scan Complete',
+        result.alreadyBoarded
+          ? `Passenger already boarded (${result.seatNumbers.join(', ')}).`
+          : `Passenger marked boarded (${result.seatNumbers.join(', ')}).`
+      );
+
+      if (selectedSchedule?._id && seatMapTargetServiceDate) {
+        await loadSeatMap(selectedSchedule, seatMapTargetServiceDate);
+      }
     } catch (error: any) {
-      setSeatMapReservations([]);
-      setSeatMapError(error?.response?.data?.message || 'Failed to load seat reservations');
-    } finally {
-      setSeatMapLoading(false);
+      const message = error?.response?.data?.message || error?.message || 'Failed to scan booking QR';
+      Alert.alert('Scan Failed', message);
+      throw error;
     }
   };
 
@@ -651,6 +685,13 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
         totalSeats={seatMapTotalSeats}
         reservedSeats={seatMapReservations}
         onClose={() => setShowSeatMapModal(false)}
+        onScanQrPress={() => setShowQrScanner(true)}
+      />
+
+      <BookingQrScannerModal
+        visible={showQrScanner}
+        onClose={() => setShowQrScanner(false)}
+        onScanned={handleScanPassengerQr}
       />
     </ScrollView>
   );
