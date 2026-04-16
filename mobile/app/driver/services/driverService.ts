@@ -81,6 +81,25 @@ export interface DriverSeatReservation {
     status?: string;
     passengerName: string;
     passengerPhone: string;
+    paymentStatus?: boolean;
+    boarded?: boolean;
+    boardedAt?: string | null;
+    payment?: {
+        status?: 'pending' | 'paid' | 'failed';
+        method?: string;
+        amount?: number;
+    } | null;
+}
+
+export interface ScanBookingQrResponse {
+    message: string;
+    alreadyBoarded: boolean;
+    bookingId: string;
+    bookingCode: string;
+    seatNumbers: string[];
+    isBoarded: boolean;
+    boardedAt?: string;
+    passengerCount?: number;
 }
 
 export interface DriverScheduleSeatMap {
@@ -196,6 +215,11 @@ const driverService = {
         const response = await apiClient.get('/trips/schedule-seat-map', {
             params: { scheduleId, serviceDate }
         });
+        return response.data;
+    },
+
+    scanBookingQr: async (qrData: string): Promise<ScanBookingQrResponse> => {
+        const response = await apiClient.post('/trips/scan-booking-qr', { qrData });
         return response.data;
     },
 };
