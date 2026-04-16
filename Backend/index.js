@@ -54,6 +54,7 @@ io.on('connection', (socket) => {
   socket.on('passenger:join-notifications', ({ passengerId }) => {
     socket.data.passengerId = passengerId;
     socket.join('passengers-room');
+    socket.join('passenger:' + passengerId); // personal room for booking status events
     console.log(`👥 Passenger ${passengerId} joined passengers-room for notifications`);
   });
 
