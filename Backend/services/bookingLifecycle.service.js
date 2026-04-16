@@ -12,34 +12,55 @@ const normalizeDateOnly = (value) => {
 
 const syncBookingsOnTripStart = async ({ trip }) => {
   if (!trip || !trip.routeId || !trip.busId || !trip.scheduleId) {
-    return { matched: 0, modified: 0 };
+    return { matched: 0, modified: 0, changedBookings: [] };
   }
 
   const serviceDate = normalizeDateOnly(trip.startTime || new Date());
   if (!serviceDate) {
-    return { matched: 0, modified: 0 };
+    return { matched: 0, modified: 0, changedBookings: [] };
+  }
+
+  const filter = {
+    routeId: trip.routeId,
+    busId: trip.busId,
+    scheduleId: trip.scheduleId,
+    serviceDate,
+    status: 'confirmed',
+  };
+
+  const transitionTime = new Date();
+
+  const candidates = await Booking.find(filter)
+    .select('_id bookingCode passengerId')
+    .lean();
+
+  if (!candidates.length) {
+    return { matched: 0, modified: 0, changedBookings: [] };
   }
 
   const result = await Booking.updateMany(
-    {
-      routeId: trip.routeId,
-      busId: trip.busId,
-      scheduleId: trip.scheduleId,
-      serviceDate,
-      status: 'confirmed',
-    },
+    filter,
     {
       $set: {
         status: 'in-progress',
         tripSessionId: trip._id,
-        startedAt: new Date(),
+        startedAt: transitionTime,
       },
     }
   );
 
+  const changedBookings = candidates.map((row) => ({
+    bookingId: String(row._id),
+    bookingCode: row.bookingCode,
+    passengerId: String(row.passengerId),
+    status: 'in-progress',
+    startedAt: transitionTime,
+  }));
+
   return {
     matched: result.matchedCount || 0,
     modified: result.modifiedCount || 0,
+    changedBookings,
   };
 };
 
@@ -92,38 +113,60 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName }) => {
 
 const completeAllInProgressBookingsForTrip = async ({ trip }) => {
   if (!trip || !trip._id || !trip.routeId || !trip.busId || !trip.scheduleId) {
-    return { matched: 0, modified: 0 };
+    return { matched: 0, modified: 0, changedBookings: [] };
   }
-  const tripDate = normalizeDateOnly(trip.startTime || trip.endTime ||new Date());
 
+  const tripDate = normalizeDateOnly(trip.startTime || trip.endTime || new Date());
   if (!tripDate) {
-    return { matched: 0, modified: 0 };
+    return { matched: 0, modified: 0, changedBookings: [] };
   }
 
-  const result = await Booking.updateMany({
+  const filter = {
     routeId: trip.routeId,
     busId: trip.busId,
     scheduleId: trip.scheduleId,
     serviceDate: tripDate,
-    status: {$in: ['in-progress', 'on-break']},
+    status: { $in: ['in-progress', 'on-break'] },
     $or: [
       { tripSessionId: trip._id },
-      { tripSessionId: {$exists: false} },
+      { tripSessionId: { $exists: false } },
       { tripSessionId: null },
     ],
-  },
-  {
-    $set: {
-      status: 'completed',
-      completedAt: new Date(),
-      tripSessionId: trip._id,
-    },
+  };
+
+  const transitionTime = new Date();
+
+  const candidates = await Booking.find(filter)
+    .select('_id bookingCode passengerId')
+    .lean();
+
+  if (!candidates.length) {
+    return { matched: 0, modified: 0, changedBookings: [] };
   }
+
+  const result = await Booking.updateMany(
+    filter,
+    {
+      $set: {
+        status: 'completed',
+        completedAt: transitionTime,
+        tripSessionId: trip._id,
+      },
+    }
   );
+
+  const changedBookings = candidates.map((row) => ({
+    bookingId: String(row._id),
+    bookingCode: row.bookingCode,
+    passengerId: String(row.passengerId),
+    status: 'completed',
+    completedAt: transitionTime,
+  }));
 
   return {
     matched: result.matchedCount || 0,
     modified: result.modifiedCount || 0,
+    changedBookings,
   };
 };
 
