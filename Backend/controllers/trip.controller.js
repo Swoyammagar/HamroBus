@@ -10,6 +10,34 @@ const {
     processMissedTripsForToday,
 } = require('../services/bookingLifecycle.service');
 
+const emitPassengerBookingStatusEvents = ({ io, trip, changedBookings }) => {
+  if (!io || !trip || !Array.isArray(changedBookings) || changedBookings.length === 0) return;
+
+  for (const booking of changedBookings) {
+    const payload = {
+      bookingId: booking.bookingId,
+      bookingCode: booking.bookingCode,
+      passengerId: booking.passengerId,
+      status: booking.status,
+      tripId: String(trip._id),
+      routeId: String(trip.routeId),
+      busId: String(trip.busId || ''),
+      scheduleId: String(trip.scheduleId || ''),
+      startedAt: booking.startedAt || null,
+      completedAt: booking.completedAt || null,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Personal room (bookings tab listener target)
+    io.to('passenger:' + booking.passengerId).emit('booking:status-updated', payload);
+
+    // Extra explicit event for completed flow
+    if (booking.status === 'completed') {
+      io.to('passenger:' + booking.passengerId).emit('booking:completed', payload);
+    }
+  }
+};
+
 const parseQrPayload = (rawQrData) => {
     try {
         if (typeof rawQrData !== 'string') return null;
@@ -238,6 +266,11 @@ const startTrip = async (req, res) => {
         if (io) {
             io.to(`driver:${driverId}`).emit('trip:started', newTrip);
             io.to(`driver:${driverId}`).emit('trip:updated', newTrip);
+            emitPassengerBookingStatusEvents({
+                io,
+                trip: newTrip,
+                changedBookings: bookingSyncStats.changedBookings || [],
+            });
         }
 
         res.status(201).json({
@@ -283,6 +316,11 @@ const endTrip = async (req, res) => {
         if (io) {
             io.to(`driver:${driverId}`).emit('trip:ended', trip);
             io.to(`driver:${driverId}`).emit('trip:updated', trip);
+            emitPassengerBookingStatusEvents({
+                io,
+                trip,
+                changedBookings: bookingCompletionStats.changedBookings || [],
+            });
         }
 
         res.status(200).json({
