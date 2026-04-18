@@ -45,6 +45,37 @@ const getMyRatingSummary = async (req, res) => {
   }
 };
 
+const getMyReviews = async (req, res) => {
+  const driverId = req.user.id;
+  const {limit = 20, offset = 0} = req.query;
+  try{
+    const parsedLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const parsedSkip = Math.max(Number(skip) || 0, 0);
+    
+    const [reviews, total] = await Promise.all([
+      Review.find({ driverId })
+        .populate('bookingId', 'bookingCode status completedAt')
+        .populate('passengerId', 'firstName lastName profileImgUrl')
+        .sort({ createdAt: -1 })
+        .limit(parsedLimit)
+        .skip(parsedSkip)
+        .select('bookingId passengerId rating comment reviewedAt createdAt isEdited'),
+      Review.countDocuments({ driverId }),
+    ]);
+    return res.status(200).json({
+      reviews,
+      total,
+      hasMore: parsedSkip + reviews.length < total,
+    });
+  }
+  catch (error) {
+    console.error('Get driver reviews error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+  
+};
+
 module.exports = {
   getMyRatingSummary,
+  getMyReviews,
 };
