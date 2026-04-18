@@ -63,6 +63,41 @@ export interface BookingQrResponse {
   qrCodeDataUrl: string;
 }
 
+export interface ReviewableBookingResponse {
+  bookingId: string;
+  bookingCode: string;
+  busId: string;
+  routeId: string;
+  boardingStop: { stopName: string; sequence: number };
+  destinationStop: { stopName: string; sequence: number };
+  seatNumbers: string[];
+  totalFare: number;
+  completedAt: string;
+}
+
+export interface SubmitBookingReviewPayload {
+  rating: number;
+  comment?: string;
+}
+
+export interface SubmitBookingReviewResponse {
+  message: string;
+  review: {
+    id: string;
+    bookingId: string;
+    passengerId: string;
+    driverId: string;
+    rating: number;
+    comment: string;
+    reviewedAt: string;
+    createdAt: string;
+  };
+  driverRating: {
+    ratingAverage: number;
+    ratingCount: number;
+  };
+}
+
 export const bookingService = {
   createBooking: async (payload: CreateBookingPayload): Promise<BookingResponse> => {
     const response = await apiClient.post('/passenger/bookings', payload);
@@ -96,6 +131,18 @@ export const bookingService = {
 
   getBookingQr: async (bookingId: string): Promise<BookingQrResponse> => {
     const response = await apiClient.get(`/passenger/bookings/${bookingId}/qr`);
+    return response.data;
+  },
+  getReviewableBookings: async (): Promise<ReviewableBookingResponse[]> => {
+    const response = await apiClient.get('/passenger/bookings/reviewable');
+    return response.data?.reviewableBookings || [];
+  },
+
+  submitBookingReview: async (
+    bookingId: string,
+    payload: SubmitBookingReviewPayload
+  ): Promise<SubmitBookingReviewResponse> => {
+    const response = await apiClient.post('/passenger/bookings/' + bookingId + '/review', payload);
     return response.data;
   },
 };
