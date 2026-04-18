@@ -16,7 +16,6 @@ import {
   notificationService,
   type PassengerNotificationApiRecord,
 } from '../services/notificationService';
-import passengerNotificationSocket from '../services/passengerNotificationSocket';
 
 const Notifications = () => {
   const { passenger } = useAuth();
@@ -66,42 +65,6 @@ const Notifications = () => {
 
   useEffect(() => {
     fetchPassengerNotifications();
-  }, [passenger?.id]);
-
-  useEffect(() => {
-    if (!passenger?.id) return;
-
-    let mounted = true;
-
-    const setupSocket = async () => {
-      await passengerNotificationSocket.connect(passenger.id);
-
-      const onIncoming = (payload: PassengerNotificationApiRecord) => {
-        if (!mounted) return;
-
-        const mapped = mapApiToAlert(payload, passenger.id);
-        if (!mapped) return;
-
-        setAlerts((prev) => {
-          const exists = prev.some((a) => a.id === mapped.id);
-          return exists ? prev : [mapped, ...prev];
-        });
-      };
-
-      passengerNotificationSocket.onNotification(onIncoming);
-
-      return () => {
-        passengerNotificationSocket.offNotification(onIncoming);
-      };
-    };
-
-    const teardownPromise = setupSocket();
-
-    return () => {
-      mounted = false;
-      teardownPromise.then((teardown) => teardown && teardown());
-      passengerNotificationSocket.disconnect();
-    }
   }, [passenger?.id]);
 
   const filteredAlerts = alerts.filter(alert => {
