@@ -47,10 +47,10 @@ const getMyRatingSummary = async (req, res) => {
 
 const getMyReviews = async (req, res) => {
   const driverId = req.user.id;
-  const {limit = 20, offset = 0} = req.query;
+  const { limit = 20, skip = 0, offset } = req.query;
   try{
     const parsedLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
-    const parsedSkip = Math.max(Number(skip) || 0, 0);
+    const parsedSkip = Math.max(Number(skip ?? offset) || 0, 0);
     
     const [reviews, total] = await Promise.all([
       Review.find({ driverId })
