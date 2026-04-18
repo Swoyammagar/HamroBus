@@ -1,6 +1,9 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { Route } from '../services/routeService';
 import { Bus } from '../services/busService';
+import { useAuth } from '../../context/AuthContext';
+import passengerNotificationSocket from '../services/passengerNotificationSocket';
+import { notificationService, type PassengerNotificationApiRecord } from '../services/notificationService';
 
 export interface Stop {
   _id?: string;
@@ -71,6 +74,13 @@ export interface Review {
   };
 }
 
+export interface PassengerToast {
+  id: string;
+  title: string;
+  message: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+}
+
 interface PassengerContextType {
   selectedRoute: Route | null;
   setSelectedRoute: (route: Route | null) => void;
@@ -92,11 +102,14 @@ interface PassengerContextType {
   setAlerts: React.Dispatch<React.SetStateAction<ServiceAlert[]>>;
   getUnreadAlerts: () => ServiceAlert[];
   markAlertRead: (alertId: string) => void;
+  currentToast: PassengerToast | null;
+  dismissToast: () => void;
 }
 
 const PassengerContext = createContext<PassengerContextType | undefined>(undefined);
 
 export const PassengerProvider = ({ children }: { children: ReactNode }) => {
+  const { passenger } = useAuth();
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [selectedBus, setSelectedBus] = useState<Bus | null>(null);
@@ -105,6 +118,8 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
+  const [currentToast, setCurrentToast] = useState<PassengerToast | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const addBooking = (booking: Booking) => {
     setBookings(prevBookings => [booking, ...prevBookings]);
@@ -132,6 +147,148 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  const dismissToast = () => {
+    setCurrentToast(null);
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+  };
+
+  const mapApiToAlert = (
+    item: PassengerNotificationApiRecord,
+    passengerId?: string
+  ): ServiceAlert | null => {
+    const id = String(item?._id || item?.id || '').trim();
+    if (!id) return null;
+
+    const isRead = (item.readBy || []).some((entry) => {
+      const readUserId = String(entry?.userId || '').trim();
+      return passengerId ? readUserId === String(passengerId) : false;
+    });
+
+    return {
+      id,
+      type: (item.type || 'info') as 'alert' | 'info' | 'maintenance' | 'announcement' | 'emergency',
+      title: item.title || 'Notification',
+      message: item.message || '',
+      severity: (item.severity || 'medium') as 'low' | 'medium' | 'high' | 'critical',
+      timestamp: item.createdAt || new Date().toISOString(),
+      read: isRead,
+    };
+  };
+
+  useEffect(() => {
+    if (!passenger?.id) {
+      passengerNotificationSocket.disconnect();
+      return;
+    }
+
+    let active = true;
+
+    const onIncomingNotification = (payload: PassengerNotificationApiRecord) => {
+      if (!active) return;
+      const mapped = mapApiToAlert(payload, passenger.id);
+      if (!mapped) return;
+
+      setAlerts((prev) => {
+        const exists = prev.some((a) => a.id === mapped.id);
+        return exists ? prev : [mapped, ...prev];
+      });
+
+      setCurrentToast({
+        id: mapped.id,
+        title: mapped.title,
+        message: mapped.message,
+        severity: mapped.severity,
+      });
+
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+      toastTimerRef.current = setTimeout(() => {
+        setCurrentToast((prev) => (prev?.id === mapped.id ? null : prev));
+        toastTimerRef.current = null;
+      }, 3500);
+    };
+
+    const onBookingStatusUpdated = (payload: any) => {
+      if (!active || !payload?.bookingId || !payload?.status) return;
+
+      const bookingId = String(payload.bookingId);
+      const rawStatus = String(payload.status);
+      const mappedStatus = rawStatus === 'in-progress' ? 'ongoing' : rawStatus;
+
+      if (mappedStatus !== 'confirmed' && mappedStatus !== 'ongoing' && mappedStatus !== 'completed' && mappedStatus !== 'cancelled') {
+        return;
+      }
+
+      setBookings((prev) =>
+        prev.map((booking) =>
+          booking.id === bookingId
+            ? {
+                ...booking,
+                status: mappedStatus,
+                tripStarted: rawStatus === 'in-progress' || rawStatus === 'completed',
+                tripEnded: rawStatus === 'completed',
+              }
+            : booking
+        )
+      );
+    };
+
+    const onBookingCompleted = (payload: any) => {
+      if (!active || !payload?.bookingId) return;
+
+      const bookingId = String(payload.bookingId);
+      setBookings((prev) =>
+        prev.map((booking) =>
+          booking.id === bookingId
+            ? {
+                ...booking,
+                status: 'completed',
+                tripStarted: true,
+                tripEnded: true,
+              }
+            : booking
+        )
+      );
+    };
+
+    const setup = async () => {
+      try {
+        const initialNotifications = await notificationService.getPassengerNotifications();
+        if (active) {
+          const mapped = initialNotifications
+            .map((item) => mapApiToAlert(item, passenger.id))
+            .filter(Boolean) as ServiceAlert[];
+          setAlerts(mapped);
+        }
+      } catch (error) {
+        console.error('Failed to load passenger notifications:', error);
+      }
+
+      await passengerNotificationSocket.connect(passenger.id);
+      passengerNotificationSocket.onNotification(onIncomingNotification);
+      passengerNotificationSocket.onBookingStatusUpdated(onBookingStatusUpdated);
+      passengerNotificationSocket.onBookingCompleted(onBookingCompleted);
+    };
+
+    setup();
+
+    return () => {
+      active = false;
+      passengerNotificationSocket.offNotification(onIncomingNotification);
+      passengerNotificationSocket.offBookingStatusUpdated(onBookingStatusUpdated);
+      passengerNotificationSocket.offBookingCompleted(onBookingCompleted);
+      passengerNotificationSocket.disconnect();
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+    };
+  }, [passenger?.id]);
+
   return (
     <PassengerContext.Provider
       value={{
@@ -155,6 +312,8 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
         setAlerts,
         getUnreadAlerts,
         markAlertRead,
+        currentToast,
+        dismissToast,
       }}
     >
       {children}
