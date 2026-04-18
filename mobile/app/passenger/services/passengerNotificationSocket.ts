@@ -33,6 +33,22 @@ class PassengerNotificationSocket {
     this.socket?.off('notification:new', handler);
   }
 
+  onBookingStatusUpdated(handler: (payload: any) => void) {
+    this.socket?.on('booking:status-updated', handler);
+  }
+
+  offBookingStatusUpdated(handler: (payload: any) => void) {
+    this.socket?.off('booking:status-updated', handler);
+  }
+
+  onBookingCompleted(handler: (payload: any) => void) {
+    this.socket?.on('booking:completed', handler);
+  }
+
+  offBookingCompleted(handler: (payload: any) => void) {
+    this.socket?.off('booking:completed', handler);
+  }
+
   disconnect() {
     if (!this.socket) return;
     this.socket.removeAllListeners();
