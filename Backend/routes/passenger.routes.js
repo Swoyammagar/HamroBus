@@ -15,6 +15,7 @@ const {
     getPublicBusesByRoute,
     getPublicBusById,
     getPublicDriverById,
+    getPublicDriverLatestReviews,
 } = require('../controllers/passenger/publicData.controller');
 const {
     createBooking,
@@ -42,6 +43,7 @@ router.get('/buses', getPublicBuses);
 router.get('/buses/route/:routeId', getPublicBusesByRoute);
 router.get('/buses/:busId', getPublicBusById);
 router.get('/drivers/:driverId', getPublicDriverById);
+router.get('/drivers/:driverId/reviews', getPublicDriverLatestReviews);
 router.get('/payments/khalti-return', khaltiReturnBridge);
 
 // Protected routes (require authentication)

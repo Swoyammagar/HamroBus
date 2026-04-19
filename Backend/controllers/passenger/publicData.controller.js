@@ -2,6 +2,7 @@ const Route = require('../../models/route.model');
 const Bus = require('../../models/bus.model');
 const Driver = require('../../models/driver.model');
 const TripSession = require('../../models/tripSession.model');
+const Review = require('../../models/review.model');
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -255,6 +256,43 @@ const getPublicDriverById = async (req, res) => {
   }
 };
 
+const getPublicDriverLatestReviews = async (req, res) => {
+  const { driverId } = req.params;
+
+  try {
+    const exists = await Driver.exists({ _id: driverId });
+    if (!exists) {
+      return res.status(404).json({ message: 'Driver not found' });
+    }
+
+    const reviews = await Review.find({ driverId })
+      .populate('passengerId', 'firstName lastName profileImgUrl')
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('rating comment reviewedAt createdAt passengerId');
+
+    const formatted = reviews.map((item) => ({
+      _id: item._id,
+      rating: item.rating,
+      comment: item.comment || '',
+      reviewedAt: item.reviewedAt || item.createdAt,
+      passenger: item.passengerId
+        ? {
+            _id: item.passengerId._id,
+            firstName: item.passengerId.firstName || '',
+            lastName: item.passengerId.lastName || '',
+            profileImgUrl: item.passengerId.profileImgUrl || '',
+          }
+        : null,
+    }));
+
+    return res.status(200).json({ reviews: formatted });
+  } catch (error) {
+    console.error('Public driver latest reviews error:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   getPublicRoutes,
   getPublicRouteById,
@@ -264,4 +302,5 @@ module.exports = {
   getPublicBusesByRoute,
   getPublicBusById,
   getPublicDriverById,
+  getPublicDriverLatestReviews,
 };
