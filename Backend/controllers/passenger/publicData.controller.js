@@ -76,6 +76,8 @@ const mapBus = (bus) => ({
     ? `${bus.assignedDriverId.firstName || ''} ${bus.assignedDriverId.lastName || ''}`.trim()
     : undefined,
   driverPhoto: bus.assignedDriverId?.profileImgUrl || undefined,
+  driverRatingAverage: Number(bus.assignedDriverId?.ratingAverage || 0),
+  driverRatingCount: Number(bus.assignedDriverId?.ratingCount || 0),
   currentPassengers: bus.currentPassengers,
   status: bus.status,
 });
@@ -191,7 +193,7 @@ const getPublicRouteSchedules = async (req, res) => {
 const getPublicBuses = async (req, res) => {
   try {
     const buses = await Bus.find()
-      .populate('assignedDriverId', 'firstName lastName licenseNo profileImgUrl')
+      .populate('assignedDriverId', 'firstName lastName licenseNo profileImgUrl ratingAverage ratingCount')
       .populate('assignedRouteId', 'routeName')
       .lean();
 
@@ -207,7 +209,7 @@ const getPublicBusesByRoute = async (req, res) => {
   const { routeId } = req.params;
   try {
     const buses = await Bus.find({ assignedRouteId: routeId })
-      .populate('assignedDriverId', 'firstName lastName licenseNo profileImgUrl')
+      .populate('assignedDriverId', 'firstName lastName licenseNo profileImgUrl ratingAverage ratingCount')
       .populate('assignedRouteId', 'routeName')
       .lean();
 
@@ -223,7 +225,7 @@ const getPublicBusById = async (req, res) => {
   const { busId } = req.params;
   try {
     const bus = await Bus.findById(busId)
-      .populate('assignedDriverId', 'firstName lastName licenseNo profileImgUrl')
+      .populate('assignedDriverId', 'firstName lastName licenseNo profileImgUrl ratingAverage ratingCount')
       .populate('assignedRouteId', 'routeName')
       .lean();
 
@@ -241,7 +243,7 @@ const getPublicBusById = async (req, res) => {
 const getPublicDriverById = async (req, res) => {
   const { driverId } = req.params;
   try {
-    const driver = await Driver.findById(driverId).select('firstName lastName email phoneNumber licenseNo profileImgUrl');
+    const driver = await Driver.findById(driverId).select('firstName lastName email phoneNumber licenseNo profileImgUrl ratingAverage ratingCount');
     if (!driver) {
       return res.status(404).json({ message: 'Driver not found' });
     }
