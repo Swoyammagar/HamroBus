@@ -78,10 +78,10 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      <View style={styles.infoRow}>
+      {/* <View style={styles.infoRow}>
         <Stat icon="phone" label="Phone" value={user?.phoneNumber || 'N/A'} />
         <Stat icon="mail" label="Email" value={user?.email.split('@')[0] || 'N/A'} />
-      </View>
+      </View> */}
 
       <View style={[styles.card, shadow.card]}>
         <Text style={styles.cardTitle}>Account Status</Text>

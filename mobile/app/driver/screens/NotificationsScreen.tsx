@@ -37,7 +37,7 @@ const NotificationsScreen = () => {
   const [alertDetailModal, setAlertDetailModal] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'unread'>('all');
   const [loading, setLoading] = useState(false);
-  const currentDriverId = String(driver?.id || user?._id || '').trim();
+  const currentDriverId = String(driver?.id || (user as any)?.id || user?._id || '').trim();
 
   const mapApiToAlert = (
     item: DriverNotificationApiRecord,
