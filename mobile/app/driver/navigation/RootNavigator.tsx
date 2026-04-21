@@ -4,9 +4,8 @@ import { Feather } from '@expo/vector-icons';
 import { palette } from '../theme';
 import { useAuth } from '../../context/AuthContext';
 import { notificationService } from '../services/notificationService';
-import driverNotificationSocket from '../services/driverNotificationSocket';
 import {
-  notifyIncomingNotification,
+  subscribeIncomingNotification,
   subscribeNotificationAllRead,
   subscribeNotificationReadChange,
 } from '../services/notificationEvents';
@@ -38,8 +37,8 @@ export default function RootNavigator({ isOnline, onSOS }: RootNavigatorProps) {
   const { user, driver } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const currentDriverId = useMemo(
-    () => String(driver?.id || user?._id || '').trim(),
-    [driver?.id, user?._id]
+    () => String(driver?.id || (user as any)?.id || user?._id || '').trim(),
+    [driver?.id, user?._id, (user as any)?.id]
   );
 
   const refreshUnreadCount = useCallback(async () => {
@@ -66,34 +65,12 @@ export default function RootNavigator({ isOnline, onSOS }: RootNavigatorProps) {
   }, [currentDriverId]);
 
   useEffect(() => {
-    if (!currentDriverId) return;
+    const unsubscribe = subscribeIncomingNotification(() => {
+      setUnreadCount((prev) => prev + 1);
+    });
 
-    let mounted = true;
-
-    const setupSocket = async () => {
-      await driverNotificationSocket.connect(currentDriverId);
-
-      const onIncoming = (payload: any) => {
-        if (!mounted) return;
-        notifyIncomingNotification(payload);
-        setUnreadCount((prev) => prev + 1);
-      };
-
-      driverNotificationSocket.onNotification(onIncoming);
-
-      return () => {
-        driverNotificationSocket.offNotification(onIncoming);
-      };
-    };
-
-    const teardownPromise = setupSocket();
-
-    return () => {
-      mounted = false;
-      teardownPromise.then((teardown) => teardown && teardown());
-      driverNotificationSocket.disconnect();
-    };
-  }, [currentDriverId]);
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     refreshUnreadCount();

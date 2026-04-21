@@ -21,6 +21,7 @@ export default function DriverLayout() {
       <Stack.Screen name="screens/MapScreen" />
       <Stack.Screen name="screens/SchedulesScreen" />
       <Stack.Screen name="screens/NotificationsScreen" />
+      <Stack.Screen name="screens/AllReviewsScreen" />
     </Stack>
   );
 }
