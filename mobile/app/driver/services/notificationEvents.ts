@@ -1,10 +1,20 @@
 type NotificationReadListener = () => void;
-type NotificationIncomingListener = (payload: any) => void;
+type NotificationIncomingListener = (payload: DriverIncomingNotificationPayload) => void;
 type NotificationAllReadListener = () => void;
 
 const listeners = new Set<NotificationReadListener>();
 const incomingListeners = new Set<NotificationIncomingListener>();
 const allReadListeners = new Set<NotificationAllReadListener>();
+
+export type DriverIncomingNotificationPayload = {
+  _id?: string;
+  id?: string;
+  title?: string;
+  message?: string;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+  type?: 'alert' | 'info' | 'maintenance' | 'announcement' | 'emergency';
+  createdAt?: string;
+};
 
 export const subscribeNotificationReadChange = (listener: NotificationReadListener) => {
   listeners.add(listener);
@@ -47,7 +57,7 @@ export const subscribeIncomingNotification = (listener: NotificationIncomingList
   };
 };
 
-export const notifyIncomingNotification = (payload: any) => {
+export const notifyIncomingNotification = (payload: DriverIncomingNotificationPayload) => {
   incomingListeners.forEach((listener) => {
     try {
       listener(payload);
