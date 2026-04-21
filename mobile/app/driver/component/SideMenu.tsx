@@ -10,7 +10,14 @@ interface Props {
   isOnline: boolean;
 }
 
-const menuItems = [
+type MenuItem = {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  route?: string;
+};
+
+const menuItems: MenuItem[] = [
+  { icon: 'star', label: 'All Reviews', route: '/driver/screens/AllReviewsScreen' },
   { icon: 'settings', label: 'Settings' },
   { icon: 'file-text', label: 'Documents' },
   { icon: 'shield', label: 'Safety & Support' },
@@ -22,6 +29,13 @@ export default function SideMenu({ isOpen, onClose, isOnline }: Props) {
   const slide = useRef(new Animated.Value(-Dimensions.get('window').width)).current;
   const router = useRouter();
   const { logout } = useAuth();
+
+  const handleMenuItemPress = (item: MenuItem) => {
+    onClose();
+    if (item.route) {
+      router.push(item.route as any);
+    }
+  };
   
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -73,7 +87,7 @@ export default function SideMenu({ isOpen, onClose, isOnline }: Props) {
 
         <View style={styles.menuList}>
           {menuItems.map((item) => (
-            <Pressable key={item.label} style={styles.menuItem} onPress={onClose}>
+            <Pressable key={item.label} style={styles.menuItem} onPress={() => handleMenuItemPress(item)}>
               <Feather name={item.icon as any} size={18} color={palette.text} />
               <Text style={styles.menuLabel}>{item.label}</Text>
             </Pressable>
