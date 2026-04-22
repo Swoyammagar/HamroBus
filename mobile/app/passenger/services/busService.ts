@@ -9,6 +9,19 @@ export interface Driver {
   avatar?: string;
 }
 
+export interface DriverLatestReview {
+  _id: string;
+  rating: number;
+  comment: string;
+  reviewedAt?: string;
+  passenger?: {
+    _id?: string;
+    firstName?: string;
+    lastName?: string;
+    profileImgUrl?: string;
+  } | null;
+}
+
 export interface Bus {
   _id?: string;
   id?: string;
@@ -18,6 +31,8 @@ export interface Bus {
   driverId?: string;
   driverName?: string;
   driverPhoto?: string;
+  driverRatingAverage?: number;
+  driverRatingCount?: number;
   currentOccupancy?: number;
   currentPassengers?: number;
   totalCapacity?: number;
@@ -58,5 +73,10 @@ export const busService = {
   getDriverById: async (driverId: string): Promise<Driver> => {
     const response = await apiClient.get(`/passenger/drivers/${driverId}`);
     return response.data?.driver || response.data;
+  },
+
+  getDriverLatestReviews: async (driverId: string): Promise<DriverLatestReview[]> => {
+    const response = await apiClient.get(`/passenger/drivers/${driverId}/reviews`);
+    return response.data?.reviews || response.data || [];
   },
 };
