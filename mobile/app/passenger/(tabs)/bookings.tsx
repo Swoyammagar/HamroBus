@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,17 @@ import {
   ActivityIndicator,
   RefreshControl,
   Share,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { usePassenger, type Booking } from '../context/PassengerContext';
-import { bookingService, type BookingResponse } from '../services/bookingService';
+import {
+  bookingService,
+  type BookingResponse,
+  type ReviewableBookingResponse,
+} from '../services/bookingService';
 import { formatDate } from '../utils/helpers';
 import BookingDetailModal from '@/app/passenger/components/BookingDetailModal';
 
@@ -26,6 +32,14 @@ const MyBookings = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [reviewTargetBooking, setReviewTargetBooking] = useState<Booking | null>(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewableBookingIds, setReviewableBookingIds] = useState<Set<string>>(new Set());
+
+  const previousBookingStatusRef = useRef<Record<string, Booking['status']>>({});
 
   const normalizeEntityId = (value: unknown): string => {
     if (value == null) return '';
@@ -49,6 +63,50 @@ const MyBookings = () => {
     return id ? `Bus #${id.substring(0, 8)}` : 'Bus';
   };
 
+  const mapApiBookingToContext = (b: BookingResponse): Booking => ({
+    id: String(b.id),
+    bookingId: b.bookingCode,
+    passengerId: b.passengerId,
+    busId: normalizeEntityId(b.busId),
+    routeId: normalizeEntityId(b.routeId),
+    token: b.bookingCode,
+    seatNumber: (b.seatNumbers || []).join(', '),
+    price: b.totalFare,
+    paymentStatus: Boolean(b.paymentStatus || b.payment?.status === 'paid'),
+    bookingDate: b.createdAt,
+    travelDate: b.serviceDate,
+    status: b.status === 'in-progress' ? 'ongoing' : (b.status as 'confirmed' | 'ongoing' | 'completed' | 'cancelled'),
+    boardingStop: b.boardingStop?.stopName || '',
+    alightingStop: b.destinationStop?.stopName || '',
+    tripStarted: b.status === 'in-progress' || b.status === 'completed',
+    tripEnded: b.status === 'completed',
+  });
+
+  const mapContextBookingToResponse = (booking: Booking): BookingResponse => ({
+    id: booking.id,
+    bookingCode: booking.bookingId,
+    passengerId: booking.passengerId,
+    routeId: booking.routeId,
+    busId: booking.busId,
+    scheduleId: '',
+    tripSessionId: '',
+    serviceDate: booking.travelDate,
+    dayOfWeek: '',
+    scheduleStartTime: '',
+    scheduleEndTime: '',
+    boardingStop: { stopName: booking.boardingStop, sequence: 0 },
+    destinationStop: { stopName: booking.alightingStop, sequence: 0 },
+    seatNumbers: booking.seatNumber.split(', '),
+    seatCount: booking.seatNumber.split(', ').length,
+    farePerSeat: Math.floor(booking.price / Math.max(booking.seatNumber.split(', ').length, 1)),
+    totalFare: booking.price,
+    paymentStatus: booking.paymentStatus,
+    payment: undefined,
+    status: booking.status === 'ongoing' ? 'in-progress' : (booking.status as 'confirmed' | 'completed' | 'cancelled'),
+    createdAt: booking.bookingDate,
+    updatedAt: booking.bookingDate,
+  });
+
   // Fetch bookings on tab focus
   useFocusEffect(
     React.useCallback(() => {
@@ -61,30 +119,16 @@ const MyBookings = () => {
     setError(null);
     try {
       const data = await bookingService.getMyBookings();
-      
-      // Map API response to Booking type for context
-      const mappedBookings: Booking[] = data.map((b: BookingResponse) => ({
-        id: String(b.id),
-        bookingId: b.bookingCode,
-        passengerId: b.passengerId,
-        busId: normalizeEntityId(b.busId),
-        routeId: normalizeEntityId(b.routeId),
-        token: b.bookingCode,
-        seatNumber: (b.seatNumbers || []).join(', '),
-        price: b.totalFare,
-        paymentStatus: Boolean(b.paymentStatus || b.payment?.status === 'paid'),
-        bookingDate: b.createdAt,
-        travelDate: b.serviceDate,
-        status: b.status as 'confirmed' | 'ongoing' | 'completed' | 'cancelled',
-        boardingStop: b.boardingStop?.stopName || '',
-        alightingStop: b.destinationStop?.stopName || '',
-        tripStarted: b.status === 'in-progress' || b.status === 'completed',
-        tripEnded: b.status === 'completed',
-      }));
+
+      const mappedBookings: Booking[] = data.map((b: BookingResponse) => mapApiBookingToContext(b));
 
       if (setBookings) {
         setBookings(mappedBookings);
       }
+
+      const reviewable = await bookingService.getReviewableBookings();
+      const reviewableIds = new Set(reviewable.map((row: ReviewableBookingResponse) => String(row.bookingId)));
+      setReviewableBookingIds(reviewableIds);
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Failed to load bookings';
       setError(message);
@@ -99,6 +143,100 @@ const MyBookings = () => {
     await fetchBookings();
     setRefreshing(false);
   };
+
+  const openReviewModalForBooking = (booking: Booking) => {
+    setReviewTargetBooking(booking);
+    setReviewRating(0);
+    setReviewComment('');
+    setReviewModalVisible(true);
+  };
+
+  const closeReviewModal = () => {
+    setReviewModalVisible(false);
+    setReviewTargetBooking(null);
+    setReviewRating(0);
+    setReviewComment('');
+  };
+
+  const loadReviewableBookings = async (): Promise<Set<string>> => {
+    const reviewable = await bookingService.getReviewableBookings();
+    const ids = new Set(reviewable.map((row: ReviewableBookingResponse) => String(row.bookingId)));
+    setReviewableBookingIds(ids);
+    return ids;
+  };
+
+  const submitReview = async () => {
+    if (!reviewTargetBooking) return;
+
+    if (!reviewRating) {
+      Alert.alert('Rating required', 'Please give a star rating before submitting.');
+      return;
+    }
+
+    setReviewSubmitting(true);
+    try {
+      await bookingService.submitBookingReview(reviewTargetBooking.id, {
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+      });
+
+      setReviewableBookingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(reviewTargetBooking.id);
+        return next;
+      });
+
+      closeReviewModal();
+      Alert.alert('Thanks!', 'Your review was submitted.');
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Failed to submit review';
+      Alert.alert('Review Error', message);
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    const previous = previousBookingStatusRef.current;
+    const current: Record<string, Booking['status']> = {};
+
+    const transitionedToCompletedIds: string[] = [];
+
+    bookings.forEach((booking) => {
+      current[booking.id] = booking.status;
+      const before = previous[booking.id];
+      if (before && before !== 'completed' && booking.status === 'completed') {
+        transitionedToCompletedIds.push(booking.id);
+      }
+    });
+
+    previousBookingStatusRef.current = current;
+
+    if (!transitionedToCompletedIds.length || reviewModalVisible) return;
+
+    let active = true;
+
+    (async () => {
+      try {
+        const ids = await loadReviewableBookings();
+        if (!active) return;
+
+        const target = bookings.find(
+          (booking) => transitionedToCompletedIds.includes(booking.id) && ids.has(booking.id)
+        );
+
+        if (target && !reviewModalVisible) {
+          openReviewModalForBooking(target);
+        }
+      } catch (error) {
+        console.error('Failed to load reviewable bookings on status transition:', error);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [bookings, reviewModalVisible]);
 
   const getTabBookings = () => {
     const filtered = bookings.filter(b => {
@@ -156,24 +294,7 @@ const MyBookings = () => {
   };
 
   const handleCancelBookingAPI = (booking: BookingResponse) => {
-    handleCancelBooking({
-      id: booking.id,
-      bookingId: booking.bookingCode,
-      passengerId: booking.passengerId,
-      busId: String(booking.busId),
-      routeId: String(booking.routeId),
-      token: booking.bookingCode,
-      seatNumber: booking.seatNumbers.join(', '),
-      price: booking.totalFare,
-      paymentStatus: Boolean(booking.paymentStatus || booking.payment?.status === 'paid'),
-      bookingDate: booking.createdAt,
-      travelDate: booking.serviceDate,
-      status: booking.status === 'in-progress' ? 'ongoing' : booking.status,
-      boardingStop: booking.boardingStop.stopName,
-      alightingStop: booking.destinationStop.stopName,
-      tripStarted: booking.status === 'in-progress' || booking.status === 'completed',
-      tripEnded: booking.status === 'completed',
-    });
+    handleCancelBooking(mapApiBookingToContext(booking));
   };
 
   const BookingCard = ({ booking }: { booking: Booking }) => {
@@ -186,30 +307,7 @@ const MyBookings = () => {
       <TouchableOpacity
         style={styles.bookingCard}
         onPress={() => {
-          setSelectedBooking({
-            id: booking.id,
-            bookingCode: booking.bookingId,
-            passengerId: booking.passengerId,
-            routeId: booking.routeId,
-            busId: booking.busId,
-            scheduleId: '',
-            tripSessionId: '',
-            serviceDate: booking.travelDate,
-            dayOfWeek: '',
-            scheduleStartTime: '',
-            scheduleEndTime: '',
-            boardingStop: { stopName: booking.boardingStop, sequence: 0 },
-            destinationStop: { stopName: booking.alightingStop, sequence: 0 },
-            seatNumbers: booking.seatNumber.split(', '),
-            seatCount: booking.seatNumber.split(', ').length,
-            farePerSeat: Math.floor(booking.price / booking.seatNumber.split(', ').length),
-            totalFare: booking.price,
-            paymentStatus: booking.paymentStatus,
-            payment: undefined,
-            status: booking.status as any,
-            createdAt: booking.bookingDate,
-            updatedAt: booking.bookingDate,
-          } as BookingResponse);
+          setSelectedBooking(mapContextBookingToResponse(booking));
           setBookingDetailModal(true);
         }}
       >
@@ -311,6 +409,16 @@ const MyBookings = () => {
             </Text>
           </View>
         </View>
+
+        {isCompleted && reviewableBookingIds.has(booking.id) && (
+          <TouchableOpacity
+            style={styles.reviewActionButton}
+            onPress={() => openReviewModalForBooking(booking)}
+          >
+            <Ionicons name="star" size={16} color="#ffffff" />
+            <Text style={styles.reviewActionButtonText}>Rate Driver</Text>
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     );
   };
@@ -416,6 +524,76 @@ const MyBookings = () => {
           )}
         </ScrollView>
       )}
+
+      <Modal visible={reviewModalVisible} transparent animationType="slide" onRequestClose={closeReviewModal}>
+        <View style={styles.reviewModalOverlay}>
+          <View style={styles.reviewModalCard}>
+            <Text style={styles.reviewModalTitle}>Trip Completed</Text>
+            <Text style={styles.reviewModalSubtitle}>
+              Rate your driver now or skip and review later from completed bookings.
+            </Text>
+
+            {reviewTargetBooking && (
+              <View style={styles.reviewTripMeta}>
+                <Text style={styles.reviewTripMetaText}>
+                  {reviewTargetBooking.boardingStop} to {reviewTargetBooking.alightingStop}
+                </Text>
+                <Text style={styles.reviewTripMetaSubText}>Booking {reviewTargetBooking.bookingId}</Text>
+              </View>
+            )}
+
+            <View style={styles.reviewStarsRow}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setReviewRating(star)}
+                  style={styles.reviewStarButton}
+                >
+                  <Ionicons
+                    name={star <= reviewRating ? 'star' : 'star-outline'}
+                    size={32}
+                    color={star <= reviewRating ? '#f59e0b' : '#d1d5db'}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput
+              value={reviewComment}
+              onChangeText={setReviewComment}
+              style={styles.reviewCommentInput}
+              placeholder="Optional comment"
+              placeholderTextColor="#9ca3af"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              maxLength={500}
+            />
+
+            <View style={styles.reviewModalActions}>
+              <TouchableOpacity
+                style={styles.reviewSkipButton}
+                onPress={closeReviewModal}
+                disabled={reviewSubmitting}
+              >
+                <Text style={styles.reviewSkipButtonText}>Skip for now</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.reviewSubmitButton}
+                onPress={submitReview}
+                disabled={reviewSubmitting}
+              >
+                {reviewSubmitting ? (
+                  <ActivityIndicator color="#ffffff" size="small" />
+                ) : (
+                  <Text style={styles.reviewSubmitButtonText}>Submit Review</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <BookingDetailModal
         visible={bookingDetailModal}
@@ -800,6 +978,117 @@ qrHint: {
   color: '#6b7280',
   fontSize: 13,
 },
+  reviewActionButton: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  reviewActionButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  reviewModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  reviewModalCard: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  reviewModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  reviewModalSubtitle: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#4b5563',
+    lineHeight: 20,
+  },
+  reviewTripMeta: {
+    marginTop: 12,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 10,
+    padding: 10,
+  },
+  reviewTripMetaText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  reviewTripMetaSubText: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  reviewStarsRow: {
+    marginTop: 14,
+    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  reviewStarButton: {
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+  },
+  reviewCommentInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 100,
+    color: '#111827',
+    fontSize: 13,
+    marginTop: 8,
+  },
+  reviewModalActions: {
+    marginTop: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  reviewSkipButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+  },
+  reviewSkipButtonText: {
+    color: '#374151',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  reviewSubmitButton: {
+    flex: 1,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    backgroundColor: '#2563eb',
+  },
+  reviewSubmitButtonText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
 });
 
 export default MyBookings;
