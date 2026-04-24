@@ -53,7 +53,14 @@ const getAdminReviews = async (req, res) => {
       Review.find(filter)
         .populate('driverId', 'firstName lastName profileImgUrl ratingAverage ratingCount')
         .populate('passengerId', 'firstName lastName profileImgUrl')
-        .populate('bookingId', 'bookingCode status completedAt')
+        .populate({
+          path: 'bookingId',
+          select: 'bookingCode status completedAt busId',
+          populate: {
+            path: 'busId',
+            select: 'busNumber',
+          },
+        })
         .sort({ createdAt: sortDir })
         .limit(parsedLimit)
         .skip(parsedSkip)
