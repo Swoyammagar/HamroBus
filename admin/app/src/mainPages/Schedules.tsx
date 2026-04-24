@@ -6,9 +6,14 @@ import {
   StyleSheet,
 } from "react-native";
 import { Tabs, SearchBar, Table, Modal, Picker, Button, Input, type TableColumn } from '../../components/ui';
-import { useRoute, DayOfWeek, ScheduleRecord, StopArrivalRecord } from '../../context/RouteContext';
-import { useBus } from '../../context/BusContext';
-import { useDriver } from '../../context/DriverContext';
+import {
+  useRoute,
+  useBus,
+  useDriver,
+  type DayOfWeek,
+  type ScheduleRecord,
+  type StopArrivalRecord,
+} from '../../context/domains';
 
 const toStopArrivalTimeMap = (stopArrivals?: StopArrivalRecord[]) => {
   const initialMap: Record<string, string> = {};

@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Platform, Pressable } from 'react-native';
 import { Tabs, SearchBar, Button, Input, StatusBadge } from '../../components/ui';
-import { useRoute, DayOfWeek, RouteRecord } from '../../context/RouteContext';
+import { useRoute, type DayOfWeek, type RouteRecord } from '../../context/domains';
 import WebMap from './components/WebMap';
 import AddMap from './components/AddMap';
 import RouteDetailModal from './components/RouteDetailModal';

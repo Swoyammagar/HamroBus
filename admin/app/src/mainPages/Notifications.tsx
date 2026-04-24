@@ -17,7 +17,7 @@ import {
   type NotificationRecord,
   type NotificationType,
   type NotificationSeverity,
-} from '../../context/NotificationContext';
+} from '../../context/domains';
 
 const Notifications = () => {
   const {

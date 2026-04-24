@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, ScrollView, Text, StyleSheet, Modal, Platform } from 'react-native';
 import { Button, Input } from '../../../components/ui';
-import { RouteRecord, DayOfWeek, RouteStop } from '../../../context/RouteContext';
+import { type RouteRecord, type DayOfWeek, type RouteStop } from '../../../context/domains';
 import AddMap from './AddMap';
 
 interface RouteDetailModalProps {

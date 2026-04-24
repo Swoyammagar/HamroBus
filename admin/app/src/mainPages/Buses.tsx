@@ -1,8 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
-import { useBus, type BusRecord } from '../../context/BusContext';
-import { useDriver } from '../../context/DriverContext';
-import { useRoute } from '../../context/RouteContext';
+import { useBus, useDriver, useRoute, type BusRecord } from '../../context/domains';
 import {
   Tabs,
   SearchBar,
