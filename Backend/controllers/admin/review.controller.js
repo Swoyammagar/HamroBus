@@ -122,7 +122,124 @@ const getAdminReviewSummary = async (req, res) => {
   }
 };
 
+const getDriverLeaderboard = async (req, res) => {
+  const {
+    limit = 20,
+    skip = 0,
+    offset,
+    minReviews = 1,
+    mode = 'bayesian', // 'bayesian' | 'average'
+  } = req.query;
+
+  try {
+    const parsedLimit = Math.min(Math.max(toInt(limit, 20), 1), 100);
+    const parsedSkip = Math.max(toInt(skip ?? offset, 0), 0);
+    const parsedMinReviews = Math.max(toInt(minReviews, 1), 1);
+
+    // Global average rating C (used for Bayesian smoothing)
+    const avgRows = await Review.aggregate([
+      { $group: { _id: null, globalAvg: { $avg: '$rating' } } },
+    ]);
+    const C = Number(avgRows[0]?.globalAvg || 0);
+
+    // m = confidence constant (bigger m -> stronger smoothing)
+    const m = 5;
+
+    const basePipeline = [
+      {
+        $group: {
+          _id: '$driverId',
+          averageRating: { $avg: '$rating' },
+          ratingCount: { $sum: 1 },
+          latestReviewAt: { $max: '$createdAt' },
+        },
+      },
+      { $match: { ratingCount: { $gte: parsedMinReviews } } },
+      {
+        $lookup: {
+          from: 'drivers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'driver',
+        },
+      },
+      { $unwind: '$driver' },
+      {
+        $addFields: {
+          bayesianScore: {
+            $divide: [
+              {
+                $add: [
+                  { $multiply: ['$averageRating', '$ratingCount'] },
+                  { $multiply: [C, m] },
+                ],
+              },
+              { $add: ['$ratingCount', m] },
+            ],
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          driverId: '$driver._id',
+          firstName: '$driver.firstName',
+          lastName: '$driver.lastName',
+          email: '$driver.email',
+          phoneNumber: '$driver.phoneNumber',
+          profileImgUrl: '$driver.profileImgUrl',
+          validationStatus: '$driver.validationStatus',
+          isActive: '$driver.isActive',
+          averageRating: { $round: ['$averageRating', 2] },
+          ratingCount: 1,
+          latestReviewAt: 1,
+          bayesianScore: { $round: ['$bayesianScore', 3] },
+        },
+      },
+    ];
+
+    const sortStage =
+      String(mode).toLowerCase() === 'average'
+        ? { $sort: { averageRating: -1, ratingCount: -1, latestReviewAt: -1 } }
+        : { $sort: { bayesianScore: -1, averageRating: -1, ratingCount: -1, latestReviewAt: -1 } };
+
+    const dataPipeline = [
+      ...basePipeline,
+      sortStage,
+      { $skip: parsedSkip },
+      { $limit: parsedLimit },
+    ];
+
+    const countPipeline = [...basePipeline, { $count: 'total' }];
+
+    const [rows, countRows] = await Promise.all([
+      Review.aggregate(dataPipeline),
+      Review.aggregate(countPipeline),
+    ]);
+
+    const total = countRows[0]?.total || 0;
+
+    const leaderboard = rows.map((row, index) => ({
+      rank: parsedSkip + index + 1,
+      ...row,
+    }));
+
+    return res.status(200).json({
+      leaderboard,
+      total,
+      hasMore: parsedSkip + leaderboard.length < total,
+      rankingMode: String(mode).toLowerCase() === 'average' ? 'average' : 'bayesian',
+      minReviews: parsedMinReviews,
+      globalAverage: Number(C.toFixed(2)),
+    });
+  } catch (error) {
+    console.error('Get driver leaderboard error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 module.exports = {
   getAdminReviews,
   getAdminReviewSummary,
+  getDriverLeaderboard
 };
