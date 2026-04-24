@@ -1,4 +1,4 @@
-import React, {useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { useDriver, DriverRecord } from "../../context/DriverContext";
+import { useDriver, type DriverRecord } from "../../context/domains";
 import {
   Tabs,
   SearchBar,
@@ -34,6 +34,36 @@ type DisplayDriver = {
   raw: DriverRecord;
 };
 
+type ReviewUser = {
+  _id?: string;
+  firstName?: string;
+  lastName?: string;
+  profileImgUrl?: string;
+};
+
+type ReviewBooking = {
+  _id?: string;
+  bookingCode?: string;
+  status?: string;
+  completedAt?: string;
+};
+
+type AdminReviewItem = {
+  _id: string;
+  rating: number;
+  comment?: string;
+  reviewedAt?: string;
+  createdAt?: string;
+  passengerId?: string | ReviewUser;
+  bookingId?: string | ReviewBooking;
+};
+
+type AdminReviewSummary = {
+  total: number;
+  average: number;
+  distribution: Record<string, number>;
+};
+
 const Drivers: React.FC = () => {
   const {
     drivers,
@@ -44,6 +74,7 @@ const Drivers: React.FC = () => {
     fetchPendingDrivers,
     approveDriver,
     rejectDriver,
+    getDriverReviewInsights,
   } = useDriver();
 
   const [activeTab, setActiveTab] = useState<'all' | 'requests'>('all');
@@ -57,6 +88,10 @@ const Drivers: React.FC = () => {
     driverId: string;
     driverName: string;
   } | null>(null);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [driverReviewSummary, setDriverReviewSummary] = useState<AdminReviewSummary | null>(null);
+  const [driverLatestReviews, setDriverLatestReviews] = useState<AdminReviewItem[]>([]);
 
   const toDisplayDriver = (drv: DriverRecord): DisplayDriver => {
     const fullName = `${drv.firstName || ""} ${drv.lastName || ""}`.trim();
@@ -72,6 +107,51 @@ const Drivers: React.FC = () => {
       raw: drv,
     };
   };
+
+  const renderStars = (rating: number) => {
+    const normalized = Math.max(0, Math.min(5, Math.round(rating)));
+    return `${'★'.repeat(normalized)}${'☆'.repeat(5 - normalized)}`;
+  };
+
+  const getPassengerName = (review: AdminReviewItem) => {
+    if (!review?.passengerId || typeof review.passengerId === 'string') {
+      return 'Passenger';
+    }
+    const fullName = `${review.passengerId.firstName || ''} ${review.passengerId.lastName || ''}`.trim();
+    return fullName || 'Passenger';
+  };
+
+  const formatReviewTime = (dateValue?: string) => {
+    if (!dateValue) return 'Unknown date';
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return 'Unknown date';
+    return date.toLocaleDateString();
+  };
+
+  const loadDriverReviews = React.useCallback(async (driverId: string) => {
+    if (!driverId) return;
+    try {
+      setReviewsLoading(true);
+      setReviewsError(null);
+
+      const insights = await getDriverReviewInsights(driverId, 5);
+      setDriverReviewSummary(insights?.summary || null);
+      setDriverLatestReviews(insights?.reviews || []);
+    } catch (err: any) {
+      setReviewsError(err?.response?.data?.message || 'Failed to load review insights');
+      setDriverReviewSummary(null);
+      setDriverLatestReviews([]);
+    } finally {
+      setReviewsLoading(false);
+    }
+  }, [getDriverReviewInsights]);
+
+  useEffect(() => {
+    if (!modalVisible || !editingDriver?.driverId) {
+      return;
+    }
+    loadDriverReviews(editingDriver.driverId);
+  }, [modalVisible, editingDriver?.driverId, loadDriverReviews]);
 
   const normalizedDrivers = useMemo(
     () => drivers.map((drv) => toDisplayDriver(drv)),
@@ -385,19 +465,37 @@ const handleReject = async (driverId: string) => {
         onClose={() => {
           setModalVisible(false);
           setEditingDriver(null);
+          setDriverReviewSummary(null);
+          setDriverLatestReviews([]);
+          setReviewsError(null);
         }}
         title="Driver Details"
-        size="md"
+        size="lg"
         footer={
-          <Button
-            onPress={() => {
-              setModalVisible(false);
-              setEditingDriver(null);
-            }}
-            variant="secondary"
-          >
-            Close
-          </Button>
+          <View style={styles.modalFooterActions}>
+            <Button
+              onPress={() => {
+                if (editingDriver?.driverId) {
+                  loadDriverReviews(editingDriver.driverId);
+                }
+              }}
+              variant="outline"
+            >
+              Refresh Reviews
+            </Button>
+            <Button
+              onPress={() => {
+                setModalVisible(false);
+                setEditingDriver(null);
+                setDriverReviewSummary(null);
+                setDriverLatestReviews([]);
+                setReviewsError(null);
+              }}
+              variant="secondary"
+            >
+              Close
+            </Button>
+          </View>
         }
       >
         <View style={styles.modalContent}>
@@ -448,6 +546,86 @@ const handleReject = async (driverId: string) => {
               <Text style={styles.detailLabel}>Driver ID</Text>
               <Text style={styles.detailValue}>{editingDriver?.driverId ?? '-'}</Text>
             </View>
+          </View>
+
+          <View style={styles.reviewsBlock}>
+            <Text style={styles.sectionTitle}>Review Insights</Text>
+
+            {reviewsLoading ? (
+              <View style={styles.reviewsLoadingWrap}>
+                <ActivityIndicator size="small" color="#0f766e" />
+                <Text style={styles.reviewsLoadingText}>Loading review analytics...</Text>
+              </View>
+            ) : reviewsError ? (
+              <View style={styles.reviewsErrorCard}>
+                <Text style={styles.reviewsErrorText}>{reviewsError}</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.summaryCardsRow}>
+                  <View style={styles.summaryCardPrimary}>
+                    <Text style={styles.summaryCardTitle}>Average Rating</Text>
+                    <Text style={styles.summaryCardValue}>
+                      {driverReviewSummary?.average?.toFixed(2) || '0.00'}
+                    </Text>
+                    <Text style={styles.summaryCardSubtle}>
+                      {renderStars(driverReviewSummary?.average || 0)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.summaryCardMuted}>
+                    <Text style={styles.summaryCardTitle}>Total Reviews</Text>
+                    <Text style={styles.summaryCardCount}>{driverReviewSummary?.total || 0}</Text>
+                    <Text style={styles.summaryCardSubtle}>Verified rider feedback</Text>
+                  </View>
+                </View>
+
+                <View style={styles.distributionCard}>
+                  <Text style={styles.distributionTitle}>Star Distribution</Text>
+                  {[5, 4, 3, 2, 1].map((star) => {
+                    const total = driverReviewSummary?.total || 0;
+                    const count = driverReviewSummary?.distribution?.[String(star)] || 0;
+                    const percent = total > 0 ? Math.round((count / total) * 100) : 0;
+                    return (
+                      <View key={star} style={styles.distRow}>
+                        <Text style={styles.distLabel}>{star}★</Text>
+                        <View style={styles.distBarTrack}>
+                          <View style={[styles.distBarFill, { width: `${percent}%` }]} />
+                        </View>
+                        <Text style={styles.distCount}>{count}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+
+                <View style={styles.latestReviewsCard}>
+                  <Text style={styles.distributionTitle}>Latest Passenger Reviews</Text>
+                  {driverLatestReviews.length === 0 ? (
+                    <Text style={styles.noReviewsText}>No reviews available for this driver yet.</Text>
+                  ) : (
+                    <View style={styles.reviewListWrap}>
+                      {driverLatestReviews.map((review) => (
+                        <View key={review._id} style={styles.reviewItemCard}>
+                          <View style={styles.reviewItemTopRow}>
+                            <Text style={styles.reviewPassengerName}>{getPassengerName(review)}</Text>
+                            <Text style={styles.reviewRatingText}>{renderStars(review.rating)}</Text>
+                          </View>
+                          <Text style={styles.reviewMetaText}>
+                            {formatReviewTime(review.reviewedAt || review.createdAt)}
+                            {review.bookingId && typeof review.bookingId !== 'string' && review.bookingId.bookingCode
+                              ? ` • ${review.bookingId.bookingCode}`
+                              : ''}
+                          </Text>
+                          <Text style={styles.reviewCommentText}>
+                            {review.comment?.trim() || 'No written comment provided.'}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -500,16 +678,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+  modalFooterActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   modalContent: {
-    gap: 16,
+    gap: 20,
   },
   driverHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    paddingBottom: 16,
+    paddingBottom: 18,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#dbeafe',
   },
   confirmFooter: {
     flexDirection: 'row',
@@ -522,11 +705,11 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     borderWidth: 2,
-    borderColor: '#e5e7eb',
+    borderColor: '#bfdbfe',
   },
   driverInfo: {
     flex: 1,
@@ -538,19 +721,195 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   detailsGrid: {
-    gap: 16,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 14,
+    padding: 14,
+    backgroundColor: '#f9fafb',
   },
   detailItem: {
     gap: 4,
   },
   detailLabel: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#6b7280',
   },
   detailValue: {
     fontSize: 15,
     color: '#111827',
+  },
+  reviewsBlock: {
+    gap: 14,
+    marginTop: 2,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  reviewsLoadingWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#ccfbf1',
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: '#f0fdfa',
+  },
+  reviewsLoadingText: {
+    color: '#115e59',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  reviewsErrorCard: {
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    borderRadius: 12,
+    backgroundColor: '#fef2f2',
+    padding: 12,
+  },
+  reviewsErrorText: {
+    color: '#b91c1c',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  summaryCardsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  summaryCardPrimary: {
+    flex: 1,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#99f6e4',
+    backgroundColor: '#ecfeff',
+    gap: 4,
+  },
+  summaryCardMuted: {
+    flex: 1,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
+    gap: 4,
+  },
+  summaryCardTitle: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  summaryCardValue: {
+    fontSize: 28,
+    color: '#0f766e',
+    fontWeight: '800',
+  },
+  summaryCardCount: {
+    fontSize: 28,
+    color: '#1e293b',
+    fontWeight: '800',
+  },
+  summaryCardSubtle: {
+    fontSize: 13,
+    color: '#475569',
+  },
+  distributionCard: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 14,
+    padding: 14,
+    backgroundColor: '#ffffff',
+    gap: 10,
+  },
+  distributionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  distRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  distLabel: {
+    width: 28,
+    fontSize: 13,
+    color: '#334155',
+    fontWeight: '600',
+  },
+  distBarTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#e2e8f0',
+    overflow: 'hidden',
+  },
+  distBarFill: {
+    height: '100%',
+    backgroundColor: '#14b8a6',
+    borderRadius: 999,
+  },
+  distCount: {
+    width: 24,
+    fontSize: 13,
+    color: '#334155',
+    textAlign: 'right',
+    fontWeight: '600',
+  },
+  latestReviewsCard: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 14,
+    padding: 14,
+    backgroundColor: '#ffffff',
+    gap: 12,
+  },
+  reviewListWrap: {
+    gap: 10,
+  },
+  reviewItemCard: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: '#f8fafc',
+    gap: 4,
+  },
+  reviewItemTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+  },
+  reviewPassengerName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+    flex: 1,
+  },
+  reviewRatingText: {
+    fontSize: 13,
+    color: '#b45309',
+    fontWeight: '700',
+  },
+  reviewMetaText: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  reviewCommentText: {
+    fontSize: 13,
+    color: '#1e293b',
+    lineHeight: 19,
+  },
+  noReviewsText: {
+    fontSize: 13,
+    color: '#64748b',
   },
 });
 
