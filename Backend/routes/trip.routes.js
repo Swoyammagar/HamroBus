@@ -16,6 +16,7 @@ const {
     scanBookingQr
 } = require('../controllers/trip.controller');
 const { authenticateDriver } = require('../middlewares/mobile.auth.middleware');
+const { authenticateAdmin } = require('../middlewares/admin.auth.middleware');
 
 // All routes are driver-protected
 router.get('/assigned-route', authenticateDriver, getAssignedRoute);
@@ -32,7 +33,6 @@ router.get('/history', authenticateDriver, getTripHistory);
 router.post('/scan-booking-qr', authenticateDriver, scanBookingQr);
 
 // System endpoint for processing missed trips (can be called by cron job or admin)
-// Optional: Add authentication middleware if needed
-router.post('/system/process-missed-trips', processMissedTrips);
+router.post('/system/process-missed-trips', authenticateAdmin, processMissedTrips);
 
 module.exports = router;

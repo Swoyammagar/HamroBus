@@ -9,6 +9,62 @@ const {
     completeAllInProgressBookingsForTrip,
     processMissedTripsForToday,
 } = require('../services/bookingLifecycle.service');
+const Notification = require('../models/notification.model');
+const { v4: uuidv4 } = require('uuid');
+
+const normalize = (v) => String(v || '').trim().toLowerCase();
+
+const notifyPassengersTripStarted = async ({ io, trip, routeDoc, scheduleDoc }) => {
+  if (!io || !trip || !scheduleDoc) return;
+
+  const bookingRows = await Booking.find({
+    tripSessionId: trip._id,
+    status: { $in: ['in-progress', 'confirmed'] },
+  })
+    .populate('passengerId', 'firstName lastName')
+    .select('bookingCode passengerId destinationStop')
+    .lean();
+
+  const stopArrivals = scheduleDoc.stopArrivals || [];
+
+  for (const b of bookingRows) {
+    const passengerId = String(b.passengerId?._id || '');
+    if (!passengerId) continue;
+
+    const etaMatch = stopArrivals.find((s) =>
+      normalize(s.stopName) === normalize(b.destinationStop?.stopName)
+    );
+    const eta = etaMatch?.arrivalTime || scheduleDoc.endTime || 'N/A';
+    const passengerName = [b.passengerId?.firstName, b.passengerId?.lastName].filter(Boolean).join(' ').trim() || 'Passenger';
+
+    const title = 'Trip started';
+    const message = `Hi ${passengerName}, your trip has started. Expected arrival at ${b.destinationStop?.stopName || 'your stop'} is around ${eta}. (Booking ${b.bookingCode})`;
+
+    const doc = await Notification.create({
+      notificationId: `notif_${uuidv4()}`,
+      title,
+      message,
+      sentBy: 'system',
+      targetAudience: 'passengers',
+      targetUserIds: [passengerId],
+      status: 'sent',
+      type: 'info',
+      severity: 'medium',
+    });
+
+    io.to('passenger:' + passengerId).emit('notification:new', {
+      _id: String(doc._id),
+      notificationId: doc.notificationId,
+      title: doc.title,
+      message: doc.message,
+      type: doc.type,
+      severity: doc.severity,
+      sentBy: doc.sentBy,
+      targetAudience: doc.targetAudience,
+      createdAt: doc.createdAt,
+    });
+  }
+};
 
 const emitPassengerBookingStatusEvents = ({ io, trip, changedBookings }) => {
   if (!io || !trip || !Array.isArray(changedBookings) || changedBookings.length === 0) return;
@@ -212,6 +268,18 @@ const getCurrentTrip = async (req, res) => {
 const startTrip = async (req, res) => {
     const driverId = req.user.id;
     const { routeId, busId, scheduleId } = req.body;
+
+    const routeDoc = await Route.findById(routeId).select('routeName schedules');
+    const scheduleDoc = routeDoc?.schedules?.id(scheduleId) || null;
+
+    if (scheduleDoc) {
+    await notifyPassengersTripStarted({
+        io: req.app.get('io'),
+        trip: newTrip,
+        routeDoc,
+        scheduleDoc,
+    });
+    }
 
     try {
         if (!routeId) {
@@ -506,7 +574,7 @@ const getTripHistory = async (req, res) => {
     try {
         const trips = await TripSession.find({
             driverId: driverId,
-            status: { $in: ['completed', 'cancelled'] }
+            status: { $in: ['completed', 'cancelled', 'missed'] }
         })
             .populate('routeId', 'routeName source destination')
             .populate('busId', 'busNumber')
@@ -516,7 +584,7 @@ const getTripHistory = async (req, res) => {
 
         const total = await TripSession.countDocuments({
             driverId: driverId,
-            status: { $in: ['completed', 'cancelled'] }
+            status: { $in: ['completed', 'cancelled', 'missed'] }
         });
 
         res.status(200).json({
@@ -667,7 +735,8 @@ const getScheduleSeatMap = async (req, res) => {
  */
 const processMissedTrips = async (req, res) => {
     try {
-        const result = await processMissedTripsForToday();
+        const io = req.app.get('io')
+        const result = await processMissedTripsForToday({io});
 
         return res.status(200).json({
             message: 'Missed trips processed',

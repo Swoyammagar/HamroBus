@@ -195,12 +195,18 @@ app.use(cookieParser());
 app.use('/api', mainRoute); // Handles /api/users
 
 const startMissedTripScheduler = () => {
-  const intervalMinutes = Math.max(Number(process.env.MISSED_TRIP_CHECK_INTERVAL_MINUTES) || 10, 1);
+  const intervalMinutes = Math.max(Number(process.env.MISSED_TRIP_CHECK_INTERVAL_MINUTES) || 1, 1);
   const intervalMs = intervalMinutes * 60 * 1000;
+  let isRunning = false;
 
   const runMissedTripCheck = async () => {
+    if (isRunning) {
+      return;
+    }
+
+    isRunning = true;
     try {
-      const result = await processMissedTripsForToday();
+      const result = await processMissedTripsForToday({io});
       if ((result?.totalCancelled || 0) > 0) {
         console.log(
           `🕒 Missed-trip check: cancelled ${result.totalCancelled} booking(s) across ${result.processed} schedule(s)`
@@ -208,6 +214,8 @@ const startMissedTripScheduler = () => {
       }
     } catch (error) {
       console.error('Missed-trip scheduler error:', error);
+    } finally {
+      isRunning = false;
     }
   };
 
