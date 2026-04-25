@@ -22,7 +22,7 @@ const tripSessionSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['scheduled', 'in-progress', 'on-break', 'completed', 'cancelled'],
+        enum: ['scheduled', 'in-progress', 'on-break', 'completed', 'cancelled', 'missed'],
         default: 'scheduled'
     },
     startTime: {
