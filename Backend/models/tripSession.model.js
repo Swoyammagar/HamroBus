@@ -29,6 +29,12 @@ const tripSessionSchema = new mongoose.Schema({
         type: Date,
         required: false
     },
+    startDelayMinutes: {
+        type: Number,
+        default: 0,
+        min: 0,
+        description: "How many minutes late the trip started compared to schedule"
+    },
     endTime: {
         type: Date,
         required: false

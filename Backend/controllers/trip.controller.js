@@ -14,7 +14,29 @@ const { v4: uuidv4 } = require('uuid');
 
 const normalize = (v) => String(v || '').trim().toLowerCase();
 
-const notifyPassengersTripStarted = async ({ io, trip, routeDoc, scheduleDoc }) => {
+const parseScheduledTimeToUtcDate = (timeString, referenceDate = new Date()) => {
+    if (!timeString || typeof timeString !== 'string') return null;
+    const [hoursRaw, minutesRaw] = timeString.split(':');
+    const hours = Number(hoursRaw);
+    const minutes = Number(minutesRaw);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+
+    const dt = new Date(referenceDate);
+    dt.setUTCHours(hours, minutes, 0, 0);
+    return dt;
+};
+
+const calculateStartDelayMinutes = (scheduleDoc, actualStartTime) => {
+    if (!scheduleDoc?.startTime || !actualStartTime) return 0;
+    const scheduledStart = parseScheduledTimeToUtcDate(scheduleDoc.startTime, actualStartTime);
+    if (!scheduledStart) return 0;
+
+    const diffMs = new Date(actualStartTime).getTime() - scheduledStart.getTime();
+    if (diffMs <= 0) return 0;
+    return Math.floor(diffMs / (1000 * 60));
+};
+
+const notifyPassengersTripStarted = async ({ io, trip, routeDoc, scheduleDoc, delayMinutes = 0 }) => {
   if (!io || !trip || !scheduleDoc) return;
 
   const bookingRows = await Booking.find({
@@ -36,9 +58,12 @@ const notifyPassengersTripStarted = async ({ io, trip, routeDoc, scheduleDoc }) 
     );
     const eta = etaMatch?.arrivalTime || scheduleDoc.endTime || 'N/A';
     const passengerName = [b.passengerId?.firstName, b.passengerId?.lastName].filter(Boolean).join(' ').trim() || 'Passenger';
+        const delayText = delayMinutes > 0
+            ? ` It started ${delayMinutes} minute(s) later than scheduled.`
+            : ' It started on time.';
 
     const title = 'Trip started';
-    const message = `Hi ${passengerName}, your trip has started. Expected arrival at ${b.destinationStop?.stopName || 'your stop'} is around ${eta}. (Booking ${b.bookingCode})`;
+        const message = `Hi ${passengerName}, your trip has started.${delayText} Expected arrival at ${b.destinationStop?.stopName || 'your stop'} is around ${eta}. (Booking ${b.bookingCode})`;
 
     const doc = await Notification.create({
       notificationId: `notif_${uuidv4()}`,
@@ -269,21 +294,22 @@ const startTrip = async (req, res) => {
     const driverId = req.user.id;
     const { routeId, busId, scheduleId } = req.body;
 
-    const routeDoc = await Route.findById(routeId).select('routeName schedules');
-    const scheduleDoc = routeDoc?.schedules?.id(scheduleId) || null;
-
-    if (scheduleDoc) {
-    await notifyPassengersTripStarted({
-        io: req.app.get('io'),
-        trip: newTrip,
-        routeDoc,
-        scheduleDoc,
-    });
-    }
-
     try {
         if (!routeId) {
             return res.status(400).json({ message: "routeId is required" });
+        }
+
+        const routeDoc = await Route.findById(routeId).select('routeName schedules');
+        if (!routeDoc) {
+            return res.status(404).json({ message: "Route not found" });
+        }
+
+        let scheduleDoc = null;
+        if (scheduleId) {
+            scheduleDoc = routeDoc.schedules?.id(scheduleId) || null;
+            if (!scheduleDoc) {
+                return res.status(404).json({ message: "Schedule not found for this route" });
+            }
         }
 
         // Check if there's already an active trip
@@ -305,6 +331,9 @@ const startTrip = async (req, res) => {
             }
         }
 
+        const actualStartTime = new Date();
+        const startDelayMinutes = calculateStartDelayMinutes(scheduleDoc, actualStartTime);
+
         // Create new trip session
         const newTrip = new TripSession({
             driverId: driverId,
@@ -312,7 +341,8 @@ const startTrip = async (req, res) => {
             busId: finalBusId || null,
             scheduleId: scheduleId || null,
             status: 'in-progress',
-            startTime: new Date(),
+            startTime: actualStartTime,
+            startDelayMinutes,
             passengerCount: 0,
             completedStops: [],
             breakHistory: []
@@ -339,6 +369,20 @@ const startTrip = async (req, res) => {
                 trip: newTrip,
                 changedBookings: bookingSyncStats.changedBookings || [],
             });
+
+            if (scheduleDoc) {
+                try {
+                    await notifyPassengersTripStarted({
+                        io,
+                        trip: newTrip,
+                        routeDoc,
+                        scheduleDoc,
+                        delayMinutes: startDelayMinutes,
+                    });
+                } catch (notifyError) {
+                    console.error('Failed to notify passengers on trip start:', notifyError);
+                }
+            }
         }
 
         res.status(201).json({
