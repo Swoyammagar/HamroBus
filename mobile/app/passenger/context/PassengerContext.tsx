@@ -213,9 +213,12 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const onBookingStatusUpdated = (payload: any) => {
-      if (!active || !payload?.bookingId || !payload?.status) return;
+      if (!active || !payload?.status) return;
 
-      const bookingId = String(payload.bookingId);
+      const bookingId = payload?.bookingId ? String(payload.bookingId) : '';
+      const bookingCode = payload?.bookingCode ? String(payload.bookingCode) : '';
+      if (!bookingId && !bookingCode) return;
+
       const rawStatus = String(payload.status);
       const mappedStatus = rawStatus === 'in-progress' ? 'ongoing' : rawStatus;
 
@@ -225,7 +228,8 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
 
       setBookings((prev) =>
         prev.map((booking) =>
-          booking.id === bookingId
+          ((bookingId && (booking.id === bookingId || booking.bookingId === bookingId)) ||
+            (bookingCode && booking.bookingId === bookingCode))
             ? {
                 ...booking,
                 status: mappedStatus,
@@ -238,12 +242,16 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const onBookingCompleted = (payload: any) => {
-      if (!active || !payload?.bookingId) return;
+      if (!active) return;
 
-      const bookingId = String(payload.bookingId);
+      const bookingId = payload?.bookingId ? String(payload.bookingId) : '';
+      const bookingCode = payload?.bookingCode ? String(payload.bookingCode) : '';
+      if (!bookingId && !bookingCode) return;
+
       setBookings((prev) =>
         prev.map((booking) =>
-          booking.id === bookingId
+          ((bookingId && (booking.id === bookingId || booking.bookingId === bookingId)) ||
+            (bookingCode && booking.bookingId === bookingCode))
             ? {
                 ...booking,
                 status: 'completed',
