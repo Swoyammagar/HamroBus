@@ -7,7 +7,12 @@ const SOCKET_URL = process.env.EXPO_PUBLIC_API_BASE?.replace('/api', '') || 'htt
 
 interface DriverLocation {
   busId: string;
+  busNumber?: string;
   driverId: string;
+  driverName?: string;
+  driverProfileImgUrl?: string;
+  tripStatus?: string;
+  isOnBreak?: boolean;
   latitude: number;
   longitude: number;
   heading: number;
@@ -17,7 +22,12 @@ interface DriverLocation {
 
 interface DriverOffline {
   busId?: string;
+  busNumber?: string;
   driverId: string;
+  driverName?: string;
+  driverProfileImgUrl?: string;
+  tripStatus?: string;
+  isOnBreak?: boolean;
   timestamp: string;
 }
 
@@ -130,8 +140,25 @@ const WebMap: React.FC<WebMapProps> = ({
       });
       setDriverLocations((prev) => {
         const updated = new Map(prev);
-        updated.set(data.driverId, data);
+        updated.set(data.driverId, {
+          ...(updated.get(data.driverId) || {}),
+          ...data,
+        });
         console.log('✅ Updated driver locations map, total drivers:', updated.size);
+        return updated;
+      });
+    });
+
+    socket.on('driver:status-update', (data: Partial<DriverLocation> & { driverId: string }) => {
+      if (!data?.driverId) return;
+      setDriverLocations((prev) => {
+        const updated = new Map(prev);
+        const existing = updated.get(data.driverId);
+        if (!existing) return updated;
+        updated.set(data.driverId, {
+          ...existing,
+          ...data,
+        } as DriverLocation);
         return updated;
       });
     });
@@ -366,7 +393,10 @@ const WebMap: React.FC<WebMapProps> = ({
           {/* Driver Location Markers */}
           {visibleDriverLocations.map((driver) => {
             if (!leaflet?.L) return null;
-            
+            const isOnBreak = Boolean(driver.isOnBreak || driver.tripStatus === 'on-break');
+            const markerColor = isOnBreak ? '#f59e0b' : '#10b981';
+            const driverLabel = String(driver.driverName || '').trim() || `Driver ${String(driver.driverId || '').slice(-4)}`;
+            const busLabel = String(driver.busNumber || '').trim() || String(driver.busId || '').slice(-4);
             const driverIcon = leaflet.L.divIcon({
               className: 'custom-driver-marker',
               html: `
@@ -374,7 +404,7 @@ const WebMap: React.FC<WebMapProps> = ({
                   position: relative;
                   width: 40px;
                   height: 40px;
-                  background: #10b981;
+                  background: ${markerColor};
                   border: 3px solid white;
                   border-radius: 50%;
                   display: flex;
@@ -400,13 +430,23 @@ const WebMap: React.FC<WebMapProps> = ({
               >
                 <Tooltip permanent direction="top" offset={[0, -20]}>
                   <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
-                    🚌 Bus {driver.busId.slice(-4)}
+                    🚌 {busLabel}
                   </div>
                 </Tooltip>
                 <Popup>
                   <div style={{ fontSize: '12px' }}>
-                    <strong>Driver ID:</strong> {driver.driverId.slice(0, 8)}...<br/>
-                    <strong>Bus ID:</strong> {driver.busId.slice(-8)}<br/>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '6px' }}>
+                      {driver.driverProfileImgUrl ? (
+                        <img
+                          src={driver.driverProfileImgUrl}
+                          alt="Driver"
+                          style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #fff', marginBottom: '6px' }}
+                        />
+                      ) : null}
+                      <strong>{driverLabel}</strong>
+                    </div>
+                    <strong>Bus:</strong> {busLabel}<br/>
+                    <strong>Status:</strong> ${isOnBreak ? 'On Break' : 'In Trip'}<br/>
                     <strong>Speed:</strong> {driver.speed.toFixed(1)} km/h<br/>
                     <strong>Heading:</strong> {driver.heading}°<br/>
                     <strong>Last Update:</strong> {new Date(driver.timestamp).toLocaleTimeString()}
