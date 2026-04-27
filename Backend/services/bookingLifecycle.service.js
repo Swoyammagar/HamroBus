@@ -1,5 +1,6 @@
 const Booking = require('../models/booking.model');
 const Route = require('../models/route.model');
+const Driver = require('../models/driver.model');
 const TripSession = require('../models/tripSession.model');
 const Notification = require('../models/notification.model');
 const { sendEmail } = require('../utils/sendEmail');
@@ -17,8 +18,21 @@ const normalizeDateOnly = (value) => {
 const notifyMissedTrip = async ({ io, route, schedule, busId, changedBookings }) => {
   if (!Array.isArray(changedBookings) || !changedBookings.length) return;
 
+  const routeLabel = String(route?.routeName || route?.routeNumber || route?._id || 'Route');
+  const driverId = schedule?.driverId ? String(schedule.driverId) : '';
+  let driverLabel = 'Driver';
+
+  if (driverId) {
+    const driver = await Driver.findById(driverId).select('firstName lastName').lean();
+    if (driver) {
+      driverLabel = [driver.firstName, driver.lastName].filter(Boolean).join(' ').trim() || `Driver ${driverId.slice(-6)}`;
+    } else {
+      driverLabel = `Driver ${driverId.slice(-6)}`;
+    }
+  }
+
   const adminTitle = 'Missed trip detected';
-  const adminMessage = `Route ${route.routeName} schedule ${schedule.startTime}-${schedule.endTime} was missed. ${changedBookings.length} booking(s) were auto-cancelled.`;
+  const adminMessage = `Route ${routeLabel} by ${driverLabel} scheduled ${schedule.startTime}-${schedule.endTime} was missed. ${changedBookings.length} booking(s) were auto-cancelled.`;
 
   const adminDoc = await Notification.create({
     notificationId: `notif_${uuidv4()}`,
@@ -45,10 +59,9 @@ const notifyMissedTrip = async ({ io, route, schedule, busId, changedBookings })
     });
   }
 
-  const driverId = schedule?.driverId ? String(schedule.driverId) : '';
   if (driverId) {
     const driverTitle = 'Trip marked as missed';
-    const driverMessage = `Your scheduled trip for route ${route.routeName} (${schedule.startTime}-${schedule.endTime}) was marked as missed. ${changedBookings.length} booking(s) were auto-cancelled.`;
+    const driverMessage = `Your scheduled trip for route ${routeLabel} (${schedule.startTime}-${schedule.endTime}) by ${driverLabel} was marked as missed. ${changedBookings.length} booking(s) were auto-cancelled.`;
 
     const driverDoc = await Notification.create({
       notificationId: `notif_${uuidv4()}`,
@@ -122,7 +135,7 @@ const notifyMissedTrip = async ({ io, route, schedule, busId, changedBookings })
       const html = missed_trip_apology_boilerplate({
         passengerName: row.passengerName,
         bookingCode: row.bookingCode,
-        routeName: route.routeName,
+        routeName: routeLabel,
         scheduleStart: schedule.startTime,
         scheduleEnd: schedule.endTime,
       });
@@ -458,7 +471,7 @@ const processMissedTripsForToday = async ({io}) => {
     const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
 
     // Find all schedules for today that haven't had a trip started
-    const schedules = await Route.find({}, 'schedules').lean();
+    const schedules = await Route.find({}, 'routeName routeNumber schedules').lean();
     
     let totalProcessed = 0;
     let totalCancelled = 0;
