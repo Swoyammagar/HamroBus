@@ -6,7 +6,14 @@ import {
   onNotificationReceived,
 } from '../services/notificationSocket';
 
-export type NotificationAudience = 'all' | 'drivers' | 'passengers';
+export type NotificationAudience =
+  | 'all'
+  | 'drivers'
+  | 'passengers'
+  | 'admins'
+  | 'specific_user'
+  | 'specific_route'
+  | 'specific_bus';
 export type NotificationType = 'alert' | 'info' | 'maintenance' | 'announcement' | 'emergency';
 export type NotificationSeverity = 'low' | 'medium' | 'high' | 'critical';
 

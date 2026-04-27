@@ -31,20 +31,76 @@ export type ReviewBooking = {
   completedAt?: string;
 };
 
+export type AdminReviewUser = {
+  _id?: string;
+  firstName?: string;
+  lastName?: string;
+  profileImgUrl?: string;
+};
+
+export type AdminReviewBus = {
+  _id?: string;
+  busNumber?: string;
+  model?: string;
+};
+
+export type AdminReviewBooking = {
+  _id?: string;
+  bookingCode?: string;
+  status?: string;
+  completedAt?: string;
+  bus?: AdminReviewBus;
+  busId?: string | AdminReviewBus;
+};
+
 export type AdminReviewItem = {
   _id: string;
   rating: number;
   comment?: string;
   reviewedAt?: string;
   createdAt?: string;
-  passengerId?: string | ReviewUser;
-  bookingId?: string | ReviewBooking;
+  isEdited?: boolean;
+  driverId?: string | {
+    _id?: string;
+    firstName?: string;
+    lastName?: string;
+    profileImgUrl?: string;
+    ratingAverage?: number;
+    ratingCount?: number;
+  };
+  passengerId?: string | AdminReviewUser;
+  bookingId?: string | AdminReviewBooking;
 };
 
 export type AdminReviewSummary = {
   total: number;
   average: number;
   distribution: Record<string, number>;
+};
+
+export type DriverLeaderboardRow = {
+  rank: number;
+  driverId: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phoneNumber?: string;
+  profileImgUrl?: string;
+  validationStatus?: string;
+  isActive?: boolean;
+  averageRating: number;
+  ratingCount: number;
+  latestReviewAt?: string;
+  bayesianScore?: number;
+};
+
+export type LeaderboardResponse = {
+  leaderboard: DriverLeaderboardRow[];
+  total: number;
+  hasMore: boolean;
+  rankingMode: 'bayesian' | 'average';
+  minReviews: number;
+  globalAverage: number;
 };
 
 export type ActionResult = { success: boolean; message: string };
@@ -195,6 +251,44 @@ export const useAdminDrivers = () => {
     };
   }, [getDriverReviewSummary, getDriverReviews]);
 
+  const getAllReviews = useCallback(
+    async (options?: { limit?: number; skip?: number; sort?: 'asc' | 'desc' }) => {
+      const { data } = await axios.get<{ reviews: AdminReviewItem[]; total: number; hasMore: boolean }>(
+        `${API_BASE}/admin/reviews`,
+        {
+          params: {
+            limit: options?.limit ?? 20,
+            skip: options?.skip ?? 0,
+            sort: options?.sort ?? 'desc',
+          },
+          withCredentials: true,
+        }
+      );
+      return data;
+    },
+    []
+  );
+
+  const getDriverLeaderboard = useCallback(
+  async (options?: { limit?: number; skip?: number; minReviews?: number; mode?: 'bayesian' | 'average' }) => {
+    const { data } = await axios.get<LeaderboardResponse>(
+      `${API_BASE}/admin/reviews/leaderboard`,
+      {
+        params: {
+          limit: options?.limit ?? 20,
+          skip: options?.skip ?? 0,
+          minReviews: options?.minReviews ?? 1,
+          mode: options?.mode ?? 'bayesian',
+        },
+        withCredentials: true,
+      }
+    );
+
+    return data;
+  },
+  []
+);
+
   useEffect(() => {
     fetchAllDrivers();
   }, [fetchAllDrivers]);
@@ -211,6 +305,8 @@ export const useAdminDrivers = () => {
     getDriverReviewSummary,
     getDriverReviews,
     getDriverReviewInsights,
+    getAllReviews,
+    getDriverLeaderboard,
   };
 };
 
