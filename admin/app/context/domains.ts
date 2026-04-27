@@ -5,6 +5,7 @@ export type {
   ActionResult as DriverActionResult,
   AdminReviewItem,
   AdminReviewSummary,
+  DriverLeaderboardRow
 } from '../src/hooks/useAdminDrivers';
 
 export type {

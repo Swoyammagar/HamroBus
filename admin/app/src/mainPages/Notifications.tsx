@@ -29,6 +29,8 @@ const Notifications = () => {
     sendNotification,
     deleteNotification,
     clearError,
+    unreadIncomingCount,
+    markAllAsRead,
   } = useNotification();
 
   const [filter, setFilter] = useState<
@@ -66,7 +68,12 @@ const Notifications = () => {
   const audienceLabel = (audience: NotificationAudience) => {
     if (audience === 'all') return 'All Users';
     if (audience === 'drivers') return 'Drivers';
-    return 'Passengers';
+    if (audience === 'passengers') return 'Passengers';
+    if (audience === 'admins') return 'Admins';
+    if (audience === 'specific_user') return 'Specific User';
+    if (audience === 'specific_route') return 'Specific Route';
+    if (audience === 'specific_bus') return 'Specific Bus';
+    return 'Unknown';
   };
 
   const handleSend = async () => {
@@ -219,7 +226,9 @@ const Notifications = () => {
               ? styles.badgeAll
               : item.targetAudience === 'drivers'
                 ? styles.badgeDrivers
-                : styles.badgePassengers,
+                : item.targetAudience === 'passengers'
+                  ? styles.badgePassengers
+                  : styles.badgeAll,
           ]}
         >
           <Text style={styles.badgeText}>{audienceLabel(item.targetAudience)}</Text>
@@ -251,9 +260,14 @@ const Notifications = () => {
           <Text style={styles.headerText}>Notifications</Text>
           <Text style={styles.subHeader}>Send real-time announcements to users</Text>
         </View>
-        <Button variant="primary" onPress={() => setModalVisible(true)}>
-          + Send
-        </Button>
+        <View style={styles.headerActions}>
+          <Button variant="outline" onPress={markAllAsRead} disabled={unreadIncomingCount === 0}>
+            Mark all as read
+          </Button>
+          <Button variant="primary" onPress={() => setModalVisible(true)}>
+            + Send
+          </Button>
+        </View>
       </View>
 
       {error ? (
@@ -410,6 +424,11 @@ const styles = StyleSheet.create({
   },
   headerText: { fontSize: 18, fontWeight: '700', color: '#111827' },
   subHeader: { color: '#6b7280', fontSize: 13, marginTop: 4 },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   pickerContainer: {
     marginBottom: 8,
   },
