@@ -9,6 +9,9 @@ const mainRoute = require('./routes/index.routes');
 require('dotenv').config();
 const initializeAdmin = require('./config/initializeAdmin');
 const { processMissedTripsForToday } = require('./services/bookingLifecycle.service');
+const Driver = require('./models/driver.model');
+const Bus = require('./models/bus.model');
+const TripSession = require('./models/tripSession.model');
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -26,6 +29,36 @@ const normalizeBusIds = (busIds) => {
   return busIds
     .map((id) => String(id || '').trim())
     .filter((id) => id.length > 0);
+};
+
+const getDriverRealtimeMeta = async ({ driverId, busId }) => {
+  const [driverDoc, busDoc, activeTrip] = await Promise.all([
+    driverId
+      ? Driver.findById(driverId).select('firstName lastName profileImgUrl').lean()
+      : Promise.resolve(null),
+    busId
+      ? Bus.findById(busId).select('busNumber').lean()
+      : Promise.resolve(null),
+    driverId
+      ? TripSession.findOne({
+          driverId,
+          status: { $in: ['in-progress', 'on-break'] },
+        })
+          .sort({ updatedAt: -1 })
+          .select('status')
+          .lean()
+      : Promise.resolve(null),
+  ]);
+
+  const tripStatus = activeTrip?.status || 'in-progress';
+
+  return {
+    busNumber: busDoc?.busNumber || '',
+    driverName: [driverDoc?.firstName, driverDoc?.lastName].filter(Boolean).join(' ').trim(),
+    driverProfileImgUrl: driverDoc?.profileImgUrl || '',
+    tripStatus,
+    isOnBreak: tripStatus === 'on-break',
+  };
 };
 
 // Socket.io connection handler
@@ -68,21 +101,43 @@ io.on('connection', (socket) => {
   });
   
   // Driver location broadcasting
-  socket.on('driver:share-location', (data) => {
+  socket.on('driver:share-location', async (data) => {
     const { busId, driverId, latitude, longitude, heading, speed } = data;
     socket.data.driverId = driverId;
     socket.data.busId = busId;
     console.log(`📍 Driver ${driverId} location:`, { latitude, longitude });
     
-    const locationPayload = {
-      busId,
-      driverId,
-      latitude,
-      longitude,
-      heading: heading || 0,
-      speed: speed || 0,
-      timestamp: new Date().toISOString(),
-    };
+    let locationPayload;
+    try {
+      const meta = await getDriverRealtimeMeta({ driverId, busId });
+      locationPayload = {
+        busId,
+        busNumber: meta.busNumber,
+        driverId,
+        driverName: meta.driverName,
+        driverProfileImgUrl: meta.driverProfileImgUrl,
+        tripStatus: meta.tripStatus,
+        isOnBreak: meta.isOnBreak,
+        latitude,
+        longitude,
+        heading: heading || 0,
+        speed: speed || 0,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error('Error enriching driver realtime metadata:', error);
+      locationPayload = {
+        busId,
+        driverId,
+        tripStatus: 'in-progress',
+        isOnBreak: false,
+        latitude,
+        longitude,
+        heading: heading || 0,
+        speed: speed || 0,
+        timestamp: new Date().toISOString(),
+      };
+    }
     
     // Broadcast to all passengers tracking this bus
     io.to(`bus:${busId}`).emit('driver:location-update', locationPayload);
@@ -93,7 +148,7 @@ io.on('connection', (socket) => {
     console.log('✅ Broadcast to admin-room');
   });
 
-  socket.on('driver:go-offline', (data = {}) => {
+  socket.on('driver:go-offline', async (data = {}) => {
     const driverId = data.driverId || socket.data.driverId;
     const busId = data.busId || socket.data.busId;
 
@@ -101,11 +156,27 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const offlinePayload = {
-      driverId,
-      busId,
-      timestamp: new Date().toISOString(),
-    };
+    let offlinePayload;
+    try {
+      const meta = await getDriverRealtimeMeta({ driverId, busId });
+      offlinePayload = {
+        driverId,
+        driverName: meta.driverName,
+        driverProfileImgUrl: meta.driverProfileImgUrl,
+        busId,
+        busNumber: meta.busNumber,
+        tripStatus: meta.tripStatus,
+        isOnBreak: meta.isOnBreak,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error('Error enriching driver offline metadata:', error);
+      offlinePayload = {
+        driverId,
+        busId,
+        timestamp: new Date().toISOString(),
+      };
+    }
 
     if (busId) {
       io.to(`bus:${busId}`).emit('driver:location-offline', offlinePayload);

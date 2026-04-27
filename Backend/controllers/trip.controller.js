@@ -36,6 +36,27 @@ const calculateStartDelayMinutes = (scheduleDoc, actualStartTime) => {
     return Math.floor(diffMs / (1000 * 60));
 };
 
+const buildDriverStatusPayload = async ({ trip, driverId }) => {
+    const [driverDoc, busDoc] = await Promise.all([
+        Driver.findById(driverId).select('firstName lastName profileImgUrl').lean(),
+        trip?.busId ? Bus.findById(trip.busId).select('busNumber').lean() : Promise.resolve(null),
+    ]);
+
+    const tripStatus = String(trip?.status || 'in-progress');
+
+    return {
+        driverId: String(driverId),
+        driverName: [driverDoc?.firstName, driverDoc?.lastName].filter(Boolean).join(' ').trim(),
+        driverProfileImgUrl: driverDoc?.profileImgUrl || '',
+        busId: trip?.busId ? String(trip.busId) : '',
+        busNumber: busDoc?.busNumber || '',
+        tripId: trip?._id ? String(trip._id) : '',
+        tripStatus,
+        isOnBreak: tripStatus === 'on-break',
+        timestamp: new Date().toISOString(),
+    };
+};
+
 const notifyPassengersTripStarted = async ({ io, trip, routeDoc, scheduleDoc, delayMinutes = 0 }) => {
   if (!io || !trip || !scheduleDoc) return;
 
@@ -474,6 +495,11 @@ const startBreak = async (req, res) => {
         const io = req.app.get('io');
         if (io) {
             io.to(`driver:${driverId}`).emit('trip:updated', trip);
+            const statusPayload = await buildDriverStatusPayload({ trip, driverId });
+            if (statusPayload.busId) {
+                io.to(`bus:${statusPayload.busId}`).emit('driver:status-update', statusPayload);
+            }
+            io.to('admin-room').emit('driver:status-update', statusPayload);
         }
 
         res.status(200).json({
@@ -525,6 +551,11 @@ const endBreak = async (req, res) => {
         const io = req.app.get('io');
         if (io) {
             io.to(`driver:${driverId}`).emit('trip:updated', trip);
+            const statusPayload = await buildDriverStatusPayload({ trip, driverId });
+            if (statusPayload.busId) {
+                io.to(`bus:${statusPayload.busId}`).emit('driver:status-update', statusPayload);
+            }
+            io.to('admin-room').emit('driver:status-update', statusPayload);
         }
 
         res.status(200).json({
