@@ -24,7 +24,12 @@ interface BusLocation {
 
 interface DriverLocation {
   busId: string;
+  busNumber?: string;
   driverId: string;
+  driverName?: string;
+  driverProfileImgUrl?: string;
+  tripStatus?: string;
+  isOnBreak?: boolean;
   latitude: number;
   longitude: number;
   heading: number;
@@ -138,7 +143,12 @@ export default function PassengerMap({
               ${JSON.stringify(driver.latitude)},
               ${JSON.stringify(driver.longitude)},
               ${JSON.stringify(driver.heading || 0)},
-              ${JSON.stringify(driver.speed || 0)}
+              ${JSON.stringify(driver.speed || 0)},
+              ${JSON.stringify(driver.busNumber || '')},
+              ${JSON.stringify(driver.driverName || '')},
+              ${JSON.stringify(driver.driverProfileImgUrl || '')},
+              ${JSON.stringify(driver.tripStatus || '')},
+              ${JSON.stringify(Boolean(driver.isOnBreak || driver.tripStatus === 'on-break'))}
             );
           }
         })();
@@ -344,12 +354,30 @@ drawRoadRoute();
     };
 
     // Function to update driver location from React Native
-    window.updateDriverLocation = function(driverId, lat, lng, heading, speed) {
+    window.updateDriverLocation = function(driverId, lat, lng, heading, speed, busNumber, driverName, driverProfileImgUrl, tripStatus, isOnBreak) {
       const key = String(driverId);
+      const safeDriverName = String(driverName || '').trim() || ('Driver ' + key.slice(-4));
+      const safeBusNumber = String(busNumber || '').trim() || 'Bus';
+      const onBreak = Boolean(isOnBreak || tripStatus === 'on-break');
+      const markerColor = onBreak ? '#F59E0B' : '#3B82F6';
+      const pulseColor = onBreak ? 'rgba(245, 158, 11, 0.25)' : 'rgba(59, 130, 246, 0.2)';
+      const profileHtml = driverProfileImgUrl
+        ? '<img src="' + String(driverProfileImgUrl) + '" alt="Driver" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid white;margin-bottom:6px;" />'
+        : '';
       console.log('🚗 [WEBVIEW] updateDriverLocation called:', { driverId: key, lat, lng, heading, speed });
 
       if (driverMarkers[key]) {
         driverMarkers[key].setLatLng([lat, lng]);
+        driverMarkers[key].setPopupContent(
+          '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">' +
+            profileHtml +
+            '<b>' + safeDriverName + '</b>' +
+            '<div>🚌 ' + safeBusNumber + '</div>' +
+            '<div><b>Status:</b> ' + (onBreak ? 'On Break' : 'In Trip') + '</div>' +
+            '<div><b>Speed:</b> ' + Number(speed || 0).toFixed(1) + ' km/h</div>' +
+            '<div><b>Heading:</b> ' + Number(heading || 0) + '°</div>' +
+          '</div>'
+        );
       } else {
         const driverIcon = L.divIcon({
           html: \`<div style="
@@ -362,7 +390,7 @@ drawRoadRoute();
               width: 50px;
               height: 50px;
               border-radius: 50%;
-              background-color: rgba(59, 130, 246, 0.2);
+              background-color: \${pulseColor};
               position: absolute;
               animation: pulse 2s infinite;
             "></div>
@@ -370,13 +398,13 @@ drawRoadRoute();
               width: 50px;
               height: 50px;
               border-radius: 50%;
-              background-color: #3B82F6;
+              background-color: \${markerColor};
               border: 4px solid white;
               display: flex;
               align-items: center;
               justify-content: center;
               font-size: 24px;
-              box-shadow: 0 4px 12px rgba(59, 130, 246, 0.5);
+              box-shadow: 0 4px 12px rgba(15, 23, 42, 0.35);
               position: relative;
               z-index: 1;
             ">🚗</div>
@@ -386,7 +414,16 @@ drawRoadRoute();
           iconAnchor: [25, 25]
         });
         driverMarkers[key] = L.marker([lat, lng], { icon: driverIcon })
-          .bindPopup(\`<b>Driver Location</b><br>Driver: \${key.slice(0, 8)}...<br>Speed: \${Number(speed || 0).toFixed(1)} km/h<br>Heading: \${Number(heading || 0)}°\`)
+          .bindPopup(
+            '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">' +
+              profileHtml +
+              '<b>' + safeDriverName + '</b>' +
+              '<div>🚌 ' + safeBusNumber + '</div>' +
+              '<div><b>Status:</b> ' + (onBreak ? 'On Break' : 'In Trip') + '</div>' +
+              '<div><b>Speed:</b> ' + Number(speed || 0).toFixed(1) + ' km/h</div>' +
+              '<div><b>Heading:</b> ' + Number(heading || 0) + '°</div>' +
+            '</div>'
+          )
           .addTo(map);
       }
 

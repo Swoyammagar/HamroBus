@@ -5,7 +5,12 @@ const SOCKET_URL = process.env.EXPO_PUBLIC_API_BASE?.replace('/api', '') || 'htt
 
 interface DriverLocation {
   busId: string;
+  busNumber?: string;
   driverId: string;
+  driverName?: string;
+  driverProfileImgUrl?: string;
+  tripStatus?: string;
+  isOnBreak?: boolean;
   latitude: number;
   longitude: number;
   heading: number;
@@ -100,11 +105,31 @@ export const useDriverTracking = ({ busIds, enabled }: UseDriverTrackingProps) =
         console.log('✅ [PASSENGER] Bus ID matches tracked route! Updating driver location');
         setDriverLocationsByDriverId((prev) => ({
           ...prev,
-          [data.driverId]: data,
+          [data.driverId]: {
+            ...(prev[data.driverId] || {}),
+            ...data,
+          },
         }));
       } else {
         console.log('⚠️ [PASSENGER] Bus ID mismatch, ignoring update');
       }
+    });
+
+    socket.on('driver:status-update', (data: Partial<DriverLocation> & { driverId: string; busId?: string }) => {
+      if (!data?.driverId) return;
+      if (data.busId && !trackedBusIdsSet.has(String(data.busId))) return;
+
+      setDriverLocationsByDriverId((prev) => {
+        const existing = prev[data.driverId];
+        if (!existing) return prev;
+        return {
+          ...prev,
+          [data.driverId]: {
+            ...existing,
+            ...data,
+          } as DriverLocation,
+        };
+      });
     });
 
     socket.on('driver:location-offline', (data: { driverId: string; busId?: string }) => {
