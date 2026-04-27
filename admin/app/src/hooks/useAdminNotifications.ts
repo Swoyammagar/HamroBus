@@ -36,8 +36,35 @@ export type ActionResult = {
 };
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
+const READ_STORAGE_KEY = 'admin-notification-read-ids';
 
 axios.defaults.withCredentials = true;
+
+const canUseLocalStorage = () => typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+
+const loadReadIds = (): Set<string> => {
+  if (!canUseLocalStorage()) return new Set();
+
+  try {
+    const raw = window.localStorage.getItem(READ_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.map((value) => String(value)));
+  } catch {
+    return new Set();
+  }
+};
+
+const saveReadIds = (ids: Set<string>) => {
+  if (!canUseLocalStorage()) return;
+
+  try {
+    window.localStorage.setItem(READ_STORAGE_KEY, JSON.stringify(Array.from(ids)));
+  } catch {
+    // ignore storage errors
+  }
+};
 
 const normalizeNotification = (raw: any): NotificationRecord | null => {
   const id = String(raw?._id || raw?.id || '').trim();
@@ -61,9 +88,14 @@ export const useAdminNotifications = (auth: { token: string | null; loading: boo
   const { token, loading: authLoading } = auth;
 
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
+  const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() => loadReadIds());
   const [loading, setLoading] = useState<boolean>(false);
   const [sending, setSending] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    saveReadIds(readNotificationIds);
+  }, [readNotificationIds]);
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -160,12 +192,42 @@ export const useAdminNotifications = (auth: { token: string | null; loading: boo
     setError(null);
   }, []);
 
+  const markNotificationAsRead = useCallback((notificationId: string) => {
+    const safeId = String(notificationId || '').trim();
+    if (!safeId) return;
+
+    setReadNotificationIds((prev) => {
+      if (prev.has(safeId)) return prev;
+      const next = new Set(prev);
+      next.add(safeId);
+      return next;
+    });
+  }, []);
+
+  const markAllAsRead = useCallback(() => {
+    setReadNotificationIds((prev) => {
+      const next = new Set(prev);
+      notifications
+        .filter((item) => item.sentBy !== 'admin')
+        .forEach((item) => next.add(item._id));
+      return next;
+    });
+  }, [notifications]);
+
+  const unreadIncomingNotifications = useMemo(
+    () => notifications.filter((item) => item.sentBy !== 'admin' && !readNotificationIds.has(item._id)),
+    [notifications, readNotificationIds]
+  );
+
+  const unreadIncomingCount = unreadIncomingNotifications.length;
+
   useEffect(() => {
     if (authLoading) return;
 
     if (!token) {
       setNotifications([]);
       setError(null);
+        setReadNotificationIds(new Set());
       return;
     }
 
@@ -201,8 +263,27 @@ export const useAdminNotifications = (auth: { token: string | null; loading: boo
       sendNotification,
       deleteNotification,
       clearError,
+      readNotificationIds,
+      unreadIncomingNotifications,
+      unreadIncomingCount,
+      markNotificationAsRead,
+      markAllAsRead,
     }),
-    [notifications, loading, sending, error, fetchNotifications, sendNotification, deleteNotification, clearError]
+    [
+      notifications,
+      loading,
+      sending,
+      error,
+      fetchNotifications,
+      sendNotification,
+      deleteNotification,
+      clearError,
+      readNotificationIds,
+      unreadIncomingNotifications,
+      unreadIncomingCount,
+      markNotificationAsRead,
+      markAllAsRead,
+    ]
   );
 };
 
