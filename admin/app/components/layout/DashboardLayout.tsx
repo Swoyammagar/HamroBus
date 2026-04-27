@@ -43,6 +43,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         <Header
           title={pageTitle ?? pageTitleMap[selected]}
           onSelect={handlePageChange}
+          selectedKey={selected}
         />
         <View style={styles.innerContent}>{children}</View>
       </View>
