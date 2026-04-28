@@ -3,8 +3,14 @@ const Route = require('../../models/route.model');
 const Bus = require('../../models/bus.model');
 const Booking = require('../../models/booking.model');
 const TripSession = require('../../models/tripSession.model');
+const Driver = require('../../models/driver.model');
+const Passenger = require('../../models/passenger.model');
+const Notification = require('../../models/notification.model');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
+const { v4: uuidv4 } = require('uuid');
+const { getCurrentStopSequence } = require('../../services/distanceUtils');
+const { getIoInstance } = require('../../services/ioManager');
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const BOOKING_ACTIVE_STATUSES = ['confirmed', 'in-progress', 'completed'];
@@ -175,12 +181,36 @@ const createBooking = async (req, res) => {
         $lt: dayRange.end,
       },
       status: { $in: ['in-progress', 'completed'] },
-    }).select('_id status startTime');
+    }).select('_id status startTime currentStop driverId');
 
-    if (existingTrip) {
+    // NEW: Allow mid-trip booking if bus hasn't reached destination yet
+    if (existingTrip && existingTrip.status === 'completed') {
       return res.status(409).json({
-        message: `Booking closed. This trip is already ${existingTrip.status}.`,
+        message: `Booking closed. This trip is already completed.`,
       });
+    }
+
+    let isMidTripBooking = false;
+    let tripSessionId = null;
+
+    if (existingTrip && existingTrip.status === 'in-progress') {
+      // Mid-trip booking: check if bus has already passed destination
+      tripSessionId = existingTrip._id;
+      isMidTripBooking = true;
+      
+      // Validate destination: bus cannot have already passed it
+      // Fetch route to get stop sequences
+      let route_for_validation = await Route.findById(routeId).select('stops').lean();
+      if (route_for_validation) {
+        const currentStopSeq = getCurrentStopSequence(existingTrip.currentStop, { stops: route_for_validation.stops });
+        const destinationStopSeq = Number(getStopByName({ stops: route_for_validation.stops }, destinationStopName)?.sequence || -1);
+        
+        if (currentStopSeq >= destinationStopSeq) {
+          return res.status(409).json({
+            message: `Cannot book. Bus has already reached or passed your destination stop (${destinationStopName}).`,
+          });
+        }
+      }
     }
 
     const route = await Route.findById(routeId);
@@ -293,6 +323,7 @@ const createBooking = async (req, res) => {
       routeId: route._id,
       busId: bus._id,
       scheduleId: schedule._id,
+      tripSessionId: tripSessionId, // NEW: Include trip session for mid-trip bookings
       serviceDate: normalizedServiceDate,
       dayOfWeek: schedule.dayOfWeek,
       scheduleStartTime: schedule.startTime,
@@ -316,6 +347,125 @@ const createBooking = async (req, res) => {
     });
 
     const qrCodeDataUrl = await generateQrDataUrlFromPayload(qrPayload);
+
+    // ========== MID-TRIP NOTIFICATIONS ==========
+    if (isMidTripBooking && existingTrip) {
+      try {
+        const io = getIoInstance();
+        if (io && existingTrip.driverId) {
+          // Get passenger and driver details
+          const [passengerDoc, driverDoc, tripDoc, scheduleDoc] = await Promise.all([
+            Passenger.findById(passengerId).select('firstName lastName').lean(),
+            Driver.findById(existingTrip.driverId).select('firstName lastName').lean(),
+            TripSession.findById(existingTrip._id).select('startDelayMinutes startTime endTime').lean(),
+            Route.findById(routeId)
+              .select('schedules')
+              .lean()
+              .then((r) => {
+                if (!r) return null;
+                const sched = r.schedules?.id(scheduleId);
+                return sched;
+              }),
+          ]);
+
+          const passengerName = [passengerDoc?.firstName, passengerDoc?.lastName].filter(Boolean).join(' ').trim() || 'Passenger';
+          const driverName = [driverDoc?.firstName, driverDoc?.lastName].filter(Boolean).join(' ').trim() || 'Driver';
+          const seatDisplay = selectedSeats.join(', ');
+          const startDelayMinutes = tripDoc?.startDelayMinutes || 0;
+
+          // 1. Send notification to DRIVER about new booking
+          const driverNotifMessage = `New booking for ${seatDisplay} by ${passengerName} to ${destinationStop.stopName}. Trip: ${schedule.startTime}-${schedule.endTime}.`;
+          const driverNotif = await Notification.create({
+            notificationId: `notif_${uuidv4()}`,
+            title: 'New Booking - Mid-Trip',
+            message: driverNotifMessage,
+            sentBy: 'system',
+            targetAudience: 'specific_user',
+            targetUserId: existingTrip.driverId,
+            status: 'sent',
+            type: 'alert',
+            severity: 'medium',
+          });
+
+          // Emit to driver socket room
+          io.to(`driver:${existingTrip.driverId}`).emit('booking:created', {
+            _id: String(driverNotif._id),
+            notificationId: driverNotif.notificationId,
+            title: driverNotif.title,
+            message: driverNotifMessage,
+            type: 'alert',
+            severity: 'medium',
+            sentBy: 'system',
+            bookingCode,
+            passengerName,
+            seatNumbers: selectedSeats,
+            destinationStop: destinationStop.stopName,
+            tripDate: normalizedServiceDate.toISOString().split('T')[0],
+            tripStartTime: schedule.startTime,
+            tripEndTime: schedule.endTime,
+            createdAt: new Date(),
+          });
+
+          console.log(`✅ [BOOKING NOTIF] Driver ${existingTrip.driverId} notified:`, driverNotifMessage);
+
+          // 2. Send trip reminder to PASSENGER about arrival time and delay
+          const arrivalTimeObj = scheduleDoc?.stopArrivals?.find((s) =>
+            String(s.stopName || '').trim().toLowerCase() === String(destinationStop.stopName || '').trim().toLowerCase()
+          );
+          const eta = arrivalTimeObj?.arrivalTime || schedule.endTime || 'N/A';
+          const delayText = startDelayMinutes > 0 ? ` (${startDelayMinutes} min late)` : '';
+
+          const passengerNotifMessage = `Your trip started${delayText}. Expected arrival at ${destinationStop.stopName} is ${eta}. (Booking ${bookingCode})`;
+          const passengerNotif = await Notification.create({
+            notificationId: `notif_${uuidv4()}`,
+            title: 'Trip Started',
+            message: passengerNotifMessage,
+            sentBy: 'system',
+            targetAudience: 'specific_user',
+            targetUserIds: [toObjectId(passengerId)],
+            status: 'sent',
+            type: 'info',
+            severity: 'medium',
+          });
+
+          // Emit to passenger socket room
+          io.to(`passenger:${passengerId}`).emit('trip:reminder', {
+            _id: String(passengerNotif._id),
+            notificationId: passengerNotif.notificationId,
+            title: 'Trip Started',
+            message: passengerNotifMessage,
+            type: 'info',
+            severity: 'medium',
+            sentBy: 'system',
+            tripDate: normalizedServiceDate.toISOString().split('T')[0],
+            tripStartTime: schedule.startTime,
+            actualDelay: startDelayMinutes,
+            destinationStop: destinationStop.stopName,
+            eta,
+            bookingCode,
+            createdAt: new Date(),
+          });
+
+          console.log(`✅ [TRIP REMINDER] Passenger ${passengerId} notified:`, passengerNotifMessage);
+
+          // 3. Emit seat:booked event to driver's seat modal
+          io.to(`bus:${busId}`).emit('seat:booked', {
+            busId: String(busId),
+            routeId: String(routeId),
+            scheduleId: String(scheduleId),
+            serviceDate: normalizedServiceDate,
+            seatNumbers: selectedSeats,
+            bookingCode,
+          });
+
+          console.log(`✅ [SEAT UPDATE] Emitted seat:booked for bus ${busId}:`, selectedSeats);
+        }
+      } catch (notifError) {
+        console.error('Error sending mid-trip notifications:', notifError);
+        // Don't fail the booking if notifications fail
+      }
+    }
+    // ========== END MID-TRIP NOTIFICATIONS ==========
 
     return res.status(201).json({
       message: 'Booking created successfully',
