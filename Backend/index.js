@@ -12,6 +12,9 @@ const { processMissedTripsForToday } = require('./services/bookingLifecycle.serv
 const Driver = require('./models/driver.model');
 const Bus = require('./models/bus.model');
 const TripSession = require('./models/tripSession.model');
+const Route = require('./models/route.model');
+const { detectAndUpdateCurrentStop } = require('./services/distanceUtils');
+const { setIoInstance } = require('./services/ioManager');
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -23,6 +26,9 @@ const io = new Server(server, {
     credentials: true,
   },
 });
+
+// Register io instance globally for use in controllers
+setIoInstance(io);
 
 const normalizeBusIds = (busIds) => {
   if (!Array.isArray(busIds)) return [];
@@ -108,7 +114,10 @@ io.on('connection', (socket) => {
     console.log(`📍 Driver ${driverId} location:`, { latitude, longitude });
     
     let locationPayload;
+    let stopUpdate = null;
+    
     try {
+      // Get driver metadata for location payload
       const meta = await getDriverRealtimeMeta({ driverId, busId });
       locationPayload = {
         busId,
@@ -124,6 +133,65 @@ io.on('connection', (socket) => {
         speed: speed || 0,
         timestamp: new Date().toISOString(),
       };
+
+      // ========== REAL-TIME STOP TRACKING ==========
+      if (meta.tripStatus === 'in-progress') {
+        try {
+          // Fetch active trip session
+          const activeTrip = await TripSession.findOne({
+            driverId,
+            status: 'in-progress',
+          })
+            .sort({ updatedAt: -1 })
+            .lean();
+
+          if (activeTrip) {
+            // Fetch route and schedule for stop detection
+            const [routeDoc, scheduleDoc] = await Promise.all([
+              Route.findById(activeTrip.routeId).lean(),
+              activeTrip.scheduleId
+                ? Route.findById(activeTrip.routeId)
+                    .select('schedules')
+                    .lean()
+                    .then((r) => {
+                      if (!r) return null;
+                      const sched = r.schedules?.id(activeTrip.scheduleId);
+                      return sched;
+                    })
+                : Promise.resolve(null),
+            ]);
+
+            if (routeDoc) {
+              // Detect if driver reached a new stop
+              const stopDetection = await detectAndUpdateCurrentStop(
+                activeTrip,
+                latitude,
+                longitude,
+                routeDoc,
+                scheduleDoc
+              );
+
+              if (stopDetection.changed) {
+                stopUpdate = {
+                  driverId,
+                  busId,
+                  currentStop: stopDetection.currentStop,
+                  previousStop: stopDetection.previousStop,
+                  stopSequence: stopDetection.stopSequence,
+                  eta: stopDetection.eta,
+                  tripId: String(activeTrip._id),
+                  timestamp: new Date().toISOString(),
+                };
+
+                console.log(`🛑 [STOP CHANGED] Emitting driver:current-stop:`, stopUpdate);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error detecting stop update:', error);
+        }
+      }
+      // ========== END STOP TRACKING ==========
     } catch (error) {
       console.error('Error enriching driver realtime metadata:', error);
       locationPayload = {
@@ -139,13 +207,20 @@ io.on('connection', (socket) => {
       };
     }
     
-    // Broadcast to all passengers tracking this bus
+    // Broadcast location to all passengers tracking this bus
     io.to(`bus:${busId}`).emit('driver:location-update', locationPayload);
     console.log(`✅ Broadcast to bus:${busId}`);
     
     // Also broadcast to admin room for real-time monitoring
     io.to('admin-room').emit('driver:location-update', locationPayload);
     console.log('✅ Broadcast to admin-room');
+
+    // If stop changed, emit to admin and bus rooms
+    if (stopUpdate) {
+      io.to('admin-room').emit('driver:current-stop', stopUpdate);
+      io.to(`bus:${busId}`).emit('driver:current-stop', stopUpdate);
+      console.log(`✅ Broadcast driver:current-stop to admin-room and bus:${busId}`);
+    }
   });
 
   socket.on('driver:go-offline', async (data = {}) => {
