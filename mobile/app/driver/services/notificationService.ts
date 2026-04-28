@@ -7,7 +7,14 @@ export interface DriverNotificationApiRecord {
   title?: string;
   message?: string;
   sentBy?: 'admin' | 'driver' | 'system';
-  targetAudience?: 'all' | 'drivers' | 'passengers';
+  targetAudience?:
+    | 'all'
+    | 'drivers'
+    | 'passengers'
+    | 'admins'
+    | 'specific_user'
+    | 'specific_route'
+    | 'specific_bus';
   type?: 'alert' | 'info' | 'maintenance' | 'announcement' | 'emergency';
   severity?: 'low' | 'medium' | 'high' | 'critical';
   createdAt?: string;

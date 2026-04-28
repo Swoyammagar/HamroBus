@@ -53,8 +53,9 @@ export interface TripSession {
     };
     scheduleId?: string;
     stopArrivals?: StopArrival[];
-    status: 'scheduled' | 'in-progress' | 'on-break' | 'completed' | 'cancelled';
+    status: 'scheduled' | 'in-progress' | 'on-break' | 'completed' | 'cancelled' | 'missed';
     startTime?: Date;
+    startDelayMinutes?: number;
     endTime?: Date;
     breakHistory: Array<{
         breakStartTime: Date;

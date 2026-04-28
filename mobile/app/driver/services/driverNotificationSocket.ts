@@ -22,6 +22,7 @@ class DriverNotificationSocket {
 
     this.socket.on('connect', () => {
       this.socket?.emit('driver:join-notifications', { driverId });
+      this.socket?.emit('driver:join', { driverId });
     });
   }
 
