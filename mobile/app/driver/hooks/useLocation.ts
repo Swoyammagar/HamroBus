@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Location from 'expo-location';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { registerDriverTrackingStopper, unregisterDriverTrackingStopper } from '../../services/driverTrackingControl';
 
 const SOCKET_URL = (process.env.EXPO_PUBLIC_API_BASE?.trim().replace('/api', '') || 'https://hamrobus-auos.onrender.com').trim();
 
@@ -34,8 +35,10 @@ export const useLocation = (): UseLocationReturn => {
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   
   const socketRef = useRef<Socket | null>(null);
+  const watchRef = useRef<Location.LocationSubscription | null>(null);
   const driverDataRef = useRef<{ driverId: string; busId: string } | null>(null);
   const trackingStartedRef = useRef(false); // ✅ Prevent duplicate watch listeners
+  const trackingActiveRef = useRef(false);
 
   // Initialize socket connection
   useEffect(() => {
@@ -108,6 +111,10 @@ export const useLocation = (): UseLocationReturn => {
 
   // Emit location to server via socket
   const emitLocationToServer = useCallback((locationData: LocationCoords) => {
+    if (!trackingActiveRef.current) {
+      return;
+    }
+
     if (socketRef.current && socketRef.current.connected && driverDataRef.current) {
       const { driverId, busId } = driverDataRef.current;
       
@@ -200,7 +207,7 @@ export const useLocation = (): UseLocationReturn => {
       setLoading(true);
       setError(null);
       console.log('📍 [startTracking] Starting...');
-      
+
       // Check/request permission first
       let hasPermissionGranted = hasPermission;
       if (!hasPermissionGranted) {
@@ -216,11 +223,10 @@ export const useLocation = (): UseLocationReturn => {
       }
 
       console.log('📍 [startTracking] Getting initial location...');
-      // Get initial location immediately
       const currentLocation = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      
+
       const initialCoords: LocationCoords = {
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
@@ -235,12 +241,11 @@ export const useLocation = (): UseLocationReturn => {
       emitLocationToServer(initialCoords);
 
       console.log('📍 [startTracking] Starting watch...');
-      // Start watching for changes (don't wait for this)
       const subscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.Balanced,
-          timeInterval: 5000, // Update every 5 seconds
-          distanceInterval: 0, // Fire even if stationary so backend gets regular heartbeats
+          timeInterval: 2000,
+          distanceInterval: 0,
         },
         (locationData) => {
           const coords: LocationCoords = {
@@ -259,39 +264,60 @@ export const useLocation = (): UseLocationReturn => {
         }
       );
 
+      watchRef.current = subscription;
       setWatchId(subscription);
+      trackingActiveRef.current = true;
       console.log('✅ [startTracking] Watch setup complete');
-      setLoading(false); // Stop loading immediately after watch is set up
-      trackingStartedRef.current = false; // ✅ Reset flag after successful setup
+      setLoading(false);
+      trackingStartedRef.current = false;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to start tracking';
       console.error('❌ [startTracking] Error:', message, err);
       setError(message);
       setLoading(false);
-      trackingStartedRef.current = false; // ✅ Reset flag on error
+      trackingStartedRef.current = false;
     }
   }, [hasPermission, requestPermission, emitLocationToServer]);
 
   // Stop tracking location
   const stopTracking = useCallback(() => {
+    trackingActiveRef.current = false;
+
     if (socketRef.current && socketRef.current.connected && driverDataRef.current) {
       const { driverId, busId } = driverDataRef.current;
       socketRef.current.emit('driver:go-offline', { driverId, busId });
       console.log('🛑 Driver offline emitted:', { driverId, busId });
     }
 
-    if (watchId) {
-      watchId.remove();
+    if (watchRef.current) {
+      watchRef.current.remove();
+      watchRef.current = null;
       setWatchId(null);
-      trackingStartedRef.current = false; // ✅ Reset ref when stopping
+      trackingStartedRef.current = false;
       console.log('🛑 Location tracking stopped');
     }
-  }, [watchId]);
+
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+      setIsSocketConnected(false);
+    }
+
+    driverDataRef.current = null;
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopTracking();
+    };
+  }, [stopTracking]);
+
+  useEffect(() => {
+    registerDriverTrackingStopper(stopTracking);
+
+    return () => {
+      unregisterDriverTrackingStopper(stopTracking);
     };
   }, [stopTracking]);
 

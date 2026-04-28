@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { forceStopDriverTracking } from '../services/driverTrackingControl';
 
 const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
 interface Driver {
@@ -300,6 +301,8 @@ const register = async (userData: any, role: 'driver' | 'passenger') => {
 
 const logout = async () => {
   try {
+    forceStopDriverTracking();
+
     // Try to notify backend about logout
     const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
     if (storedRefreshToken) {
