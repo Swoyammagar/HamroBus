@@ -14,7 +14,7 @@ import { palette, spacing, radius, shadow } from '../theme';
 import { useTripHistory } from '../hooks/useDriver';
 import { TripSession } from '../services/driverService';
 
-const statusFilters = ['all', 'completed', 'cancelled', 'in-progress', 'on-break'] as const;
+const statusFilters = ['all', 'completed', 'missed', 'cancelled', 'in-progress', 'on-break'] as const;
 type StatusFilter = typeof statusFilters[number];
 
 const getTripDate = (trip: TripSession) => {
@@ -57,7 +57,8 @@ const statusToLabel: Record<string, string> = {
   'in-progress': 'In Progress',
   'on-break': 'On Break',
   scheduled: 'Scheduled',
-  cancelled: 'Missed',
+  cancelled: 'Cancelled',
+  missed: 'Missed',
 };
 
 const statusToPillStyle: Record<string, { bg: string; text: string; icon: any }> = {
@@ -66,6 +67,7 @@ const statusToPillStyle: Record<string, { bg: string; text: string; icon: any }>
   'on-break': { bg: '#FEF3C7', text: palette.warning, icon: 'pause-circle' },
   scheduled: { bg: '#E2E8F0', text: '#334155', icon: 'calendar' },
   cancelled: { bg: '#FEE2E2', text: '#DC2626', icon: 'x-circle' },
+  missed: { bg: '#FFEDD5', text: '#C2410C', icon: 'alert-triangle' },
 };
 
 export default function HistoryScreen() {
@@ -183,7 +185,7 @@ export default function HistoryScreen() {
                 onPress={() => setStatusFilter(item)}
               >
                 <Text style={[styles.chipText, statusFilter === item && styles.chipTextActive]}>
-                  {item === 'cancelled' ? 'missed' : item.replace('-', ' ')}
+                  {item.replace('-', ' ')}
                 </Text>
               </Pressable>
             ))}
@@ -295,6 +297,10 @@ export default function HistoryScreen() {
                   <View style={styles.infoItem}>
                     <Text style={styles.metaText}>Bus</Text>
                     <Text style={styles.routeText}>{trip.busId?.busNumber || 'N/A'}</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.metaText}>Start Delay</Text>
+                    <Text style={styles.routeText}>{Number(trip.startDelayMinutes || 0)} min</Text>
                   </View>
                   <View style={styles.infoItem}>
                     <Text style={styles.metaText}>Start Date</Text>

@@ -27,7 +27,15 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     refreshAll 
   } = useAppContext();
   
-  const { startTrip, endTrip, updatePassengers, isLoading: tripActionLoading, error: tripActionError } = useTripActions();
+  const {
+    startTrip,
+    endTrip,
+    startBreak,
+    endBreak,
+    updatePassengers,
+    isLoading: tripActionLoading,
+    error: tripActionError,
+  } = useTripActions();
   const [showStartTrip, setShowStartTrip] = useState(false);
   const [showPassengerLog, setShowPassengerLog] = useState(false);
   const [tempPassengerCount, setTempPassengerCount] = useState(0);
@@ -254,6 +262,31 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     }
   };
 
+  const handleToggleBreak = async () => {
+    try {
+      if (!currentTrip) {
+        Alert.alert('Error', 'No active trip found');
+        return;
+      }
+
+      if (tripActionLoading) return;
+
+      if (currentTrip.status === 'on-break') {
+        await endBreak(currentTrip._id);
+        await refreshAll();
+        Alert.alert('Success', 'Break ended successfully');
+        return;
+      }
+
+      await startBreak(currentTrip._id);
+      await refreshAll();
+      Alert.alert('Success', 'Break started successfully');
+    } catch (error: any) {
+      const apiMessage = error?.response?.data?.message;
+      Alert.alert('Error', apiMessage || error.message || 'Failed to update break status');
+    }
+  };
+
   const handleOpenPassengerLog = () => {
     if (currentTrip) {
       setTempPassengerCount(currentTrip.passengerCount || 0);
@@ -439,7 +472,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
               <Text style={styles.tripTitle}>{currentTrip.routeId?.routeName || 'Route'}</Text>
             </View>
             <View style={styles.tripBadge}>
-              <Text style={styles.tripBadgeText}>Active</Text>
+              <Text style={styles.tripBadgeText}>{currentTrip.status === 'on-break' ? 'On Break' : 'Active'}</Text>
             </View>
           </View>
 
@@ -491,11 +524,13 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
           <View style={styles.tripActionRow}>
             <Pressable 
               style={[styles.tripButton, styles.tripButtonSecondary, tripActionLoading && { opacity: 0.6 }]}
-              onPress={() => {}} // Take break functionality
-              disabled={tripActionLoading}
+              onPress={handleToggleBreak}
+              disabled={tripActionLoading || !currentTrip}
             >
               <Feather name="pause-circle" size={18} color={palette.primary} />
-              <Text style={styles.tripButtonSecondaryText}>Break</Text>
+              <Text style={styles.tripButtonSecondaryText}>
+                {currentTrip?.status === 'on-break' ? 'Resume' : 'Break'}
+              </Text>
             </Pressable>
             <Pressable 
               style={[styles.tripButton, styles.tripButtonDanger, tripActionLoading && { opacity: 0.6 }]}
@@ -604,12 +639,16 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       )}
 
       <View style={styles.quickGrid}>
-        <Pressable style={[styles.quickCard, shadow.card]}>
+        <Pressable
+          style={[styles.quickCard, shadow.card, (!currentTrip || tripActionLoading) && { opacity: 0.6 }]}
+          onPress={handleToggleBreak}
+          disabled={!currentTrip || tripActionLoading}
+        >
           <View style={[styles.quickIcon, { backgroundColor: '#DBEAFE' }]}>
             <Feather name="clock" size={18} color={palette.primary} />
           </View>
           <Text style={styles.quickTitle}>Take Break</Text>
-          <Text style={styles.quickSub}>Pause location</Text>
+          <Text style={styles.quickSub}>{currentTrip?.status === 'on-break' ? 'Resume trip' : 'Pause location'}</Text>
         </Pressable>
         <Pressable 
           style={[styles.quickCard, shadow.card]}
