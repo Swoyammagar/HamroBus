@@ -78,6 +78,12 @@ const tripSessionSchema = new mongoose.Schema({
         trim: true,
         required: false
     },
+    previousStop: {
+        // Track the previous stop for UI display of stop progression
+        type: String,
+        trim: true,
+        required: false
+    },
     notes: {
         type: String,
         required: false

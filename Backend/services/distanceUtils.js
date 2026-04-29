@@ -107,6 +107,7 @@ const detectAndUpdateCurrentStop = async (tripSession, driverLat, driverLng, rou
     // New stop detected - update trip session
     const previousStop = tripSession.currentStop;
     tripSession.currentStop = newStopName;
+    tripSession.previousStop = previousStop || null;
     await tripSession.save();
 
     console.log(`✅ [STOP UPDATE] Trip ${tripSession._id}: ${previousStop || 'START'} → ${newStopName}`);
