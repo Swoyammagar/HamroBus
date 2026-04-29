@@ -627,6 +627,25 @@ const updatePassengerCount = async (req, res) => {
         const io = req.app.get('io');
         if (io) {
             io.to(`driver:${driverId}`).emit('trip:updated', trip);
+
+            // ========== NEW: Emit occupancy update to ALL passengers viewing this bus ==========
+            if (trip.busId) {
+                try {
+                    const occupancyData = {
+                        tripId: String(trip._id),
+                        busId: String(trip.busId),
+                        passengerCount: trip.passengerCount,
+                        timestamp: new Date().toISOString()
+                    };
+
+                    // Emit to bus room so ALL passengers viewing this bus get the update
+                    io.to(`bus:${trip.busId}`).emit('trip:occupancy-updated', occupancyData);
+                    console.log(`📊 Occupancy update emitted to all passengers viewing bus ${trip.busId}: count = ${trip.passengerCount}`);
+                } catch (emitError) {
+                    console.error('Error emitting occupancy update to bus room:', emitError);
+                }
+            }
+            // ========== END NEW ==========
         }
 
         res.status(200).json({

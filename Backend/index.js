@@ -295,6 +295,20 @@ io.on('connection', (socket) => {
     });
     console.log(`🛑 [PASSENGER] Socket ${socket.id} left ${normalizedBusIds.length} bus rooms`);
   });
+
+  // ========== NEW: Handle bus room join/leave for occupancy updates ==========
+  socket.on('passenger:join-bus-room', ({ busId }) => {
+    if (!busId) return;
+    socket.join(`bus:${busId}`);
+    console.log(`✅ [PASSENGER] Socket ${socket.id} joined bus:${busId} room for real-time occupancy`);
+  });
+
+  socket.on('passenger:leave-bus-room', ({ busId }) => {
+    if (!busId) return;
+    socket.leave(`bus:${busId}`);
+    console.log(`✅ [PASSENGER] Socket ${socket.id} left bus:${busId} room`);
+  });
+  // ========== END NEW ==========
   
   socket.on('disconnect', () => {
     const { driverId, busId, passengerId } = socket.data || {};
