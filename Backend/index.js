@@ -215,6 +215,25 @@ io.on('connection', (socket) => {
     io.to('admin-room').emit('driver:location-update', locationPayload);
     console.log('✅ Broadcast to admin-room');
 
+    // Persist last known location to Bus document so admin/panel can show last location even if driver goes offline
+    try {
+      if (busId) {
+        await Bus.findByIdAndUpdate(busId, {
+          $set: {
+            lastKnownLocation: {
+              latitude: Number(latitude),
+              longitude: Number(longitude),
+              heading: heading || 0,
+              speed: speed || 0,
+              timestamp: new Date()
+            }
+          }
+        }, { new: true });
+      }
+    } catch (err) {
+      console.warn('Failed to persist lastKnownLocation for bus:', err.message || err);
+    }
+
     // If stop changed, emit to admin and bus rooms
     if (stopUpdate) {
       io.to('admin-room').emit('driver:current-stop', stopUpdate);
