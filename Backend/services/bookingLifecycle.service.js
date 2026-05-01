@@ -7,6 +7,8 @@ const { sendEmail } = require('../utils/sendEmail');
 const { v4: uuidv4 } = require('uuid');
 const { missed_trip_apology_boilerplate } = require('../utils/boilerplate.data');
 
+const APP_TIMEZONE = process.env.APP_TIMEZONE || 'Asia/Kathmandu';
+
 const normalizeDateOnly = (value) => {
   const input = value ? new Date(value) : new Date();
   if (Number.isNaN(input.getTime())) {
@@ -16,7 +18,7 @@ const normalizeDateOnly = (value) => {
 };
 
 const notifyMissedTrip = async ({ io, route, schedule, busId, changedBookings }) => {
-  if (!Array.isArray(changedBookings) || !changedBookings.length) return;
+  const bookings = Array.isArray(changedBookings) ? changedBookings : [];
 
   const routeLabel = String(route?.routeName || route?.routeNumber || route?._id || 'Route');
   const driverId = schedule?.driverId ? String(schedule.driverId) : '';
@@ -32,7 +34,7 @@ const notifyMissedTrip = async ({ io, route, schedule, busId, changedBookings })
   }
 
   const adminTitle = 'Missed trip detected';
-  const adminMessage = `Route ${routeLabel} by ${driverLabel} scheduled ${schedule.startTime}-${schedule.endTime} was missed. ${changedBookings.length} booking(s) were auto-cancelled.`;
+  const adminMessage = `Route ${routeLabel} by ${driverLabel} scheduled ${schedule.startTime}-${schedule.endTime} was missed. ${bookings.length} booking(s) were auto-cancelled.`;
 
   const adminDoc = await Notification.create({
     notificationId: `notif_${uuidv4()}`,
@@ -61,7 +63,7 @@ const notifyMissedTrip = async ({ io, route, schedule, busId, changedBookings })
 
   if (driverId) {
     const driverTitle = 'Trip marked as missed';
-    const driverMessage = `Your scheduled trip for route ${routeLabel} (${schedule.startTime}-${schedule.endTime}) by ${driverLabel} was marked as missed. ${changedBookings.length} booking(s) were auto-cancelled.`;
+    const driverMessage = `Your scheduled trip for route ${routeLabel} (${schedule.startTime}-${schedule.endTime}) by ${driverLabel} was marked as missed. ${bookings.length} booking(s) were auto-cancelled.`;
 
     const driverDoc = await Notification.create({
       notificationId: `notif_${uuidv4()}`,
@@ -90,7 +92,7 @@ const notifyMissedTrip = async ({ io, route, schedule, busId, changedBookings })
     }
   }
 
-  for (const row of changedBookings) {
+  for (const row of bookings) {
     const passengerId = row.passengerId ? String(row.passengerId) : '';
     const passengerTitle = 'Trip cancelled - we are sorry';
     const passengerMessage = `Your booking ${row.bookingCode} was cancelled because the trip did not start in time. We sincerely apologize for the inconvenience.`;
@@ -316,11 +318,44 @@ const timeStringToMinutes = (timeStr) => {
 };
 
 /**
- * Get current time in minutes since midnight (UTC)
+ * Get current date/time parts in app timezone.
  */
+const getNowInTimezoneParts = () => {
+  const dtf = new Intl.DateTimeFormat('en-GB', {
+    timeZone: APP_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    weekday: 'long',
+    hour12: false,
+  });
+
+  const parts = dtf.formatToParts(new Date());
+  const pick = (type) => parts.find((p) => p.type === type)?.value;
+
+  return {
+    year: Number(pick('year')),
+    month: Number(pick('month')),
+    day: Number(pick('day')),
+    hour: Number(pick('hour')),
+    minute: Number(pick('minute')),
+    weekday: pick('weekday') || '',
+  };
+};
+
 const getCurrentTimeInMinutes = () => {
-  const now = new Date();
-  return now.getUTCHours() * 60 + now.getUTCMinutes();
+  const now = getNowInTimezoneParts();
+  return now.hour * 60 + now.minute;
+};
+
+const getTodayDateInTimezoneAsUtcMidnight = () => {
+  const now = getNowInTimezoneParts();
+  if ([now.year, now.month, now.day].some((value) => Number.isNaN(value))) {
+    return null;
+  }
+  return new Date(Date.UTC(now.year, now.month - 1, now.day));
 };
 
 /**
@@ -386,8 +421,6 @@ const cancelMissedTripBookings = async ({ routeId, busId, scheduleId, serviceDat
     return { matched: 0, modified: 0, reason: 'No confirmed bookings', changedBookings: [] };
   }
 
-  const cancelledAt = new Date(); 
-
   // Cancel confirmed bookings for this trip
   const result = await Booking.updateMany(
     filter,
@@ -427,18 +460,21 @@ const combineDateAndTimeUtc = (dateOnly, hhmm) => {
   return dt;
 };
 
-const ensureMissedTripSession = async ({ routeId, busId, schedule }) => {
-  const serviceDate = normalizeDateOnly(new Date());
-  const dayEnd = new Date(serviceDate.getTime() + 24 * 60 * 60 * 1000);
+const ensureMissedTripSession = async ({ routeId, busId, schedule, serviceDate }) => {
+  const normalizedServiceDate = normalizeDateOnly(serviceDate || new Date());
+  if (!normalizedServiceDate) {
+    return { trip: null, created: false };
+  }
+  const dayEnd = new Date(normalizedServiceDate.getTime() + 24 * 60 * 60 * 1000);
 
   const existing = await TripSession.findOne({
     routeId,
     busId,
     scheduleId: schedule._id,
-    startTime: { $gte: serviceDate, $lt: dayEnd },
+    startTime: { $gte: normalizedServiceDate, $lt: dayEnd },
   });
 
-  if (existing) return existing;
+  if (existing) return { trip: existing, created: false };
 
   const missedTrip = await TripSession.create({
     driverId: schedule.driverId,
@@ -446,12 +482,12 @@ const ensureMissedTripSession = async ({ routeId, busId, schedule }) => {
     busId,
     scheduleId: schedule._id,
     status: 'missed',
-    startTime: combineDateAndTimeUtc(serviceDate, schedule.startTime),
-    endTime: combineDateAndTimeUtc(serviceDate, schedule.endTime),
+    startTime: combineDateAndTimeUtc(normalizedServiceDate, schedule.startTime),
+    endTime: combineDateAndTimeUtc(normalizedServiceDate, schedule.endTime),
     notes: 'Auto-marked as missed: trip not started before schedule end time',
   });
 
-  return missedTrip;
+  return { trip: missedTrip, created: true };
 };
 
 /**
@@ -460,15 +496,12 @@ const ensureMissedTripSession = async ({ routeId, busId, schedule }) => {
  */
 const processMissedTripsForToday = async ({io}) => {
   try {
-    const today = normalizeDateOnly(new Date());
+    const today = getTodayDateInTimezoneAsUtcMidnight();
     if (!today) {
       return { processed: 0, totalCancelled: 0, errors: [] };
     }
 
-    const tomorrow = new Date(today);
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-
-    const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+    const dayName = getNowInTimezoneParts().weekday;
 
     // Find all schedules for today that haven't had a trip started
     const schedules = await Route.find({}, 'routeName routeNumber schedules').lean();
@@ -495,28 +528,29 @@ const processMissedTripsForToday = async ({io}) => {
             endTime: schedule.endTime,
           });
 
-          if (result.modified > 0) {
-            await ensureMissedTripSession({
+          if (result.reason !== 'Trip already started') {
+            const missedSession = await ensureMissedTripSession({
               routeId: route._id,
               busId: schedule.busId,
               schedule,
+              serviceDate: today,
             });
 
-            await notifyMissedTrip({
-              io,
-              route,
-              schedule,
-              busId: schedule.busId,
-              changedBookings: result.changedBookings || [],
-            });
-          }
+            if (missedSession.created) {
+              await notifyMissedTrip({
+                io,
+                route,
+                schedule,
+                busId: schedule.busId,
+                changedBookings: result.changedBookings || [],
+              });
 
-          if (result.modified > 0) {
-            totalProcessed++;
-            totalCancelled += result.modified;
-            console.log(
-              `📋 Missed trip processed - Route: ${route._id}, Schedule: ${schedule._id}, Cancelled: ${result.modified}`
-            );
+              totalProcessed++;
+              totalCancelled += result.modified;
+              console.log(
+                `📋 Missed trip processed - Route: ${route._id}, Schedule: ${schedule._id}, Cancelled: ${result.modified}`
+              );
+            }
           }
         } catch (error) {
           errors.push({
