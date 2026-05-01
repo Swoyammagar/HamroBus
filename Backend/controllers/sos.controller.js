@@ -81,6 +81,8 @@ const sendSosAlert = async (req, res) => {
       io.to('admin-room').emit('sos:alert', payload);
       // Also inform all passengers viewing the bus so their maps show red marker
       io.to(`bus:${busId}`).emit('driver:sos', payload);
+      // Inform the driver that SOS was registered immediately
+      io.to('driver:' + driverId).emit('sos:alert', payload);
     }
 
     return res.status(200).json({ message: 'SOS alert sent', payload });
@@ -109,6 +111,8 @@ const clearSos = async (req, res) => {
     if (io) {
       io.to('admin-room').emit('sos:cleared', payload);
       io.to(`bus:${busId}`).emit('driver:sos-cleared', payload);
+      // Inform the driver that SOS was cleared
+      io.to('driver:' + driverId).emit('sos:cleared', payload);
     }
 
     return res.status(200).json({ message: 'SOS cleared', payload });
