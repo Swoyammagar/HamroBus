@@ -641,8 +641,21 @@ const updatePassengerCount = async (req, res) => {
                     // Emit to bus room so ALL passengers viewing this bus get the update
                     io.to(`bus:${trip.busId}`).emit('trip:occupancy-updated', occupancyData);
                     console.log(`📊 Occupancy update emitted to all passengers viewing bus ${trip.busId}: count = ${trip.passengerCount}`);
+
+                    // Also emit current stop update if available
+                    if (trip.currentStop) {
+                        const stopData = {
+                            tripId: String(trip._id),
+                            busId: String(trip.busId),
+                            currentStop: trip.currentStop,
+                            previousStop: trip.completedStops?.[trip.completedStops.length - 2]?.stopId || null,
+                            timestamp: new Date().toISOString()
+                        };
+                        io.to(`bus:${trip.busId}`).emit('driver:current-stop', stopData);
+                        console.log(`🛑 Current stop update emitted to all passengers viewing bus ${trip.busId}: stop = ${trip.currentStop}`);
+                    }
                 } catch (emitError) {
-                    console.error('Error emitting occupancy update to bus room:', emitError);
+                    console.error('Error emitting updates to bus room:', emitError);
                 }
             }
             // ========== END NEW ==========
