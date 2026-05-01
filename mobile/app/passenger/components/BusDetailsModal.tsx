@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Modal, ScrollView, TouchableOpacity, StyleSheet, Image } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { type Bus } from '../context/PassengerContext';
 import { calculateCrowdPercentage, getCrowdColor } from '../utils/helpers';
 import { type Schedule } from '../services/routeService';
 import { busService, type DriverLatestReview } from '../services/busService';
+import socketService from '../services/passengerNotificationSocket';
 
 interface BusDetailsModalProps {
   visible: boolean;
@@ -24,6 +25,9 @@ const BusDetailsModal: React.FC<BusDetailsModalProps> = ({
   const [latestReviews, setLatestReviews] = useState<DriverLatestReview[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [currentStop, setCurrentStop] = useState<string | null>(null);
+  const [previousStop, setPreviousStop] = useState<string | null>(null);
+  const [livePassengerCount, setLivePassengerCount] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchLatestReviews = async () => {
@@ -50,9 +54,69 @@ const BusDetailsModal: React.FC<BusDetailsModalProps> = ({
     fetchLatestReviews();
   }, [visible, bus?.driverId]);
 
+  // Listen for real-time driver stop updates
+  useEffect(() => {
+    if (!visible || !bus) {
+      setCurrentStop(null);
+      setPreviousStop(null);
+      return;
+    }
+
+    const busId = String(bus._id || bus.id || '');
+    if (!busId) return;
+
+    // Join bus room to receive updates for this bus
+    socketService.joinBusRoom(busId);
+
+    const handleStopUpdate = (data: any) => {
+      console.log('🛑 [BUS DETAILS] Stop update received:', data);
+      
+      // Update stop info if this is for the current bus
+      if (String(data.busId) === busId) {
+        setCurrentStop(data.currentStop || null);
+        setPreviousStop(data.previousStop || null);
+      }
+    };
+
+    // Listen for driver:current-stop events
+    socketService.onCurrentStopUpdate(handleStopUpdate);
+
+    return () => {
+      socketService.offCurrentStopUpdate(handleStopUpdate);
+      
+      // Leave bus room when modal closes
+      socketService.leaveBusRoom(busId);
+    };
+  }, [visible, bus?._id, bus?.id]);
+
+  // Listen for real-time occupancy updates (passenger count)
+  useEffect(() => {
+    if (!visible || !bus) {
+      setLivePassengerCount(null);
+      return;
+    }
+
+    const handleOccupancyUpdate = (data: any) => {
+      console.log('📊 [BUS DETAILS] Occupancy update received:', data);
+      
+      // Update passenger count if this is for the current bus
+      if (String(data.busId) === String(bus._id) || String(data.busId) === String(bus.id)) {
+        console.log(`📊 Passenger count updated: ${data.passengerCount}`);
+        setLivePassengerCount(data.passengerCount || 0);
+      }
+    };
+
+    // Listen for trip:occupancy-updated events
+    socketService.onOccupancyUpdated(handleOccupancyUpdate);
+
+    return () => {
+      socketService.offOccupancyUpdated(handleOccupancyUpdate);
+    };
+  }, [visible, bus?._id, bus?.id]);
+
   if (!bus) return null;
 
-  const currentPassengers = bus.currentPassengers ?? bus.currentOccupancy ?? 0;
+  const currentPassengers = livePassengerCount !== null ? livePassengerCount : (bus.currentPassengers ?? bus.currentOccupancy ?? 0);
   const totalCapacity = bus.totalCapacity ?? bus.capacity ?? 0;
   const driverName = bus.driverName || 'Unknown';
   const driverPhoto = bus.driverPhoto;
@@ -113,6 +177,26 @@ const BusDetailsModal: React.FC<BusDetailsModalProps> = ({
           >
             <Text style={styles.modalTitle}>{bus.busNumber || 'Bus'}</Text>
 
+            {(currentStop || previousStop) && (
+              <View style={styles.stopProgressionSection}>
+                <View style={styles.stopProgressionContainer}>
+                  <View style={styles.stopProgression}>
+                    <View style={styles.stopItem}>
+                      <Text style={styles.stopLabel}>Last Stop</Text>
+                      <Text style={styles.stopNamePrevious}>{previousStop || 'Starting'}</Text>
+                    </View>
+                    <View style={styles.stopArrow}>
+                      <Feather name="arrow-right" size={16} color="#3b82f6" />
+                    </View>
+                    <View style={styles.stopItem}>
+                      <Text style={styles.stopLabel}>Now At</Text>
+                      <Text style={styles.stopNameCurrent}>{currentStop || 'En route'}</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )}
+
             <View style={styles.detailsSection}>
               <Text style={styles.detailsTitle}>Bus Information</Text>
 
@@ -159,7 +243,15 @@ const BusDetailsModal: React.FC<BusDetailsModalProps> = ({
             )}
 
             <View style={styles.detailsSection}>
-              <Text style={styles.detailsTitle}>Occupancy</Text>
+              <View style={styles.occupancyHeaderRow}>
+                <Text style={styles.detailsTitle}>Occupancy</Text>
+                {livePassengerCount !== null && (
+                  <View style={styles.liveBadge}>
+                    <View style={styles.liveDot} />
+                    <Text style={styles.liveBadgeText}>Live</Text>
+                  </View>
+                )}
+              </View>
 
               <View style={styles.crowdBar}>
                 <View
@@ -467,6 +559,77 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#374151',
     lineHeight: 18,
+  },
+  stopProgressionSection: {
+    paddingHorizontal: 16,
+    marginVertical: 12,
+  },
+  stopProgressionContainer: {
+    backgroundColor: '#eff6ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  stopProgression: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  stopItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  stopLabel: {
+    fontSize: 10,
+    color: '#6b7280',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  stopNameCurrent: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#3b82f6',
+    textAlign: 'center',
+  },
+  stopNamePrevious: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1f2937',
+    textAlign: 'center',
+  },
+  stopArrow: {
+    paddingHorizontal: 8,
+  },
+  occupancyHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#dcfce7',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#86efac',
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#22c55e',
+  },
+  liveBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#16a34a',
   },
 });
 
