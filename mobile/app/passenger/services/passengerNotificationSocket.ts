@@ -7,6 +7,10 @@ const SOCKET_URL =
 class PassengerNotificationSocket {
   private socket: Socket | null = null;
 
+  getSocket() {
+    return this.socket;
+  }
+
   async connect(passengerId: string) {
     if (!passengerId) return;
     if (this.socket?.connected) return;
@@ -48,6 +52,52 @@ class PassengerNotificationSocket {
   offBookingCompleted(handler: (payload: any) => void) {
     this.socket?.off('booking:completed', handler);
   }
+
+  // ========== NEW: Seat booking and trip reminder events ==========
+  onSeatBooked(handler: (payload: any) => void) {
+    this.socket?.on('seat:booked', handler);
+  }
+
+  offSeatBooked(handler: (payload: any) => void) {
+    this.socket?.off('seat:booked', handler);
+  }
+
+  onTripReminder(handler: (payload: any) => void) {
+    this.socket?.on('trip:reminder', handler);
+  }
+
+  offTripReminder(handler: (payload: any) => void) {
+    this.socket?.off('trip:reminder', handler);
+  }
+
+  onCurrentStopUpdate(handler: (payload: any) => void) {
+    this.socket?.on('driver:current-stop', handler);
+  }
+
+  offCurrentStopUpdate(handler: (payload: any) => void) {
+    this.socket?.off('driver:current-stop', handler);
+  }
+
+  onOccupancyUpdated(handler: (payload: any) => void) {
+    this.socket?.on('trip:occupancy-updated', handler);
+  }
+
+  offOccupancyUpdated(handler: (payload: any) => void) {
+    this.socket?.off('trip:occupancy-updated', handler);
+  }
+
+  joinBusRoom(busId: string) {
+    if (!busId || !this.socket) return;
+    this.socket.emit('passenger:join-bus-room', { busId });
+    console.log(`[SOCKET] Joining bus room: ${busId}`);
+  }
+
+  leaveBusRoom(busId: string) {
+    if (!busId || !this.socket) return;
+    this.socket.emit('passenger:leave-bus-room', { busId });
+    console.log(`[SOCKET] Leaving bus room: ${busId}`);
+  }
+  // ========== END NEW EVENTS ==========
 
   disconnect() {
     if (!this.socket) return;
