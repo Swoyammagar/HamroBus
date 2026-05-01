@@ -31,6 +31,27 @@ const busSchema = new mongoose.Schema({
         default: 0,
         min: 0
     },
+    // Last known geo-location of the bus (kept up-to-date by driver location pings)
+    lastKnownLocation: {
+        latitude: { type: Number, required: false },
+        longitude: { type: Number, required: false },
+        heading: { type: Number, required: false },
+        speed: { type: Number, required: false },
+        timestamp: { type: Date, required: false }
+    },
+    // SOS state / emergency marker for the bus
+    sosActive: {
+        type: Boolean,
+        default: false
+    },
+    sosCategory: {
+        type: String,
+        required: false
+    },
+    sosTimestamp: {
+        type: Date,
+        required: false
+    },
     assignedDriverId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Driver',
