@@ -16,6 +16,7 @@ import { usePassenger, type Bus, type Route, type Stop, type Booking } from '../
 import { routeService, type Schedule } from '../services/routeService';
 import { bookingService, type BookingResponse, type SeatAvailabilityResponse } from '../services/bookingService';
 import { paymentService } from '../services/paymentService';
+import passengerNotificationSocket from '../services/passengerNotificationSocket';
 import StopSelectionModal from '@/app/passenger/components/StopSelectionModal';
 import BookingSuccessTicket from '@/app/passenger/components/BookingSuccessTicket';
 
@@ -153,6 +154,59 @@ const BusBooking = () => {
       .catch(() => setAvailabilityData(null))
       .finally(() => setAvailabilityLoading(false));
   }, [selectedSchedule, route, bus, serviceDate]);
+
+  // ========== REAL-TIME SEAT AVAILABILITY REFRESH ==========
+  // Listen for new bookings and refresh seat availability if booking screen is active
+  useEffect(() => {
+    if (!selectedSchedule || !route || !bus) {
+      return;
+    }
+
+    const handleSeatBooked = (data: any) => {
+      console.log('🎫 [SEAT BOOKED - PASSENGER] New booking detected:', data);
+      
+      // Refresh seat availability if this is for the current trip
+      if (String(data.scheduleId) === String(selectedSchedule._id) && String(data.busId) === String(bus._id)) {
+        console.log('🔄 Refreshing seat availability due to new booking');
+        
+        // Refresh availability data
+        if (route && serviceDate) {
+          const rid = String(route._id || route.id || '');
+          const bid = String(bus._id || bus.id || '');
+          const sid = String(selectedSchedule._id || '');
+          
+          bookingService
+            .checkSeatAvailability({ routeId: rid, busId: bid, scheduleId: sid, serviceDate })
+            .then((data) => setAvailabilityData(data))
+            .catch((err) => console.warn('Error refreshing seat availability:', err));
+        }
+        
+        // Show notification
+        Alert.alert('Seat Update', `Seats ${data.seatNumbers.join(', ')} just got booked!`);
+      }
+    };
+
+    const handleTripReminder = (data: any) => {
+      console.log('🚌 [TRIP REMINDER] Reminder received:', data);
+      
+      // Show trip reminder with delay info if applicable
+      const delayText = data.actualDelay > 0 ? `\n\nNote: Trip started ${data.actualDelay} minute(s) late.` : '';
+      const message = `Your trip to ${data.destinationStop} is now running. Expected arrival: ${data.eta}.${delayText}\n\nBooking: ${data.bookingCode}`;
+      
+      Alert.alert('Trip Started', message);
+    };
+
+    // Register listeners using passengerNotificationSocket
+    passengerNotificationSocket.onSeatBooked(handleSeatBooked);
+    passengerNotificationSocket.onTripReminder(handleTripReminder);
+
+    return () => {
+      // Unregister listeners
+      passengerNotificationSocket.offSeatBooked(handleSeatBooked);
+      passengerNotificationSocket.offTripReminder(handleTripReminder);
+    };
+  }, [selectedSchedule?._id, bus?._id, route, serviceDate]);
+  // ========== END REAL-TIME SEAT AVAILABILITY REFRESH ==========
 
   const bookingPrice = route?.fareInfo ?? 150;
 
