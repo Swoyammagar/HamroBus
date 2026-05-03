@@ -661,6 +661,25 @@ const updatePassengerCount = async (req, res) => {
             // ========== END NEW ==========
         }
 
+        // ========== NEW: Persist occupancy to Bus DB ==========
+        if (trip.busId) {
+            try {
+                await Bus.findByIdAndUpdate(
+                    trip.busId,
+                    {
+                        currentPassengers: trip.passengerCount,
+                        updatedAt: new Date()
+                    },
+                    { new: true }
+                );
+                console.log(`✅ Occupancy persisted to Bus DB: busId=${trip.busId}, passengers=${trip.passengerCount}`);
+            } catch (updateBusError) {
+                console.error('Error persisting occupancy to Bus DB:', updateBusError);
+                // Don't fail the response, just log the error
+            }
+        }
+        // ========== END NEW ==========
+
         res.status(200).json({
             message: "Passenger count updated",
             trip: trip,
