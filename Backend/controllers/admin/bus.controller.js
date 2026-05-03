@@ -294,9 +294,63 @@ const getAllBuses = async (req, res) => {
     }
 }
 
+// Public endpoint: Get current occupancy for a specific bus
+const getBusOccupancy = async (req, res) => {
+    const { busId } = req.params;
+    try {
+        if (!busId) {
+            return res.status(400).json({ message: "busId is required" });
+        }
+
+        const bus = await Bus.findById(busId).select('_id currentPassengers updatedAt').lean();
+        if (!bus) {
+            return res.status(404).json({ message: "Bus not found" });
+        }
+
+        return res.status(200).json({
+            busId: String(bus._id),
+            passengerCount: bus.currentPassengers || 0,
+            lastUpdated: bus.updatedAt,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error fetching bus occupancy:', error);
+        return res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+// Public endpoint: Get current SOS state for a specific bus
+const getBusSosState = async (req, res) => {
+    const { busId } = req.params;
+    try {
+        if (!busId) {
+            return res.status(400).json({ message: "busId is required" });
+        }
+
+        const bus = await Bus.findById(busId).select('_id sosActive sosCategory sosTimestamp updatedAt').lean();
+        if (!bus) {
+            return res.status(404).json({ message: "Bus not found" });
+        }
+
+        return res.status(200).json({
+            busId: String(bus._id),
+            sosActive: bus.sosActive || false,
+            sosCategory: bus.sosCategory || null,
+            sosTimestamp: bus.sosTimestamp || null,
+            lastUpdated: bus.updatedAt,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error fetching bus SOS state:', error);
+        return res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 module.exports = {
     createBus,
     deleteBus,
     updateBus,
-    getAllBuses
+    getAllBuses,
+    getBusOccupancy,
+    getBusSosState
 };
