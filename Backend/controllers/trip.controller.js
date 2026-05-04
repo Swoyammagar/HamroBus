@@ -1004,6 +1004,168 @@ const scanBookingQr = async (req, res) => {
   }
 };
 
+// Admin endpoint: Get all trips with passenger bookings and related details
+const getAllTripsWithBookings = async (req, res) => {
+  try {
+    const { status, routeId, startDate, endDate } = req.query;
+    
+    // Build filter for TripSession
+    const tripFilter = {};
+    if (status) tripFilter.status = status; // 'in-progress', 'completed', 'missed'
+    if (startDate || endDate) {
+      tripFilter.createdAt = {};
+      if (startDate) tripFilter.createdAt.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        tripFilter.createdAt.$lte = end;
+      }
+    }
+    
+    const trips = await TripSession.find(tripFilter)
+      .populate({
+        path: 'busId',
+        select: 'busNumber capacity',
+      })
+      .populate({
+        path: 'routeId',
+        select: 'startingStop endingStop',
+      })
+      .populate({
+        path: 'driverId',
+        select: 'firstName lastName phoneNumber',
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    // For each trip, fetch its bookings
+    const tripsWithBookings = await Promise.all(
+      trips.map(async (trip) => {
+        const bookings = await Booking.find({ tripSessionId: trip._id })
+          .populate('passengerId', 'firstName lastName phoneNumber')
+          .lean();
+        
+        return {
+          tripId: trip._id,
+          routeName: (trip.routeId?.startingStop || '') + ' to ' + (trip.routeId?.endingStop || ''),
+          busNumber: trip.busId?.busNumber || 'N/A',
+          driverName: [trip.driverId?.firstName, trip.driverId?.lastName].filter(Boolean).join(' '),
+          status: trip.status,
+          startTime: trip.startTime || trip.createdAt,
+          delayMinutes: trip.startDelayMinutes || 0,
+          passengerCount: bookings.length,
+          bookingCount: bookings.length,
+          totalSeats: bookings.reduce((sum, b) => sum + (b.seatCount || 0), 0),
+          bookings: bookings.map(b => ({
+            bookingCode: b.bookingCode,
+            passengerName: [b.passengerId?.firstName, b.passengerId?.lastName].filter(Boolean).join(' '),
+            phoneNumber: b.passengerId?.phoneNumber,
+            seats: b.seatNumbers.join(', '),
+            boardingStop: b.boardingStop?.stopName,
+            alightingStop: b.destinationStop?.stopName,
+            paymentStatus: b.payment?.status || 'pending',
+            bookingStatus: b.status,
+            totalFare: b.totalFare
+          }))
+        };
+      })
+    );
+    
+    return res.status(200).json({
+      success: true,
+      data: tripsWithBookings,
+      count: tripsWithBookings.length
+    });
+  } catch (error) {
+    console.error('Error fetching trips with bookings:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+// Admin endpoint: Get detailed info for a specific trip
+const getTripDetailsById = async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    
+    const trip = await TripSession.findById(tripId)
+      .populate('busId')
+      .populate('routeId')
+      .populate('driverId')
+      .lean();
+    
+    if (!trip) {
+      return res.status(404).json({ success: false, message: 'Trip not found' });
+    }
+    
+    // Fetch the schedule document from route if available
+    let schedule = null;
+    if (trip.routeId && trip.scheduleId) {
+      const Route = require('../models/route.model');
+      const routeDoc = await Route.findById(trip.routeId).lean();
+      if (routeDoc?.schedules) {
+        schedule = routeDoc.schedules.find(s => String(s._id) === String(trip.scheduleId));
+      }
+    }
+    
+    const bookings = await Booking.find({ tripSessionId: tripId })
+      .populate('passengerId')
+      .lean();
+    
+    const tripDetails = {
+      tripId: trip._id,
+      route: {
+        startingStop: trip.routeId?.startingStop || '',
+        endingStop: trip.routeId?.endingStop || '',
+      },
+      bus: {
+        busNumber: trip.busId?.busNumber || 'N/A',
+        capacity: trip.busId?.capacity || 0,
+      },
+      driver: {
+        name: [trip.driverId?.firstName, trip.driverId?.lastName].filter(Boolean).join(' '),
+        phone: trip.driverId?.phoneNumber || 'N/A',
+      },
+      status: trip.status,
+      times: {
+        scheduledStart: schedule?.startTime || 'N/A',
+        actualStart: trip.startTime ? new Date(trip.startTime).toISOString() : 'N/A',
+        scheduledEnd: schedule?.endTime || 'N/A',
+        actualEnd: trip.endTime ? new Date(trip.endTime).toISOString() : 'N/A',
+        delayMinutes: trip.startDelayMinutes || 0,
+        restTimeMinutes: trip.totalBreakTime || 0
+      },
+      metrics: {
+        passengerCount: bookings.length,
+        totalSeats: bookings.reduce((sum, b) => sum + (b.seatCount || 0), 0),
+        totalFare: bookings.reduce((sum, b) => sum + (b.totalFare || 0), 0),
+        paidBookings: bookings.filter(b => b.payment?.status === 'paid').length,
+        pendingPayments: bookings.filter(b => b.payment?.status !== 'paid').length,
+      },
+      bookings: bookings.map(b => ({
+        bookingCode: b.bookingCode,
+        passengerName: [b.passengerId?.firstName, b.passengerId?.lastName].filter(Boolean).join(' '),
+        passengerPhone: b.passengerId?.phoneNumber,
+        seats: b.seatNumbers.join(', '),
+        seatCount: b.seatCount,
+        boardingStop: b.boardingStop?.stopName,
+        alightingStop: b.destinationStop?.stopName,
+        fare: b.totalFare,
+        paymentStatus: b.payment?.status || 'pending',
+        paymentMethod: b.payment?.method || 'N/A',
+        bookingStatus: b.status,
+      }))
+    };
+    
+    return res.status(200).json({
+      success: true,
+      data: tripDetails
+    });
+  } catch (error) {
+    console.error('Error fetching trip details:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
 module.exports = {
     getAssignedRoute,
     getDriverSchedules,
@@ -1017,5 +1179,7 @@ module.exports = {
     getTodayCompletedTrips,
     getScheduleSeatMap,
     processMissedTrips,
-    scanBookingQr
+    scanBookingQr,
+    getAllTripsWithBookings,
+    getTripDetailsById
 };

@@ -13,7 +13,9 @@ const {
     getTodayCompletedTrips,
     getScheduleSeatMap,
     processMissedTrips,
-    scanBookingQr
+    scanBookingQr,
+    getAllTripsWithBookings,
+    getTripDetailsById
 } = require('../controllers/trip.controller');
 const { authenticateDriver } = require('../middlewares/mobile.auth.middleware');
 const { authenticateAdmin } = require('../middlewares/admin.auth.middleware');
@@ -34,5 +36,9 @@ router.post('/scan-booking-qr', authenticateDriver, scanBookingQr);
 
 // System endpoint for processing missed trips (can be called by cron job or admin)
 router.post('/system/process-missed-trips', authenticateAdmin, processMissedTrips);
+
+// Admin endpoints for trip management with passenger bookings
+router.get('/admin/all-trips', authenticateAdmin, getAllTripsWithBookings);
+router.get('/admin/:tripId', authenticateAdmin, getTripDetailsById);
 
 module.exports = router;
