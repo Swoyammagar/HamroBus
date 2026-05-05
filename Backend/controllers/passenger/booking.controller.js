@@ -13,7 +13,9 @@ const { getCurrentStopSequence } = require('../../services/distanceUtils');
 const { getIoInstance } = require('../../services/ioManager');
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const BOOKING_ACTIVE_STATUSES = ['confirmed', 'in-progress', 'completed'];
+// Seats are considered taken only for confirmed or in-progress bookings.
+// Completed bookings should free up seats so new passengers can book them.
+const BOOKING_ACTIVE_STATUSES = ['confirmed', 'in-progress'];
 const BOOKING_CANCELLABLE_STATUS = 'confirmed';
 const QR_SCHEMA_VERSION = 1;
 
@@ -180,7 +182,8 @@ const createBooking = async (req, res) => {
         $gte: dayRange.start,
         $lt: dayRange.end,
       },
-      status: { $in: ['in-progress', 'completed'] },
+      // include on-break as an active trip so mid-trip bookings are considered
+      status: { $in: ['in-progress', 'on-break', 'completed'] },
     }).select('_id status startTime currentStop driverId');
 
     // NEW: Allow mid-trip booking if bus hasn't reached destination yet
@@ -194,7 +197,7 @@ const createBooking = async (req, res) => {
     let tripSessionId = null;
 
     if (existingTrip && existingTrip.status === 'in-progress') {
-      // Mid-trip booking: check if bus has already passed destination
+      // Mid-trip booking: check if bus has already passed boarding or destination
       tripSessionId = existingTrip._id;
       isMidTripBooking = true;
       
@@ -203,8 +206,21 @@ const createBooking = async (req, res) => {
       let route_for_validation = await Route.findById(routeId).select('stops').lean();
       if (route_for_validation) {
         const currentStopSeq = getCurrentStopSequence(existingTrip.currentStop, { stops: route_for_validation.stops });
+        const boardingStopSeq = Number(getStopByName({ stops: route_for_validation.stops }, boardingStopName)?.sequence || -1);
         const destinationStopSeq = Number(getStopByName({ stops: route_for_validation.stops }, destinationStopName)?.sequence || -1);
-        
+
+        // If boarding or destination stop not found for validation
+        if (boardingStopSeq <= 0 || destinationStopSeq <= 0) {
+          return res.status(400).json({ message: 'Boarding or destination stop not found for validation' });
+        }
+
+        // If boarding stop already reached or passed, disallow booking
+        if (currentStopSeq >= boardingStopSeq) {
+          return res.status(409).json({
+            message: `Cannot book. Bus has already reached or passed your boarding stop (${boardingStopName}).`,
+          });
+        }
+
         if (currentStopSeq >= destinationStopSeq) {
           return res.status(409).json({
             message: `Cannot book. Bus has already reached or passed your destination stop (${destinationStopName}).`,
