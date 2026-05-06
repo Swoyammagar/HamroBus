@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const Notification = require('../models/notification.model');
 const Bus = require('../models/bus.model');
 const TripSession = require('../models/tripSession.model');
+const Sos = require('../models/sos.model');
 
 /**
  * Create and dispatch an SOS alert from a driver.
@@ -44,6 +45,29 @@ const sendSosAlert = async (req, res) => {
     });
 
     await notification.save();
+
+    // Persist SOS document for admin history
+    try {
+      const sosDoc = new Sos({
+        sosId: `sos_${uuidv4()}`,
+        driverId,
+        busId,
+        tripId: tripId || null,
+        category,
+        details,
+        location: latitude && longitude ? { latitude: Number(latitude), longitude: Number(longitude) } : undefined,
+        status: 'active',
+        senderSnapshot: {
+          name: req.user?.fullname || null,
+          profileImgUrl: req.user?.profileImgUrl || null,
+        },
+      });
+      await sosDoc.save();
+      // include DB id in payload
+      if (sosDoc && sosDoc._id) payload.sosRecordId = sosDoc._id.toString();
+    } catch (err) {
+      console.warn('Could not persist SOS document:', err?.message || err);
+    }
 
     const io = req.app.get('io');
 
@@ -104,6 +128,17 @@ const clearSos = async (req, res) => {
     if (!busId) return res.status(400).json({ message: 'busId is required' });
 
     await Bus.findByIdAndUpdate(busId, { $set: { sosActive: false, sosCategory: null, sosTimestamp: null } });
+
+    // Mark SOS documents as cleared (latest active for this bus/driver/trip)
+    try {
+      const filter = { busId, status: 'active' };
+      if (driverId) filter.driverId = driverId;
+      if (tripId) filter.tripId = tripId;
+      const update = { status: 'cleared', clearedAt: new Date(), clearedBy: driverId };
+      await Sos.updateMany(filter, { $set: update });
+    } catch (err) {
+      console.warn('Could not update SOS documents on clear:', err?.message || err);
+    }
 
     const io = req.app.get('io');
     const payload = { driverId, busId, tripId: tripId || null, timestamp: new Date().toISOString() };

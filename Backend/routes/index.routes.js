@@ -11,6 +11,7 @@ const routeRoutes = require("./route.routes");
 const tripRoutes = require("./trip.routes");
 const notificationRoutes = require("./notification.routes");
 const sosRoutes = require("./sos.routes");
+const adminSosRoutes = require("./admin.sos.routes");
 
 router.use("/admin", adminRoutes); // will handle /api/admin
 
@@ -23,6 +24,7 @@ router.use("/routes", routeRoutes); // will handle /api/routes
 router.use("/trips", tripRoutes); // will handle /api/trips
 router.use("/notifications", notificationRoutes); // will handle /api/notifications
 router.use('/sos', sosRoutes); // will handle /api/sos
+router.use('/admin/sos', adminSosRoutes); // admin SOS endpoints
 
 
 module.exports = router;

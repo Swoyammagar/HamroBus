@@ -2,6 +2,7 @@ const Booking = require('../models/booking.model');
 const Route = require('../models/route.model');
 const Driver = require('../models/driver.model');
 const TripSession = require('../models/tripSession.model');
+const Bus = require('../models/bus.model');
 const Notification = require('../models/notification.model');
 const { sendEmail } = require('../utils/sendEmail');
 const { v4: uuidv4 } = require('uuid');
@@ -201,7 +202,7 @@ const syncBookingsOnTripStart = async ({ trip }) => {
   };
 };
 
-const completeBookingsByReachedStop = async ({ trip, reachedStopName }) => {
+const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {}) => {
   if (!trip || !trip.routeId || !trip.busId || !trip.scheduleId || !reachedStopName) {
     return { matched: 0, modified: 0 };
   }
@@ -225,6 +226,22 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName }) => {
     return { matched: 0, modified: 0 };
   }
 
+  // Find bookings that should be completed at this reached stop
+  const bookingsToComplete = await Booking.find({
+    routeId: trip.routeId,
+    busId: trip.busId,
+    scheduleId: trip.scheduleId,
+    tripSessionId: trip._id,
+    status: 'in-progress',
+    'destinationStop.sequence': { $lte: reachedSequence },
+  }).select('_id seatCount passengerId bookingCode').lean();
+
+  if (!bookingsToComplete.length) {
+    return { matched: 0, modified: 0 };
+  }
+
+  const seatsFreed = bookingsToComplete.reduce((sum, b) => sum + (Number(b.seatCount || 0)), 0);
+
   const result = await Booking.updateMany(
     {
       routeId: trip.routeId,
@@ -242,9 +259,60 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName }) => {
     }
   );
 
+  // Decrement trip passenger count and persist Bus occupancy
+  try {
+    const tripDoc = await TripSession.findById(trip._id);
+    if (tripDoc) {
+      tripDoc.passengerCount = Math.max(0, Number(tripDoc.passengerCount || 0) - seatsFreed);
+      await tripDoc.save();
+    }
+
+    if (trip.busId) {
+      const busDoc = await Bus.findById(trip.busId).select('currentPassengers');
+      if (busDoc) {
+        busDoc.currentPassengers = Math.max(0, Number(busDoc.currentPassengers || 0) - seatsFreed);
+        await busDoc.save();
+
+        // Emit occupancy update to passengers viewing this bus
+        if (io) {
+          io.to(`bus:${String(trip.busId)}`).emit('trip:occupancy-updated', {
+            tripId: String(trip._id),
+            busId: String(trip.busId),
+            passengerCount: busDoc.currentPassengers,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error updating counts after completing bookings:', err);
+  }
+
+  // Notify individual passengers about completion
+  if (io) {
+    for (const b of bookingsToComplete) {
+      const payload = {
+        bookingId: String(b._id),
+        bookingCode: b.bookingCode,
+        status: 'completed',
+        tripId: String(trip._id),
+        routeId: String(trip.routeId),
+        busId: String(trip.busId),
+        scheduleId: String(trip.scheduleId),
+        completedAt: new Date().toISOString(),
+        timestamp: new Date().toISOString(),
+      };
+
+      if (b.passengerId) {
+        io.to(`passenger:${String(b.passengerId)}`).emit('booking:status-updated', payload);
+        io.to(`passenger:${String(b.passengerId)}`).emit('booking:completed', payload);
+      }
+    }
+  }
+
   return {
-    matched: result.matchedCount || 0,
-    modified: result.modifiedCount || 0,
+    matched: result.matchedCount || bookingsToComplete.length,
+    modified: result.modifiedCount || bookingsToComplete.length,
   };
 };
 

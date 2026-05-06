@@ -21,8 +21,12 @@ const parseScheduledTimeToUtcDate = (timeString, referenceDate = new Date()) => 
     const minutes = Number(minutesRaw);
     if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
 
+    // Use local date/time components (server local) so that comparing against
+    // actual start time yields expected minute differences. Previously this used
+    // UTC setters which could make the difference zero when server timezone
+    // mismatched schedule expectations.
     const dt = new Date(referenceDate);
-    dt.setUTCHours(hours, minutes, 0, 0);
+    dt.setHours(hours, minutes, 0, 0);
     return dt;
 };
 
@@ -454,6 +458,21 @@ const endTrip = async (req, res) => {
                 trip,
                 changedBookings: bookingCompletionStats.changedBookings || [],
             });
+            // Reset Bus occupancy so next trip starts fresh
+            if (trip.busId) {
+                try {
+                    const Bus = require('../models/bus.model');
+                    await Bus.findByIdAndUpdate(trip.busId, { currentPassengers: 0, updatedAt: new Date() });
+                    io.to(`bus:${String(trip.busId)}`).emit('trip:occupancy-updated', {
+                        tripId: String(trip._id),
+                        busId: String(trip.busId),
+                        passengerCount: 0,
+                        timestamp: new Date().toISOString(),
+                    });
+                } catch (busResetErr) {
+                    console.error('Error resetting bus occupancy on trip end:', busResetErr);
+                }
+            }
         }
 
         res.status(200).json({
@@ -616,7 +635,7 @@ const updatePassengerCount = async (req, res) => {
         await trip.save();
 
         const bookingCompletionStats = normalizedStopId
-            ? await completeBookingsByReachedStop({ trip, reachedStopName: normalizedStopId })
+            ? await completeBookingsByReachedStop({ trip, reachedStopName: normalizedStopId, io })
             : { matched: 0, modified: 0 };
 
         if (normalizedStopId) {
@@ -986,6 +1005,25 @@ const scanBookingQr = async (req, res) => {
         boardedAt: booking.boardedAt,
       });
       io.to(`driver:${driverId}`).emit('trip:updated', activeTrip);
+            // Persist and emit occupancy update to passengers viewing this bus
+            if (activeTrip.busId) {
+                try {
+                    const Bus = require('../models/bus.model');
+                    const busDoc = await Bus.findById(activeTrip.busId).select('currentPassengers');
+                    if (busDoc) {
+                        busDoc.currentPassengers = Math.max(0, Number(busDoc.currentPassengers || 0) + Number(booking.seatCount || 0));
+                        await busDoc.save();
+                        io.to(`bus:${String(activeTrip.busId)}`).emit('trip:occupancy-updated', {
+                            tripId: String(activeTrip._id),
+                            busId: String(activeTrip.busId),
+                            passengerCount: busDoc.currentPassengers,
+                            timestamp: new Date().toISOString(),
+                        });
+                    }
+                } catch (err) {
+                    console.error('Error updating/publishing bus occupancy after scan:', err);
+                }
+            }
     }
 
     return res.status(200).json({
