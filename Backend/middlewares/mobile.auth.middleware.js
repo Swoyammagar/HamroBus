@@ -54,7 +54,8 @@ async function authenticateDriver(req, res, next) {
       id: driver._id,
       email: driver.email,
       firstName: driver.firstName,
-      lastName: driver.lastName
+      lastName: driver.lastName,
+      profileImgUrl: driver.profileImgUrl
     };
 
     next();
@@ -120,7 +121,8 @@ async function authenticatePassenger(req, res, next) {
       id: passenger._id,
       email: passenger.email,
       firstName: passenger.firstName,
-      lastName: passenger.lastName
+      lastName: passenger.lastName,
+      profileImgUrl: passenger.profileImgUrl
     };
 
     next();

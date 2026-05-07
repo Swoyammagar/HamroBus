@@ -49,6 +49,10 @@ const sendSosAlert = async (req, res) => {
     // Persist SOS document for admin history
     try {
       const bus = await Bus.findById(busId).select('busNumber').lean();
+      console.log('DEBUG SOS - req.user:', JSON.stringify(req.user, null, 2));
+      console.log('DEBUG SOS - firstName:', req.user?.firstName, 'lastName:', req.user?.lastName, 'profileImg:', req.user?.profileImgUrl);
+      const driverFullName = `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || 'Unknown Driver';
+      console.log('DEBUG SOS - driverFullName:', driverFullName);
       const sosDoc = new Sos({
         sosId: `sos_${uuidv4()}`,
         driverId,
@@ -59,7 +63,7 @@ const sendSosAlert = async (req, res) => {
         location: latitude && longitude ? { latitude: Number(latitude), longitude: Number(longitude) } : undefined,
         status: 'active',
         senderSnapshot: {
-          name: req.user?.fullname || null,
+          name: driverFullName,
           profileImgUrl: req.user?.profileImgUrl || null,
           busNumber: bus?.busNumber || null,
         },
