@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Modal, ScrollView, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
-import { type Bus } from '../context/PassengerContext';
+import { type Bus, usePassenger } from '../context/PassengerContext';
 import { calculateCrowdPercentage, getCrowdColor } from '../utils/helpers';
 import { type Schedule } from '../services/routeService';
 import { busService, type DriverLatestReview } from '../services/busService';
-import socketService from '../services/passengerNotificationSocket';
 
 interface BusDetailsModalProps {
   visible: boolean;
@@ -22,12 +21,10 @@ const BusDetailsModal: React.FC<BusDetailsModalProps> = ({
   onClose,
   onBookNow,
 }) => {
+  const { liveBusOccupancy, liveBusStops } = usePassenger();
   const [latestReviews, setLatestReviews] = useState<DriverLatestReview[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
-  const [currentStop, setCurrentStop] = useState<string | null>(null);
-  const [previousStop, setPreviousStop] = useState<string | null>(null);
-  const [livePassengerCount, setLivePassengerCount] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchLatestReviews = async () => {
@@ -57,66 +54,16 @@ const BusDetailsModal: React.FC<BusDetailsModalProps> = ({
   // Listen for real-time driver stop updates
   useEffect(() => {
     if (!visible || !bus) {
-      setCurrentStop(null);
-      setPreviousStop(null);
       return;
     }
-
-    const busId = String(bus._id || bus.id || '');
-    if (!busId) return;
-
-    // Join bus room to receive updates for this bus
-    socketService.joinBusRoom(busId);
-
-    const handleStopUpdate = (data: any) => {
-      console.log('🛑 [BUS DETAILS] Stop update received:', data);
-      
-      // Update stop info if this is for the current bus
-      if (String(data.busId) === busId) {
-        setCurrentStop(data.currentStop || null);
-        setPreviousStop(data.previousStop || null);
-      }
-    };
-
-    // Listen for driver:current-stop events
-    socketService.onCurrentStopUpdate(handleStopUpdate);
-
-    return () => {
-      socketService.offCurrentStopUpdate(handleStopUpdate);
-      
-      // Leave bus room when modal closes
-      socketService.leaveBusRoom(busId);
-    };
-  }, [visible, bus?._id, bus?.id]);
-
-  // Listen for real-time occupancy updates (passenger count)
-  useEffect(() => {
-    if (!visible || !bus) {
-      setLivePassengerCount(null);
-      return;
-    }
-
-    const handleOccupancyUpdate = (data: any) => {
-      console.log('📊 [BUS DETAILS] Occupancy update received:', data);
-      
-      // Update passenger count if this is for the current bus
-      if (String(data.busId) === String(bus._id) || String(data.busId) === String(bus.id)) {
-        console.log(`📊 Passenger count updated: ${data.passengerCount}`);
-        setLivePassengerCount(data.passengerCount || 0);
-      }
-    };
-
-    // Listen for trip:occupancy-updated events
-    socketService.onOccupancyUpdated(handleOccupancyUpdate);
-
-    return () => {
-      socketService.offOccupancyUpdated(handleOccupancyUpdate);
-    };
   }, [visible, bus?._id, bus?.id]);
 
   if (!bus) return null;
 
-  const currentPassengers = livePassengerCount !== null ? livePassengerCount : (bus.currentPassengers ?? bus.currentOccupancy ?? 0);
+  const busId = String(bus._id || bus.id || '');
+  const currentPassengers = liveBusOccupancy[busId] !== undefined ? liveBusOccupancy[busId] : (bus.currentPassengers ?? bus.currentOccupancy ?? 0);
+  const currentStop = liveBusStops[busId]?.currentStop || null;
+  const previousStop = liveBusStops[busId]?.previousStop || null;
   const totalCapacity = bus.totalCapacity ?? bus.capacity ?? 0;
   const driverName = bus.driverName || 'Unknown';
   const driverPhoto = bus.driverPhoto;
@@ -245,7 +192,7 @@ const BusDetailsModal: React.FC<BusDetailsModalProps> = ({
             <View style={styles.detailsSection}>
               <View style={styles.occupancyHeaderRow}>
                 <Text style={styles.detailsTitle}>Occupancy</Text>
-                {livePassengerCount !== null && (
+                {liveBusOccupancy[busId] !== undefined && (
                   <View style={styles.liveBadge}>
                     <View style={styles.liveDot} />
                     <Text style={styles.liveBadgeText}>Live</Text>

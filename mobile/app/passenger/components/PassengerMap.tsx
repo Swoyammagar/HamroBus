@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 
@@ -36,6 +36,9 @@ interface DriverLocation {
   speed: number;
   accuracy?: number;
   timestamp: string;
+  sosActive?: boolean;
+  sosCategory?: string;
+  isOffline?: boolean;
 }
 
 interface PassengerMapProps {
@@ -64,77 +67,42 @@ export default function PassengerMap({
   const webViewRef = useRef<WebView>(null);
   const [driverFunctionReady, setDriverFunctionReady] = useState(false);
   const previousDriverIdsRef = useRef<Set<string>>(new Set());
+
   const activeDriverLocations = (driverLocations && driverLocations.length > 0)
     ? driverLocations
     : driverLocation
     ? [driverLocation]
     : [];
 
-  // Update bus location when it changes
   useEffect(() => {
     if (busLocation && webViewRef.current) {
-      const js = `updateBusLocation(${busLocation.latitude}, ${busLocation.longitude}, ${busLocation.heading || 0});`;
-      webViewRef.current.injectJavaScript(js);
+      webViewRef.current.injectJavaScript(
+        `updateBusLocation(${busLocation.latitude}, ${busLocation.longitude}, ${busLocation.heading || 0}); true;`
+      );
     }
   }, [busLocation]);
 
-  // Update driver location when it changes
   useEffect(() => {
     if (activeDriverLocations.length === 0) {
-      console.log('⚠️ [PASSENGER MAP] No driver location available yet');
-      const previousDriverIds = previousDriverIdsRef.current;
-      if (previousDriverIds.size > 0 && webViewRef.current && driverFunctionReady) {
-        previousDriverIds.forEach((driverId) => {
-          webViewRef.current?.injectJavaScript(`
-            (function() {
-              if (typeof removeDriverLocation === 'function') {
-                removeDriverLocation(${JSON.stringify(driverId)});
-              }
-            })();
-            true;
-          `);
-        });
-      }
       previousDriverIdsRef.current = new Set();
       return;
     }
-    
-    if (!webViewRef.current) {
-      console.log('⚠️ [PASSENGER MAP] WebView ref not ready');
-      return;
-    }
-    
-    if (!driverFunctionReady) {
-      console.log('⚠️ [PASSENGER MAP] Driver function not ready yet, waiting for signal');
+
+    if (!webViewRef.current || !driverFunctionReady) {
       return;
     }
 
     const currentDriverIds = new Set(activeDriverLocations.map((driver) => driver.driverId));
-    const previousDriverIds = previousDriverIdsRef.current;
 
-    previousDriverIds.forEach((driverId) => {
-      if (!currentDriverIds.has(driverId) && webViewRef.current) {
-        const removeJs = `
-          (function() {
-            if (typeof removeDriverLocation === 'function') {
-              removeDriverLocation(${JSON.stringify(driverId)});
-            }
-          })();
-          true;
-        `;
-        webViewRef.current.injectJavaScript(removeJs);
+    previousDriverIdsRef.current.forEach((driverId) => {
+      if (!currentDriverIds.has(driverId)) {
+        webViewRef.current?.injectJavaScript(
+          `(function(){ if (typeof removeDriverLocation === 'function') { removeDriverLocation(${JSON.stringify(driverId)}); } })(); true;`
+        );
       }
     });
-    
-    activeDriverLocations.forEach((driver) => {
-      console.log('🗺️ [PASSENGER MAP] Injecting driver location:', {
-        driverId: driver.driverId,
-        lat: driver.latitude,
-        lng: driver.longitude,
-        heading: driver.heading,
-        speed: driver.speed,
-      });
 
+    activeDriverLocations.forEach((driver) => {
       const js = `
         (function() {
           if (typeof updateDriverLocation === 'function') {
@@ -148,7 +116,10 @@ export default function PassengerMap({
               ${JSON.stringify(driver.driverName || '')},
               ${JSON.stringify(driver.driverProfileImgUrl || '')},
               ${JSON.stringify(driver.tripStatus || '')},
-              ${JSON.stringify(Boolean(driver.isOnBreak || driver.tripStatus === 'on-break'))}
+              ${JSON.stringify(Boolean(driver.isOnBreak || driver.tripStatus === 'on-break'))},
+              ${JSON.stringify(Boolean(driver.sosActive || driver.tripStatus === 'sos-active'))},
+              ${JSON.stringify(driver.sosCategory || '')},
+              ${JSON.stringify(Boolean(driver.isOffline || driver.tripStatus === 'offline'))}
             );
           }
         })();
@@ -160,15 +131,13 @@ export default function PassengerMap({
     previousDriverIdsRef.current = currentDriverIds;
   }, [activeDriverLocations, driverFunctionReady]);
 
-  // Update user location when it changes
   useEffect(() => {
     if (currentLocation && showUserLocation && webViewRef.current) {
-      const js = `updateUserLocation(${currentLocation.latitude}, ${currentLocation.longitude});`;
-      webViewRef.current.injectJavaScript(js);
+      webViewRef.current.injectJavaScript(
+        `updateUserLocation(${currentLocation.latitude}, ${currentLocation.longitude}); true;`
+      );
     }
   }, [currentLocation, showUserLocation]);
-
-  const defaultCenter = busStops[0] || { latitude: 27.7172, longitude: 85.3240 }; // Kathmandu
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -178,253 +147,127 @@ export default function PassengerMap({
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; }
-    #map { height: 100%; width: 100%; }
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; }
+    #map { width: 100%; height: 100%; }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <script>
-    // Initialize map
-    const map = L.map('map', {
-      zoomControl: true,
-      attributionControl: true
-    }).setView([${defaultCenter.latitude}, ${defaultCenter.longitude}], 13);
+    const map = L.map('map', { zoomControl: true, attributionControl: true }).setView([${busStops[0]?.latitude || 27.7172}, ${busStops[0]?.longitude || 85.3240}], 13);
 
-    // Add OpenStreetMap tiles
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
       maxZoom: 19
     }).addTo(map);
 
-    // Store markers
-    let busMarker = null;
+    const busStops = ${JSON.stringify(busStops)};
+    const routePolyline = ${JSON.stringify(routePolyline)};
     const driverMarkers = {};
+    let busMarker = null;
     let userMarker = null;
-    const busStopMarkers = [];
+    let routeLine = null;
 
-    // =============================
-// ROAD ROUTE USING OSRM
-// =============================
-
-let routeLine = null;
-
-async function drawRoadRoute() {
-  const stops = ${JSON.stringify(busStops)};
-
-  if (stops.length < 2) return;
-
-  // Convert stops into OSRM coordinate string
-  const coords = stops
-    .map(s => s.longitude + "," + s.latitude)
-    .join(";");
-
-  const url =
-    "https://router.project-osrm.org/route/v1/driving/" +
-    coords +
-    "?overview=full&geometries=geojson";
-
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-
-    if (!data.routes || !data.routes.length) return;
-
-    const route = data.routes[0];
-
-    const latlngs = route.geometry.coordinates.map(c => [c[1], c[0]]);
-
-    if (routeLine) {
-      map.removeLayer(routeLine);
+    function drawRoute() {
+      if (!Array.isArray(routePolyline) || routePolyline.length < 2) return;
+      const latlngs = routePolyline.map((point) => [point.latitude, point.longitude]);
+      if (routeLine) {
+        map.removeLayer(routeLine);
+      }
+      routeLine = L.polyline(latlngs, { color: '#3B82F6', weight: 5, opacity: 0.9 }).addTo(map);
     }
 
-    routeLine = L.polyline(latlngs, {
-      color: "#3B82F6",
-      weight: 5,
-      opacity: 0.9
-    }).addTo(map);
+    drawRoute();
 
-    map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
-
-  } catch (err) {
-    console.error("Route fetch error", err);
-  }
-}
-
-drawRoadRoute();
-
-    // Add bus stop markers
-    const busStops = ${JSON.stringify(busStops)};
     busStops.forEach((stop, index) => {
       const icon = L.divIcon({
-        html: \`<div style="
-          background-color: #10B981;
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          border: 3px solid white;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-weight: bold;
-          font-size: 12px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        ">\${index + 1}</div>\`,
+        html: '<div style="background-color:#10B981;width:32px;height:32px;border-radius:50%;border:3px solid white;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,0.3);">' + (index + 1) + '</div>',
         className: '',
         iconSize: [32, 32],
         iconAnchor: [16, 16]
       });
 
       const marker = L.marker([stop.latitude, stop.longitude], { icon })
-        .bindPopup(\`<b>\${stop.name}</b><br>Stop #\${index + 1}\`)
+        .bindPopup('<b>' + stop.name + '</b><br>Stop #' + (index + 1))
         .addTo(map);
 
-        marker.on('click', function() {
-          if (window.ReactNativeWebView) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'stopPressed',
-              stop: stop,
-            }));
-          }
-        });
-      
-      busStopMarkers.push(marker);
+      marker.on('click', function() {
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'stopPressed', stop }));
+        }
+      });
     });
 
-    // Fit bounds to show all bus stop markers
-    const allCoords = [];
-    busStops.forEach(s => {
-      allCoords.push([s.latitude, s.longitude]);
-    });
-    if (allCoords.length > 0) {
-      map.fitBounds(allCoords, { padding: [50, 50] });
+    if (busStops.length > 0) {
+      map.fitBounds(busStops.map((s) => [s.latitude, s.longitude]), { padding: [50, 50] });
     }
 
-    // Function to update bus location from React Native
     window.updateBusLocation = function(lat, lng, heading) {
+      const busIcon = L.divIcon({
+        html: '<div style="width:48px;height:48px;position:relative;transform:rotate(' + (heading || 0) + 'deg);">'
+          + '<div style="width:48px;height:48px;border-radius:50%;background-color:rgba(239,68,68,0.2);position:absolute;animation:pulse 2s infinite;"></div>'
+          + '<div style="width:48px;height:48px;border-radius:50%;background-color:#EF4444;border:4px solid white;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 12px rgba(239,68,68,0.5);position:relative;z-index:1;">🚌</div>'
+          + '</div>',
+        className: '',
+        iconSize: [48, 48],
+        iconAnchor: [24, 24]
+      });
+
       if (busMarker) {
         busMarker.setLatLng([lat, lng]);
-        map.panTo([lat, lng]);
       } else {
-        const busIcon = L.divIcon({
-          html: \`<div style="
-            width: 48px;
-            height: 48px;
-            position: relative;
-            transform: rotate(\${heading}deg);
-          ">
-            <div style="
-              width: 48px;
-              height: 48px;
-              border-radius: 50%;
-              background-color: rgba(239, 68, 68, 0.2);
-              position: absolute;
-              animation: pulse 2s infinite;
-            "></div>
-            <div style="
-              width: 48px;
-              height: 48px;
-              border-radius: 50%;
-              background-color: #EF4444;
-              border: 4px solid white;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: 24px;
-              box-shadow: 0 4px 12px rgba(239, 68, 68, 0.5);
-              position: relative;
-              z-index: 1;
-            ">🚌</div>
-          </div>
-          <style>
-            @keyframes pulse {
-              0% { transform: scale(1); opacity: 1; }
-              100% { transform: scale(1.5); opacity: 0; }
-            }
-          </style>\`,
-          className: '',
-          iconSize: [48, 48],
-          iconAnchor: [24, 24]
-        });
-        busMarker = L.marker([lat, lng], { icon: busIcon })
-          .bindPopup('<b>Bus Location</b><br>Live tracking')
-          .addTo(map);
+        busMarker = L.marker([lat, lng], { icon: busIcon }).bindPopup('<b>Bus Location</b><br>Live tracking').addTo(map);
       }
     };
 
-    // Function to update driver location from React Native
-    window.updateDriverLocation = function(driverId, lat, lng, heading, speed, busNumber, driverName, driverProfileImgUrl, tripStatus, isOnBreak) {
+    window.updateDriverLocation = function(driverId, lat, lng, heading, speed, busNumber, driverName, driverProfileImgUrl, tripStatus, isOnBreak, sosActive, sosCategory, isOffline) {
       const key = String(driverId);
+      // If driver is offline, remove marker from the map and stop.
+      if (Boolean(isOffline)) {
+        try {
+          if (driverMarkers[key]) {
+            map.removeLayer(driverMarkers[key]);
+            delete driverMarkers[key];
+          }
+        } catch (e) {
+          console.warn('Error removing offline driver marker', e);
+        }
+        return;
+      }
       const safeDriverName = String(driverName || '').trim() || ('Driver ' + key.slice(-4));
       const safeBusNumber = String(busNumber || '').trim() || 'Bus';
       const onBreak = Boolean(isOnBreak || tripStatus === 'on-break');
-      const markerColor = onBreak ? '#F59E0B' : '#3B82F6';
-      const pulseColor = onBreak ? 'rgba(245, 158, 11, 0.25)' : 'rgba(59, 130, 246, 0.2)';
-      const profileHtml = driverProfileImgUrl
-        ? '<img src="' + String(driverProfileImgUrl) + '" alt="Driver" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid white;margin-bottom:6px;" />'
-        : '';
-      console.log('🚗 [WEBVIEW] updateDriverLocation called:', { driverId: key, lat, lng, heading, speed });
+      const activeSos = Boolean(sosActive || tripStatus === 'sos-active');
+      const offline = Boolean(isOffline || tripStatus === 'offline');
+      const markerColor = activeSos ? '#DC2626' : offline ? '#6B7280' : onBreak ? '#F59E0B' : '#3B82F6';
+      const pulseColor = activeSos ? 'rgba(220, 38, 38, 0.28)' : offline ? 'rgba(107, 114, 128, 0.2)' : onBreak ? 'rgba(245, 158, 11, 0.25)' : 'rgba(59, 130, 246, 0.2)';
+      const profileHtml = driverProfileImgUrl ? '<img src="' + String(driverProfileImgUrl) + '" alt="Driver" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid white;margin-bottom:6px;" />' : '';
+
+      const driverIcon = L.divIcon({
+        html: '<div style="width:50px;height:50px;position:relative;transform:rotate(' + (heading || 0) + 'deg);">'
+          + '<div style="width:50px;height:50px;border-radius:50%;background-color:' + pulseColor + ';position:absolute;animation:pulse 2s infinite;"></div>'
+          + '<div style="width:50px;height:50px;border-radius:50%;background-color:' + markerColor + ';border:4px solid white;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 12px rgba(15,23,42,0.35);position:relative;z-index:1;">' + (activeSos ? '🆘' : '🚗') + '</div>'
+          + '</div>',
+        className: '',
+        iconSize: [50, 50],
+        iconAnchor: [25, 25]
+      });
+
+      const popupContent = '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">' +
+        profileHtml +
+        '<b>' + safeDriverName + '</b>' +
+        '<div>🚌 ' + safeBusNumber + '</div>' +
+        '<div><b>Status:</b> ' + (activeSos ? ('SOS Active' + (sosCategory ? ' (' + String(sosCategory) + ')' : '')) : offline ? 'Offline' : onBreak ? 'On Break' : 'In Trip') + '</div>' +
+        '<div><b>Speed:</b> ' + Number(speed || 0).toFixed(1) + ' km/h</div>' +
+        '<div><b>Heading:</b> ' + Number(heading || 0) + '°</div>' +
+      '</div>';
 
       if (driverMarkers[key]) {
         driverMarkers[key].setLatLng([lat, lng]);
-        driverMarkers[key].setPopupContent(
-          '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">' +
-            profileHtml +
-            '<b>' + safeDriverName + '</b>' +
-            '<div>🚌 ' + safeBusNumber + '</div>' +
-            '<div><b>Status:</b> ' + (onBreak ? 'On Break' : 'In Trip') + '</div>' +
-            '<div><b>Speed:</b> ' + Number(speed || 0).toFixed(1) + ' km/h</div>' +
-            '<div><b>Heading:</b> ' + Number(heading || 0) + '°</div>' +
-          '</div>'
-        );
+        driverMarkers[key].setIcon(driverIcon);
+        driverMarkers[key].setPopupContent(popupContent);
       } else {
-        const driverIcon = L.divIcon({
-          html: \`<div style="
-            width: 50px;
-            height: 50px;
-            position: relative;
-            transform: rotate(\${heading}deg);
-          ">
-            <div style="
-              width: 50px;
-              height: 50px;
-              border-radius: 50%;
-              background-color: \${pulseColor};
-              position: absolute;
-              animation: pulse 2s infinite;
-            "></div>
-            <div style="
-              width: 50px;
-              height: 50px;
-              border-radius: 50%;
-              background-color: \${markerColor};
-              border: 4px solid white;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: 24px;
-              box-shadow: 0 4px 12px rgba(15, 23, 42, 0.35);
-              position: relative;
-              z-index: 1;
-            ">🚗</div>
-          </div>\`,
-          className: '',
-          iconSize: [50, 50],
-          iconAnchor: [25, 25]
-        });
-        driverMarkers[key] = L.marker([lat, lng], { icon: driverIcon })
-          .bindPopup(
-            '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">' +
-              profileHtml +
-              '<b>' + safeDriverName + '</b>' +
-              '<div>🚌 ' + safeBusNumber + '</div>' +
-              '<div><b>Status:</b> ' + (onBreak ? 'On Break' : 'In Trip') + '</div>' +
-              '<div><b>Speed:</b> ' + Number(speed || 0).toFixed(1) + ' km/h</div>' +
-              '<div><b>Heading:</b> ' + Number(heading || 0) + '°</div>' +
-            '</div>'
-          )
-          .addTo(map);
+        driverMarkers[key] = L.marker([lat, lng], { icon: driverIcon }).bindPopup(popupContent).addTo(map);
       }
 
       map.panTo([lat, lng]);
@@ -438,42 +281,23 @@ drawRoadRoute();
       }
     };
 
-    // Signal that updateDriverLocation is ready
-    if (window.ReactNativeWebView) {
-      window.ReactNativeWebView.postMessage('driverLocationFunctionReady');
-      console.log('✅ [WEBVIEW] Sent driverLocationFunctionReady signal');
-    }
-
-    // Function to update user location from React Native
     window.updateUserLocation = function(lat, lng) {
       if (userMarker) {
         userMarker.setLatLng([lat, lng]);
       } else {
         const userIcon = L.divIcon({
-          html: \`<div style="
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background-color: rgba(59, 130, 246, 0.2);
-            border: 3px solid #3B82F6;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          "><div style="
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background-color: #3B82F6;
-          "></div></div>\`,
+          html: '<div style="width:40px;height:40px;border-radius:50%;background-color:rgba(59,130,246,0.2);border:3px solid #3B82F6;display:flex;align-items:center;justify-content:center;"><div style="width:16px;height:16px;border-radius:50%;background-color:#3B82F6;"></div></div>',
           className: '',
           iconSize: [40, 40],
           iconAnchor: [20, 20]
         });
-        userMarker = L.marker([lat, lng], { icon: userIcon })
-          .bindPopup('Your Location')
-          .addTo(map);
+        userMarker = L.marker([lat, lng], { icon: userIcon }).bindPopup('Your Location').addTo(map);
       }
     };
+
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage('driverLocationFunctionReady');
+    }
   </script>
 </body>
 </html>
@@ -485,26 +309,23 @@ drawRoadRoute();
         ref={webViewRef}
         source={{ html: htmlContent }}
         style={styles.webview}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-        startInLoadingState={true}
-        scalesPageToFit={true}
+        javaScriptEnabled
+        domStorageEnabled
+        startInLoadingState
         onMessage={(event) => {
           const message = event.nativeEvent.data;
-          console.log('📨 [PASSENGER MAP] WebView message:', message);
 
-            try {
-              const payload = JSON.parse(message);
-              if (payload?.type === 'stopPressed' && payload?.stop && onStopPress) {
-                onStopPress(payload.stop);
-                return;
-              }
-            } catch {
-              // Non-JSON lifecycle messages are expected.
+          try {
+            const payload = JSON.parse(message);
+            if (payload?.type === 'stopPressed' && payload?.stop && onStopPress) {
+              onStopPress(payload.stop);
+              return;
             }
-          
+          } catch {
+            // lifecycle message
+          }
+
           if (message === 'driverLocationFunctionReady') {
-            console.log('✅ [PASSENGER MAP] Driver location function is ready!');
             setDriverFunctionReady(true);
           }
         }}
@@ -529,17 +350,11 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
-    backgroundColor: '#f9fafb',
   },
   loadingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
   },
   loadingOverlay: {
     position: 'absolute',
@@ -547,8 +362,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.35)',
   },
 });

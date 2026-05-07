@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { type Bus } from '../context/PassengerContext';
+import { type Bus, usePassenger } from '../context/PassengerContext';
 import { calculateCrowdPercentage, getCrowdLevel, getCrowdColor } from '../utils/helpers';
 
 const { height: screenHeight } = Dimensions.get('window');
@@ -12,7 +12,13 @@ interface BusesPanelSheetProps {
   onBusPress: (bus: Bus) => void;
 }
 
+interface BusOccupancy {
+  [busId: string]: number;
+}
+
 const BusesPanelSheet: React.FC<BusesPanelSheetProps> = ({ buses, onClose, onBusPress }) => {
+  const { liveBusOccupancy } = usePassenger();
+
   return (
     <View style={styles.busesPanel}>
       <View style={styles.busesPanelHeader}>
@@ -23,12 +29,17 @@ const BusesPanelSheet: React.FC<BusesPanelSheetProps> = ({ buses, onClose, onBus
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.busesPanelScroll}>
         {buses.map((bus, index) => {
-          const crowdPercentage = calculateCrowdPercentage(bus);
-          const crowdLevel = getCrowdLevel(crowdPercentage);
-          const busId = bus._id || bus.id || `${bus.busNumber}-${index}`;
-          const currentPassengers = bus.currentPassengers ?? bus.currentOccupancy ?? 0;
+          const busId = String(bus._id || bus.id || `${bus.busNumber}-${index}`);
           const totalCapacity = bus.totalCapacity ?? bus.capacity ?? 0;
           const driverName = bus.driverName || 'Unknown';
+          
+          // Use live occupancy if available, otherwise fallback to static bus data
+          const currentPassengers = liveBusOccupancy[busId] !== undefined 
+            ? liveBusOccupancy[busId] 
+            : (bus.currentPassengers ?? bus.currentOccupancy ?? 0);
+          
+          const crowdPercentage = totalCapacity > 0 ? Math.round((currentPassengers / totalCapacity) * 100) : 0;
+          const crowdLevel = getCrowdLevel(crowdPercentage);
 
           return (
             <TouchableOpacity
