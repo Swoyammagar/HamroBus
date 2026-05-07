@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { Route } from '../services/routeService';
-import { Bus } from '../services/busService';
+import { Bus, busService } from '../services/busService';
 import { useAuth } from '../../context/AuthContext';
 import passengerNotificationSocket from '../services/passengerNotificationSocket';
 import { notificationService, type PassengerNotificationApiRecord } from '../services/notificationService';
@@ -81,6 +81,11 @@ export interface PassengerToast {
   severity: 'low' | 'medium' | 'high' | 'critical';
 }
 
+export interface LiveBusStopState {
+  currentStop: string | null;
+  previousStop: string | null;
+}
+
 interface PassengerContextType {
   selectedRoute: Route | null;
   setSelectedRoute: (route: Route | null) => void;
@@ -104,6 +109,8 @@ interface PassengerContextType {
   markAlertRead: (alertId: string) => void;
   currentToast: PassengerToast | null;
   dismissToast: () => void;
+  liveBusOccupancy: Record<string, number>;
+  liveBusStops: Record<string, LiveBusStopState>;
 }
 
 const PassengerContext = createContext<PassengerContextType | undefined>(undefined);
@@ -119,6 +126,8 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [currentToast, setCurrentToast] = useState<PassengerToast | null>(null);
+  const [liveBusOccupancy, setLiveBusOccupancy] = useState<Record<string, number>>({});
+  const [liveBusStops, setLiveBusStops] = useState<Record<string, LiveBusStopState>>({});
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const addBooking = (booking: Booking) => {
@@ -263,6 +272,31 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
       );
     };
 
+    const onOccupancyUpdated = (payload: any) => {
+      if (!active) return;
+      const busId = String(payload?.busId || '').trim();
+      if (!busId) return;
+
+      setLiveBusOccupancy((prev) => ({
+        ...prev,
+        [busId]: typeof payload?.passengerCount === 'number' ? payload.passengerCount : 0,
+      }));
+    };
+
+    const onCurrentStopUpdate = (payload: any) => {
+      if (!active) return;
+      const busId = String(payload?.busId || '').trim();
+      if (!busId) return;
+
+      setLiveBusStops((prev) => ({
+        ...prev,
+        [busId]: {
+          currentStop: payload?.currentStop ? String(payload.currentStop) : null,
+          previousStop: payload?.previousStop ? String(payload.previousStop) : null,
+        },
+      }));
+    };
+
     const setup = async () => {
       try {
         const initialNotifications = await notificationService.getPassengerNotifications();
@@ -280,6 +314,8 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
       passengerNotificationSocket.onNotification(onIncomingNotification);
       passengerNotificationSocket.onBookingStatusUpdated(onBookingStatusUpdated);
       passengerNotificationSocket.onBookingCompleted(onBookingCompleted);
+      passengerNotificationSocket.onOccupancyUpdated(onOccupancyUpdated);
+      passengerNotificationSocket.onCurrentStopUpdate(onCurrentStopUpdate);
     };
 
     setup();
@@ -289,6 +325,8 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
       passengerNotificationSocket.offNotification(onIncomingNotification);
       passengerNotificationSocket.offBookingStatusUpdated(onBookingStatusUpdated);
       passengerNotificationSocket.offBookingCompleted(onBookingCompleted);
+      passengerNotificationSocket.offOccupancyUpdated(onOccupancyUpdated);
+      passengerNotificationSocket.offCurrentStopUpdate(onCurrentStopUpdate);
       passengerNotificationSocket.disconnect();
       if (toastTimerRef.current) {
         clearTimeout(toastTimerRef.current);
@@ -296,6 +334,50 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
       }
     };
   }, [passenger?.id]);
+
+  useEffect(() => {
+    if (!passenger?.id || buses.length === 0) return;
+
+    const busIds = buses
+      .map((bus) => String(bus._id || bus.id || '').trim())
+      .filter(Boolean);
+
+    let active = true;
+
+    // ========== NEW: Hydrate occupancy from backend before socket listeners ==========
+    const hydrateOccupancy = async () => {
+      try {
+        const occupancyData = await Promise.all(
+          busIds.map((busId) => busService.getBusOccupancy(busId))
+        );
+
+        if (active) {
+          const occupancyMap: Record<string, number> = {};
+          occupancyData.forEach((data) => {
+            occupancyMap[data.busId] = data.passengerCount;
+          });
+          setLiveBusOccupancy((prev) => ({ ...prev, ...occupancyMap }));
+          console.log('✅ Occupancy hydrated from backend:', occupancyMap);
+        }
+      } catch (error) {
+        console.error('Error hydrating occupancy:', error);
+      }
+    };
+
+    hydrateOccupancy();
+    // ========== END NEW ==========
+
+    busIds.forEach((busId) => {
+      passengerNotificationSocket.joinBusRoom(busId);
+    });
+
+    return () => {
+      active = false;
+      busIds.forEach((busId) => {
+        passengerNotificationSocket.leaveBusRoom(busId);
+      });
+    };
+  }, [passenger?.id, buses]);
 
   return (
     <PassengerContext.Provider
@@ -322,6 +404,8 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
         markAlertRead,
         currentToast,
         dismissToast,
+        liveBusOccupancy,
+        liveBusStops,
       }}
     >
       {children}
