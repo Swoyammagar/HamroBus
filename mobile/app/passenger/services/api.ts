@@ -12,27 +12,30 @@ const apiClient = axios.create({
   },
 });
 
-let refreshPromise: Promise<string | null> | null = null;
+type RefreshResult = { token: string | null; status?: number | null };
 
-const refreshMobileAccessToken = async (): Promise<string | null> => {
+let refreshPromise: Promise<RefreshResult> | null = null;
+
+const refreshMobileAccessToken = async (): Promise<RefreshResult> => {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       const refreshToken = await AsyncStorage.getItem('refreshToken');
       if (!refreshToken) {
-        return null;
+        return { token: null, status: null };
       }
 
       try {
         const response = await axios.post(`${API_BASE_URL}/auth/refresh-mobile`, { refreshToken });
         const newToken = response.data?.accessToken;
         if (!newToken) {
-          return null;
+          return { token: null, status: response.status ?? null };
         }
 
         await AsyncStorage.setItem('authToken', newToken);
-        return newToken;
-      } catch (error) {
-        return null;
+        return { token: newToken, status: response.status ?? null };
+      } catch (err: any) {
+        const status = err?.response?.status ?? null;
+        return { token: null, status };
       }
     })().finally(() => {
       refreshPromise = null;
@@ -68,16 +71,25 @@ apiClient.interceptors.response.use(
     if (status === 401 && !originalRequest._retry && !isRefreshCall) {
       originalRequest._retry = true;
 
-      const newToken = await refreshMobileAccessToken();
-      if (newToken) {
+      const refreshResult = await refreshMobileAccessToken();
+      if (refreshResult.token) {
         originalRequest.headers = originalRequest.headers || {};
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        originalRequest.headers.Authorization = `Bearer ${refreshResult.token}`;
         return apiClient(originalRequest);
       }
 
-      await AsyncStorage.removeItem('authToken');
-      await AsyncStorage.removeItem('refreshToken');
-      router.push('/pages/mobilelogin');
+      // If refresh failed due to invalid/expired refresh token, perform logout/navigation.
+      const invalidStatuses = [400, 401, 403];
+      if (refreshResult.status && invalidStatuses.includes(refreshResult.status)) {
+        await AsyncStorage.removeItem('authToken');
+        await AsyncStorage.removeItem('refreshToken');
+        router.push('/pages/mobilelogin');
+        // reject original error after navigation
+        return Promise.reject(error);
+      }
+
+      // For network/transient failures (no status), do not force logout — reject and let UI handle it.
+      return Promise.reject(error);
     }
 
     return Promise.reject(error);

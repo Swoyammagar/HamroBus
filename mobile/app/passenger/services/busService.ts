@@ -79,4 +79,35 @@ export const busService = {
     const response = await apiClient.get(`/passenger/drivers/${driverId}/reviews`);
     return response.data?.reviews || response.data || [];
   },
+
+  // Get current occupancy for a specific bus
+  getBusOccupancy: async (busId: string): Promise<{ busId: string; passengerCount: number; lastUpdated: string }> => {
+    try {
+      const response = await apiClient.get(`/bus/${busId}/occupancy`);
+      return {
+        busId: response.data?.busId || busId,
+        passengerCount: response.data?.passengerCount || 0,
+        lastUpdated: response.data?.lastUpdated || new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error(`Error fetching occupancy for bus ${busId}:`, error);
+      return { busId, passengerCount: 0, lastUpdated: new Date().toISOString() };
+    }
+  },
+
+  // Get current SOS state for a specific bus
+  getBusSosState: async (busId: string): Promise<{ busId: string; sosActive: boolean; sosCategory?: string; sosTimestamp?: string }> => {
+    try {
+      const response = await apiClient.get(`/bus/${busId}/sos-state`);
+      return {
+        busId: response.data?.busId || busId,
+        sosActive: response.data?.sosActive || false,
+        sosCategory: response.data?.sosCategory || undefined,
+        sosTimestamp: response.data?.sosTimestamp || undefined,
+      };
+    } catch (error) {
+      console.error(`Error fetching SOS state for bus ${busId}:`, error);
+      return { busId, sosActive: false };
+    }
+  },
 };
