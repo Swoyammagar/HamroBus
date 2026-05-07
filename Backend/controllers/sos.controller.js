@@ -48,6 +48,7 @@ const sendSosAlert = async (req, res) => {
 
     // Persist SOS document for admin history
     try {
+      const bus = await Bus.findById(busId).select('busNumber').lean();
       const sosDoc = new Sos({
         sosId: `sos_${uuidv4()}`,
         driverId,
@@ -60,6 +61,7 @@ const sendSosAlert = async (req, res) => {
         senderSnapshot: {
           name: req.user?.fullname || null,
           profileImgUrl: req.user?.profileImgUrl || null,
+          busNumber: bus?.busNumber || null,
         },
       });
       await sosDoc.save();

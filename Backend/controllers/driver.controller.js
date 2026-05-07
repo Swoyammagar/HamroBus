@@ -1,5 +1,6 @@
 const Driver = require('../models/driver.model');
 const Location = require('../models/location.model');
+const Notification = require('../models/notification.model');
 const bcrypt = require('bcrypt');
 const { generateToken, generateRefreshToken } = require('../utils/authutils');
 const { sendEmail } = require('../utils/sendEmail');
@@ -74,7 +75,65 @@ const registerDriver = async (req, res) => {
 
         await newDriver.save();
 
-        // Socket logic for admin notification
+        // 📧 Send email notification to admin
+        const adminEmail = process.env.ADMIN_EMAIL;
+        if (adminEmail) {
+            const adminEmailContent = `
+                <div style="font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px;">
+                    <div style="background-color: #fff; border-radius: 8px; padding: 20px; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #0f172a; margin-bottom: 16px;">🚨 New Driver Registration Request</h2>
+                        <p style="color: #374151; line-height: 1.6;">A new user has applied to register as a driver and requires your approval.</p>
+                        
+                        <div style="background-color: #f9fafb; border-left: 4px solid #3b82f6; padding: 16px; margin: 16px 0; border-radius: 4px;">
+                            <p style="margin: 8px 0;"><strong>Driver Name:</strong> ${newDriver.firstName} ${newDriver.lastName}</p>
+                            <p style="margin: 8px 0;"><strong>Email:</strong> ${newDriver.email}</p>
+                            <p style="margin: 8px 0;"><strong>Phone:</strong> ${newDriver.phoneNumber}</p>
+                            <p style="margin: 8px 0;"><strong>License No:</strong> ${newDriver.licenseNo}</p>
+                            <p style="margin: 8px 0;"><strong>Registration Date:</strong> ${new Date().toLocaleString()}</p>
+                        </div>
+                        
+                        <p style="color: #374151; line-height: 1.6;">Please visit the admin dashboard to review and approve/reject this driver request.</p>
+                        
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px;">
+                            <p style="margin: 0;">HamroBus Admin System</p>
+                            <p style="margin: 0;">This is an automated notification. Do not reply to this email.</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            await sendEmail(
+                adminEmail,
+                adminEmailContent,
+                `🚨 New Driver Registration: ${newDriver.firstName} ${newDriver.lastName}`
+            );
+        }
+
+        // 💾 Create in-app notification for admins
+        const notificationId = `admin-driver-reg-${newDriver._id}-${Date.now()}`;
+        const adminNotification = new Notification({
+            notificationId,
+            title: `New Driver Registration: ${newDriver.firstName} ${newDriver.lastName}`,
+            message: `Driver ${newDriver.firstName} ${newDriver.lastName} has registered and is awaiting approval. License: ${newDriver.licenseNo}`,
+            sentBy: 'system',
+            targetAudience: 'admins',
+            status: 'sent',
+            read: false,
+            metadata: {
+                driverId: newDriver._id.toString(),
+                driverName: `${newDriver.firstName} ${newDriver.lastName}`,
+                driverEmail: newDriver.email,
+                driverPhone: newDriver.phoneNumber,
+                licenseNo: newDriver.licenseNo,
+                profileImgUrl: newDriver.profileImgUrl,
+                licenseImgUrl: newDriver.licenseImgUrl,
+                actionRequired: 'approve_reject_driver'
+            }
+        });
+        
+        await adminNotification.save();
+
+        // 🔔 Socket logic for real-time admin notification
         const io = req.app.get('io');
         if (io) {
             io.to('admin-room').emit('new-driver-request', {
@@ -86,6 +145,7 @@ const registerDriver = async (req, res) => {
                 profileImg: newDriver.profileImgUrl,
                 licenseImg: newDriver.licenseImgUrl,
                 timestamp: new Date(),
+                notificationId: notificationId,
             });
         }
 

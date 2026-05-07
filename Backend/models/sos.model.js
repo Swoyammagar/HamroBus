@@ -19,6 +19,7 @@ const SosSchema = new mongoose.Schema(
     senderSnapshot: {
       name: { type: String },
       profileImgUrl: { type: String },
+      busNumber: { type: String },
     },
   },
   {

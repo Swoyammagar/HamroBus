@@ -1071,7 +1071,7 @@ const getAllTripsWithBookings = async (req, res) => {
       })
       .populate({
         path: 'driverId',
-        select: 'firstName lastName phoneNumber',
+        select: 'firstName lastName phoneNumber profileImgUrl',
       })
       .sort({ createdAt: -1 })
       .lean();
@@ -1080,7 +1080,7 @@ const getAllTripsWithBookings = async (req, res) => {
     const tripsWithBookings = await Promise.all(
       trips.map(async (trip) => {
         const bookings = await Booking.find({ tripSessionId: trip._id })
-          .populate('passengerId', 'firstName lastName phoneNumber')
+          .populate('passengerId', 'firstName lastName phoneNumber profileImgUrl')
           .lean();
         
         return {
@@ -1088,6 +1088,7 @@ const getAllTripsWithBookings = async (req, res) => {
           routeName: (trip.routeId?.startingStop || '') + ' to ' + (trip.routeId?.endingStop || ''),
           busNumber: trip.busId?.busNumber || 'N/A',
           driverName: [trip.driverId?.firstName, trip.driverId?.lastName].filter(Boolean).join(' '),
+          driverProfileImgUrl: trip.driverId?.profileImgUrl || null,
           status: trip.status,
           startTime: trip.startTime || trip.createdAt,
           delayMinutes: trip.startDelayMinutes || 0,
@@ -1097,6 +1098,7 @@ const getAllTripsWithBookings = async (req, res) => {
           bookings: bookings.map(b => ({
             bookingCode: b.bookingCode,
             passengerName: [b.passengerId?.firstName, b.passengerId?.lastName].filter(Boolean).join(' '),
+            passengerProfileImgUrl: b.passengerId?.profileImgUrl || null,
             phoneNumber: b.passengerId?.phoneNumber,
             seats: b.seatNumbers.join(', '),
             boardingStop: b.boardingStop?.stopName,
@@ -1128,7 +1130,7 @@ const getTripDetailsById = async (req, res) => {
     const trip = await TripSession.findById(tripId)
       .populate('busId')
       .populate('routeId')
-      .populate('driverId')
+      .populate('driverId', 'firstName lastName phoneNumber profileImgUrl licenseImgUrl')
       .lean();
     
     if (!trip) {
@@ -1146,7 +1148,7 @@ const getTripDetailsById = async (req, res) => {
     }
     
     const bookings = await Booking.find({ tripSessionId: tripId })
-      .populate('passengerId')
+      .populate('passengerId', 'firstName lastName phoneNumber profileImgUrl')
       .lean();
     
     const tripDetails = {
@@ -1162,6 +1164,8 @@ const getTripDetailsById = async (req, res) => {
       driver: {
         name: [trip.driverId?.firstName, trip.driverId?.lastName].filter(Boolean).join(' '),
         phone: trip.driverId?.phoneNumber || 'N/A',
+        profileImgUrl: trip.driverId?.profileImgUrl || null,
+        licenseImgUrl: trip.driverId?.licenseImgUrl || null,
       },
       status: trip.status,
       times: {
@@ -1182,6 +1186,7 @@ const getTripDetailsById = async (req, res) => {
       bookings: bookings.map(b => ({
         bookingCode: b.bookingCode,
         passengerName: [b.passengerId?.firstName, b.passengerId?.lastName].filter(Boolean).join(' '),
+        passengerProfileImgUrl: b.passengerId?.profileImgUrl || null,
         passengerPhone: b.passengerId?.phoneNumber,
         seats: b.seatNumbers.join(', '),
         seatCount: b.seatCount,

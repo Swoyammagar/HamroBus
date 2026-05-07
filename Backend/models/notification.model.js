@@ -96,6 +96,14 @@ const notificationSchema = new mongoose.Schema({
     expiresAt: {
         type: Date,
         required: false
+    },
+    metadata: {
+        type: mongoose.Schema.Types.Mixed,
+        required: false
+    },
+    read: {
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true
