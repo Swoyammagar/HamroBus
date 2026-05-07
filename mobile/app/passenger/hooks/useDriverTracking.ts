@@ -16,6 +16,9 @@ interface DriverLocation {
   heading: number;
   speed: number;
   timestamp: string;
+  sosActive?: boolean;
+  sosCategory?: string;
+  isOffline?: boolean;
 }
 
 interface UseDriverTrackingProps {
@@ -108,11 +111,54 @@ export const useDriverTracking = ({ busIds, enabled }: UseDriverTrackingProps) =
           [data.driverId]: {
             ...(prev[data.driverId] || {}),
             ...data,
+            isOffline: false,
+            tripStatus: data.tripStatus && data.tripStatus !== 'offline' ? data.tripStatus : 'in-progress',
           },
         }));
       } else {
         console.log('⚠️ [PASSENGER] Bus ID mismatch, ignoring update');
       }
+    });
+
+    socket.on('driver:sos', (data: Partial<DriverLocation> & { driverId?: string; busId?: string; category?: string }) => {
+      if (!data?.busId || !trackedBusIdsSet.has(String(data.busId))) return;
+
+      setDriverLocationsByDriverId((prev) => {
+        const next = { ...prev };
+        const driverId = String(data.driverId || next[Object.keys(next).find((key) => String(next[key].busId) === String(data.busId)) || '']?.driverId || '');
+        const existingKey = Object.keys(next).find((key) => String(next[key].busId) === String(data.busId)) || driverId;
+        if (!existingKey) return prev;
+
+        next[existingKey] = {
+          ...next[existingKey],
+          ...data,
+          sosActive: true,
+          sosCategory: data.category || next[existingKey]?.sosCategory,
+          tripStatus: 'sos-active',
+          isOffline: false,
+        };
+        return next;
+      });
+    });
+
+    socket.on('driver:sos-cleared', (data: Partial<DriverLocation> & { driverId?: string; busId?: string }) => {
+      if (!data?.busId || !trackedBusIdsSet.has(String(data.busId))) return;
+
+      setDriverLocationsByDriverId((prev) => {
+        const next = { ...prev };
+        const existingKey = Object.keys(next).find((key) => String(next[key].busId) === String(data.busId));
+        if (!existingKey) return prev;
+
+        next[existingKey] = {
+          ...next[existingKey],
+          ...data,
+          sosActive: false,
+          sosCategory: undefined,
+          tripStatus: 'in-progress',
+          isOffline: false,
+        };
+        return next;
+      });
     });
 
     socket.on('driver:status-update', (data: Partial<DriverLocation> & { driverId: string; busId?: string }) => {
@@ -127,6 +173,7 @@ export const useDriverTracking = ({ busIds, enabled }: UseDriverTrackingProps) =
           [data.driverId]: {
             ...existing,
             ...data,
+            isOffline: data.tripStatus === 'offline' ? true : false,
           } as DriverLocation,
         };
       });
@@ -138,9 +185,13 @@ export const useDriverTracking = ({ busIds, enabled }: UseDriverTrackingProps) =
 
       console.log('🛑 [PASSENGER] Driver offline received:', data);
       setDriverLocationsByDriverId((prev) => {
-        const updated = { ...prev };
-        delete updated[data.driverId];
-        return updated;
+        const existing = prev[data.driverId];
+        if (!existing) return prev;
+
+        // Passenger UX requirement: hide marker when driver goes offline.
+        const next = { ...prev };
+        delete next[data.driverId];
+        return next;
       });
     });
 
