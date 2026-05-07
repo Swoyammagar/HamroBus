@@ -53,6 +53,8 @@ const BusBooking = () => {
   const [schedulesLoading, setSchedulesLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const paymentInFlightRef = useRef(false);
+  // Track current stop for mid-trip booking validation
+  const [currentStop, setCurrentStop] = useState<string | null>(null);
 
   useEffect(() => {
     const busIdValue = Array.isArray(busId) ? busId[0] : busId;
@@ -91,12 +93,36 @@ const BusBooking = () => {
   }, [busId, routeId, selectedBus, buses, selectedRoute, routes]);
 
   // Helper: get next occurrence of a weekday as "YYYY-MM-DD"
-  const getNextOccurrenceOfDay = (dayName: string): string => {
+  // If today matches the weekday and schedule end time hasn't passed, show today
+  // Otherwise show next occurrence of that weekday
+  const getNextOccurrenceOfDay = (dayName: string, scheduleEndTime?: string): string => {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const targetDay = days.indexOf(dayName);
     if (targetDay < 0) return new Date().toISOString().split('T')[0];
+    
     const today = new Date();
     const todayDay = today.getDay();
+    
+    // If today matches the schedule day, check if trip is still active
+    if (todayDay === targetDay) {
+      if (scheduleEndTime) {
+        const [endHours, endMinutes] = scheduleEndTime.split(':').map(Number);
+        const endTimeMinutes = endHours * 60 + endMinutes;
+        const nowMinutes = today.getHours() * 60 + today.getMinutes();
+        
+        if (nowMinutes < endTimeMinutes) {
+          // Trip is still active today, show today
+          return today.toISOString().split('T')[0];
+        }
+      }
+      
+      // Trip has ended or no end time, show next week (7 days from now)
+      const nextWeek = new Date(today);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      return nextWeek.toISOString().split('T')[0];
+    }
+    
+    // Today doesn't match target day, calculate next occurrence
     const daysUntil = (targetDay - todayDay + 7) % 7;
     const result = new Date(today);
     result.setDate(result.getDate() + daysUntil);
@@ -133,7 +159,7 @@ const BusBooking = () => {
   // Derive service date when schedule is selected
   useEffect(() => {
     if (!selectedSchedule) return;
-    setServiceDate(selectedSchedule.nextServiceDate || getNextOccurrenceOfDay(selectedSchedule.dayOfWeek));
+    setServiceDate(selectedSchedule.nextServiceDate || getNextOccurrenceOfDay(selectedSchedule.dayOfWeek, selectedSchedule.endTime));
     // Clear seats when schedule changes so stale selections are removed
     setSelectedSeats([]);
     setAvailabilityData(null);
@@ -208,6 +234,45 @@ const BusBooking = () => {
   }, [selectedSchedule?._id, bus?._id, route, serviceDate]);
   // ========== END REAL-TIME SEAT AVAILABILITY REFRESH ==========
 
+  // ========== LISTEN FOR CURRENT STOP UPDATES ==========
+  useEffect(() => {
+    if (!bus) {
+      setCurrentStop(null);
+      return;
+    }
+
+    const busId = String(bus._id || bus.id || '');
+    if (!busId) return;
+
+    // Join bus room to receive stop updates
+    passengerNotificationSocket.joinBusRoom(busId);
+
+    const handleCurrentStopUpdate = (data: any) => {
+      if (String(data.busId) === busId && data.currentStop) {
+        setCurrentStop(data.currentStop);
+        console.log('🛑 [BUS BOOKING] Current stop updated:', data.currentStop);
+        // When current stop updates (stop completed), refresh seat availability
+        if (selectedSchedule && route && serviceDate) {
+          const rid = String(route._id || route.id || '');
+          const bid = String(bus._id || bus.id || '');
+          const sid = String(selectedSchedule._id || '');
+          bookingService
+            .checkSeatAvailability({ routeId: rid, busId: bid, scheduleId: sid, serviceDate })
+            .then((data) => setAvailabilityData(data))
+            .catch((err) => console.warn('Error refreshing availability on stop update:', err));
+        }
+      }
+    };
+
+    passengerNotificationSocket.onCurrentStopUpdate(handleCurrentStopUpdate);
+
+    return () => {
+      passengerNotificationSocket.offCurrentStopUpdate(handleCurrentStopUpdate);
+      passengerNotificationSocket.leaveBusRoom(busId);
+    };
+  }, [bus]);
+  // ========== END CURRENT STOP TRACKING ==========
+
   const bookingPrice = route?.fareInfo ?? 150;
 
   const generateSeatsGrid = () => {
@@ -280,6 +345,34 @@ const BusBooking = () => {
       Alert.alert('Invalid Route', 'Alighting stop must be after boarding stop');
       return false;
     }
+
+    // Mid-trip booking validation: check if bus has already passed boarding stop
+    if (currentStop && route?.stops) {
+      const boardingStopNormalized = String(selectedBoardingStop.name || '').trim().toLowerCase();
+      const currentStopNormalized = String(currentStop).trim().toLowerCase();
+      
+      const boardingStopObj = route.stops.find(
+        (s) => String(s.name || '').trim().toLowerCase() === boardingStopNormalized
+      );
+      const currentStopObj = route.stops.find(
+        (s) => String(s.name || '').trim().toLowerCase() === currentStopNormalized
+      );
+      
+      if (boardingStopObj && currentStopObj) {
+        const boardingSequence = boardingStopObj.order ?? 0;
+        const currentSequence = currentStopObj.order ?? 0;
+        
+        // If bus is already past the boarding stop, prevent booking
+        if (currentSequence > boardingSequence) {
+          Alert.alert(
+            'Stop Already Passed',
+            `The bus has already passed ${selectedBoardingStop.name}. You cannot book for this stop.`
+          );
+          return false;
+        }
+      }
+    }
+
     return true;
   };
 
