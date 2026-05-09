@@ -41,6 +41,18 @@ const PassengerShell = () => {
             animation: 'default',
           }}
         />
+        <Stack.Screen
+          name="screens/profile-edit"
+          options={{
+            animation: 'default',
+          }}
+        />
+        <Stack.Screen
+          name="screens/password-reset"
+          options={{
+            animation: 'default',
+          }}
+        />
       </Stack>
 
       {currentToast ? (

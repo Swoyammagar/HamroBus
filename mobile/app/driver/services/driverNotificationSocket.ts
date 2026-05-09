@@ -34,6 +34,22 @@ class DriverNotificationSocket {
     this.socket?.off('notification:new', handler);
   }
 
+  onSosAlert(handler: (payload: any) => void) {
+    this.socket?.on('sos:alert', handler);
+  }
+
+  offSosAlert(handler: (payload: any) => void) {
+    this.socket?.off('sos:alert', handler);
+  }
+
+  onSosCleared(handler: (payload: any) => void) {
+    this.socket?.on('sos:cleared', handler);
+  }
+
+  offSosCleared(handler: (payload: any) => void) {
+    this.socket?.off('sos:cleared', handler);
+  }
+
   disconnect() {
     if (!this.socket) return;
     this.socket.removeAllListeners();

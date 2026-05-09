@@ -31,6 +31,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     drivers: 'Drivers',
     routes: 'Routes',
     schedules: 'Schedules',
+    trips: 'Trips',
     settings: 'Settings',
     analytics: 'Analytics',
     notifications: 'Notifications'

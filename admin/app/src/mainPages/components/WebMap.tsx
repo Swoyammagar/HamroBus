@@ -18,6 +18,9 @@ interface DriverLocation {
   heading: number;
   speed: number;
   timestamp: string;
+  isOffline?: boolean;
+  sosActive?: boolean;
+  sosCategory?: string;
 }
 
 interface DriverOffline {
@@ -75,9 +78,32 @@ const WebMap: React.FC<WebMapProps> = ({
   const [searchMarker, setSearchMarker] = useState<[number, number] | null>(null);
   const [routePath, setRoutePath] = useState<any[]>([]);
   const [driverLocations, setDriverLocations] = useState<Map<string, DriverLocation>>(new Map());
+  const [activeSosBusIds, setActiveSosBusIds] = useState<Set<string>>(new Set());
 
   const mapRef = useRef<any>(null);
   const socketRef = useRef<Socket | null>(null);
+
+  const playSosSound = () => {
+    try {
+      const AudioContextCtor = (window.AudioContext || (window as any).webkitAudioContext);
+      if (!AudioContextCtor) return;
+      const ctx = new AudioContextCtor();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 880;
+      gain.gain.value = 0.06;
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start();
+      setTimeout(() => {
+        oscillator.stop();
+        ctx.close().catch(() => undefined);
+      }, 700);
+    } catch (error) {
+      console.warn('Could not play SOS sound', error);
+    }
+  };
 
   /* ---------------- Load Leaflet ---------------- */
   useEffect(() => {
@@ -143,8 +169,60 @@ const WebMap: React.FC<WebMapProps> = ({
         updated.set(data.driverId, {
           ...(updated.get(data.driverId) || {}),
           ...data,
+          isOffline: false,
+          tripStatus: data.tripStatus && data.tripStatus !== 'offline' ? data.tripStatus : 'in-progress',
         });
         console.log('✅ Updated driver locations map, total drivers:', updated.size);
+        return updated;
+      });
+    });
+
+    socket.on('sos:alert', (data: any) => {
+      if (!data?.busId) return;
+      playSosSound();
+      setActiveSosBusIds((prev) => {
+        const next = new Set(prev);
+        next.add(String(data.busId));
+        return next;
+      });
+
+      setDriverLocations((prev) => {
+        const updated = new Map(prev);
+        const existing = Array.from(updated.entries()).find(([, value]) => String(value.busId) === String(data.busId));
+        if (existing) {
+          const [driverId, current] = existing;
+          updated.set(driverId, {
+            ...current,
+            sosActive: true,
+            sosCategory: data.category,
+            tripStatus: 'sos-active',
+            isOffline: false,
+          });
+        }
+        return updated;
+      });
+    });
+
+    socket.on('sos:cleared', (data: any) => {
+      if (!data?.busId) return;
+      setActiveSosBusIds((prev) => {
+        const next = new Set(prev);
+        next.delete(String(data.busId));
+        return next;
+      });
+
+      setDriverLocations((prev) => {
+        const updated = new Map(prev);
+        for (const [driverId, value] of updated.entries()) {
+          if (String(value.busId) === String(data.busId)) {
+            updated.set(driverId, {
+              ...value,
+              sosActive: false,
+              sosCategory: undefined,
+              tripStatus: 'in-progress',
+            });
+          }
+        }
         return updated;
       });
     });
@@ -158,6 +236,7 @@ const WebMap: React.FC<WebMapProps> = ({
         updated.set(data.driverId, {
           ...existing,
           ...data,
+          isOffline: data.tripStatus === 'offline' ? true : false,
         } as DriverLocation);
         return updated;
       });
@@ -167,7 +246,14 @@ const WebMap: React.FC<WebMapProps> = ({
       console.log('🛑 [ADMIN] Driver offline received:', data);
       setDriverLocations((prev) => {
         const updated = new Map(prev);
-        updated.delete(data.driverId);
+        const existing = updated.get(data.driverId);
+        if (existing) {
+          updated.set(data.driverId, {
+            ...existing,
+            isOffline: true,
+            tripStatus: 'offline',
+          });
+        }
         return updated;
       });
     });
@@ -186,6 +272,76 @@ const WebMap: React.FC<WebMapProps> = ({
       socketRef.current = null;
     };
   }, []);
+
+  // Keep SOS state in sync with backend whenever route selection changes.
+  useEffect(() => {
+    let active = true;
+
+    const hydrateSosStateForRoute = async () => {
+      const routeBusIds = extractRouteBusIds(route);
+      if (routeBusIds.size === 0) {
+        if (active) {
+          setActiveSosBusIds(new Set());
+        }
+        return;
+      }
+
+      try {
+        const sosStates = await Promise.all(
+          Array.from(routeBusIds).map((busId) =>
+            fetch(`${SOCKET_URL}/api/bus/${busId}/sos-state`)
+              .then((res) => res.json())
+              .then((data) => ({
+                busId,
+                sosActive: data?.sosActive || false,
+                sosCategory: data?.sosCategory || undefined,
+              }))
+              .catch((err) => {
+                console.error(`Error fetching SOS state for bus ${busId}:`, err);
+                return { busId, sosActive: false, sosCategory: undefined };
+              })
+          )
+        );
+
+        if (!active) return;
+
+        const nextActiveSosBusIds = new Set<string>();
+        sosStates.forEach((state) => {
+          if (state.sosActive) {
+            nextActiveSosBusIds.add(state.busId);
+          }
+        });
+
+        setActiveSosBusIds(nextActiveSosBusIds);
+
+        // Also update already-known driver marker payloads so popup/status text is consistent.
+        setDriverLocations((prev) => {
+          const updated = new Map(prev);
+          for (const [driverId, value] of updated.entries()) {
+            const busId = String(value.busId || '');
+            if (!busId || !routeBusIds.has(busId)) continue;
+            const isSos = nextActiveSosBusIds.has(busId);
+            updated.set(driverId, {
+              ...value,
+              sosActive: isSos,
+              tripStatus: isSos ? 'sos-active' : value.tripStatus,
+            });
+          }
+          return updated;
+        });
+
+        console.log('✅ SOS state hydrated from backend for selected route:', nextActiveSosBusIds);
+      } catch (error) {
+        console.error('Error hydrating SOS state for selected route:', error);
+      }
+    };
+
+    hydrateSosStateForRoute();
+
+    return () => {
+      active = false;
+    };
+  }, [route]);
 
   /* ---------------- Resize Fix ---------------- */
   useEffect(() => {
@@ -393,8 +549,10 @@ const WebMap: React.FC<WebMapProps> = ({
           {/* Driver Location Markers */}
           {visibleDriverLocations.map((driver) => {
             if (!leaflet?.L) return null;
+            const isSos = Boolean(driver.sosActive || activeSosBusIds.has(String(driver.busId)));
             const isOnBreak = Boolean(driver.isOnBreak || driver.tripStatus === 'on-break');
-            const markerColor = isOnBreak ? '#f59e0b' : '#10b981';
+            const isOffline = Boolean(driver.isOffline || driver.tripStatus === 'offline');
+            const markerColor = isSos ? '#dc2626' : isOffline ? '#6b7280' : isOnBreak ? '#f59e0b' : '#10b981';
             const driverLabel = String(driver.driverName || '').trim() || `Driver ${String(driver.driverId || '').slice(-4)}`;
             const busLabel = String(driver.busNumber || '').trim() || String(driver.busId || '').slice(-4);
             const driverIcon = leaflet.L.divIcon({
@@ -446,7 +604,7 @@ const WebMap: React.FC<WebMapProps> = ({
                       <strong>{driverLabel}</strong>
                     </div>
                     <strong>Bus:</strong> {busLabel}<br/>
-                    <strong>Status:</strong> ${isOnBreak ? 'On Break' : 'In Trip'}<br/>
+                    <strong>Status:</strong> {isSos ? `SOS Active${driver.sosCategory ? ` (${driver.sosCategory})` : ''}` : isOffline ? 'Offline' : isOnBreak ? 'On Break' : 'In Trip'}<br/>
                     <strong>Speed:</strong> {driver.speed.toFixed(1)} km/h<br/>
                     <strong>Heading:</strong> {driver.heading}°<br/>
                     <strong>Last Update:</strong> {new Date(driver.timestamp).toLocaleTimeString()}

@@ -7,8 +7,11 @@ import {
   ToastAndroid,
   Platform,
   ActivityIndicator,
+  Modal as RNModal,
+  Pressable,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { Feather } from "@expo/vector-icons";
 import { useDriver, type DriverRecord } from "../../context/domains";
 import {
   Tabs,
@@ -92,6 +95,7 @@ const Drivers: React.FC = () => {
   const [reviewsError, setReviewsError] = useState<string | null>(null);
   const [driverReviewSummary, setDriverReviewSummary] = useState<AdminReviewSummary | null>(null);
   const [driverLatestReviews, setDriverLatestReviews] = useState<AdminReviewItem[]>([]);
+  const [licenseImageViewerVisible, setLicenseImageViewerVisible] = useState(false);
 
   const toDisplayDriver = (drv: DriverRecord): DisplayDriver => {
     const fullName = `${drv.firstName || ""} ${drv.lastName || ""}`.trim();
@@ -548,6 +552,21 @@ const handleReject = async (driverId: string) => {
             </View>
           </View>
 
+          {editingDriver?.raw?.licenseImgUrl && (
+            <View style={styles.licenseSection}>
+              <Text style={styles.sectionTitle}>Driver License</Text>
+              <Pressable onPress={() => setLicenseImageViewerVisible(true)}>
+                <Image
+                  source={{ uri: editingDriver.raw.licenseImgUrl }}
+                  style={styles.licenseImage}
+                />
+                <View style={styles.licenseOverlay}>
+                  <Feather name="maximize-2" size={28} color="#fff" />
+                </View>
+              </Pressable>
+            </View>
+          )}
+
           <View style={styles.reviewsBlock}>
             <Text style={styles.sectionTitle}>Review Insights</Text>
 
@@ -665,6 +684,30 @@ const handleReject = async (driverId: string) => {
             : `Are you sure you want to reject ${confirmAction?.driverName}?`}
         </Text>
       </Modal>
+
+      {/* License Image Viewer Modal */}
+      <RNModal
+        visible={licenseImageViewerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLicenseImageViewerVisible(false)}
+      >
+        <View style={styles.imageViewerContainer}>
+          <Pressable
+            style={styles.imageViewerClose}
+            onPress={() => setLicenseImageViewerVisible(false)}
+          >
+            <Feather name="x" size={28} color="#fff" />
+          </Pressable>
+          {editingDriver?.raw?.licenseImgUrl && (
+            <Image
+              source={{ uri: editingDriver.raw.licenseImgUrl }}
+              style={styles.imageViewerImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </RNModal>
     </View>
   );
 };
@@ -910,6 +953,50 @@ const styles = StyleSheet.create({
   noReviewsText: {
     fontSize: 13,
     color: '#64748b',
+  },
+  licenseSection: {
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 14,
+    padding: 14,
+    backgroundColor: '#f9fafb',
+  },
+  licenseImage: {
+    width: '100%',
+    height: 220,
+    borderRadius: 10,
+    backgroundColor: '#e5e7eb',
+  },
+  licenseOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageViewerContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageViewerClose: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    zIndex: 10,
+    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 24,
+  },
+  imageViewerImage: {
+    width: '90%',
+    height: '80%',
   },
 });
 

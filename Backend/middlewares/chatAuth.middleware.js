@@ -12,32 +12,37 @@ const chatAuth = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Determine if user is driver or admin based on token
-    if (decoded.driverId) {
-      const driver = await Driver.findById(decoded.driverId);
-      if (!driver) {
-        return res.status(401).json({ message: 'Driver not found' });
-      }
-      req.user = {
-        userId: decoded.driverId,
-        userType: 'driver',
-        driver
-      };
-    } else if (decoded.adminId) {
-      const admin = await Admin.findById(decoded.adminId);
-      if (!admin) {
-        return res.status(401).json({ message: 'Admin not found' });
-      }
-      req.user = {
-        userId: decoded.adminId,
-        userType: 'admin',
-        admin
-      };
-    } else {
+    // Token format is { id: userId, email: ... }
+    // We need to determine if it's a driver or admin
+    if (!decoded.id) {
       return res.status(401).json({ message: 'Invalid token' });
     }
 
-    next();
+    // Try to find as driver first
+    let driver = await Driver.findById(decoded.id);
+    if (driver) {
+      req.user = {
+        userId: decoded.id,
+        userType: 'driver',
+        driver
+      };
+      return next();
+    }
+
+    // Try to find as admin
+    let admin = await Admin.findById(decoded.id);
+    if (admin) {
+      req.user = {
+        userId: decoded.id,
+        userType: 'admin',
+        admin
+      };
+      return next();
+    }
+
+    // User not found
+    return res.status(401).json({ message: 'User not found' });
+
   } catch (error) {
     console.error('Chat auth error:', error);
     return res.status(401).json({ message: 'Authentication failed' });

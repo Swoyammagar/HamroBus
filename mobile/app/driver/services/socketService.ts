@@ -87,6 +87,23 @@ class SocketService {
       console.log('🔴 Trip ended via WebSocket:', data);
       this.emit('trip:ended', data);
     });
+
+    // ========== NEW: Listen for real-time seat and booking events ==========
+    this.socket.on('seat:booked', (data) => {
+      console.log('🎫 New seat booked:', data);
+      this.emit('seat:booked', data);
+    });
+
+    this.socket.on('booking:created', (data) => {
+      console.log('📝 New booking created:', data);
+      this.emit('booking:created', data);
+    });
+
+    this.socket.on('driver:current-stop', (data) => {
+      console.log('🛑 Current stop updated:', data);
+      this.emit('driver:current-stop', data);
+    });
+    // ========== END NEW EVENTS ==========
   }
 
   on(event: string, callback: Function) {

@@ -14,7 +14,6 @@ import HomeScreen from '../screens/HomeScreen';
 import ScheduleScreen from '../screens/ScheduleScreen';
 import MapScreen from '../screens/MapScreen';
 import HistoryScreen from '../screens/HistoryScreen';
-import ProfileScreen from '../screens/ProfileScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 
 export type RootTabParamList = {
@@ -23,7 +22,6 @@ export type RootTabParamList = {
   Map: undefined;
   Notifications: undefined;
   History: undefined;
-  Profile: undefined;
 };
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
@@ -127,7 +125,6 @@ export default function RootNavigator({ isOnline, onSOS }: RootNavigatorProps) {
             Map: 'map',
             Notifications: 'bell',
             History: 'clock',
-            Profile: 'user',
           };
 
           return <Feather name={icons[route.name]} size={size} color={color} />;
@@ -155,7 +152,6 @@ export default function RootNavigator({ isOnline, onSOS }: RootNavigatorProps) {
       />
 
       <Tab.Screen name="History" component={HistoryScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }

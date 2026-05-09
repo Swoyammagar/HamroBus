@@ -4,6 +4,7 @@ export interface TripBooking {
   bookingCode: string;
   passengerName: string;
   passengerPhone: string;
+  passengerProfileImgUrl?: string;
   seats: string;
   seatCount: number;
   boardingStop: string;
@@ -19,6 +20,7 @@ export interface TripListItem {
   routeName: string;
   busNumber: string;
   driverName: string;
+  driverProfileImgUrl?: string;
   status: 'in-progress' | 'completed' | 'missed';
   startTime: string;
   delayMinutes: number;
@@ -41,6 +43,8 @@ export interface TripDetails {
   driver: {
     name: string;
     phone: string;
+    profileImgUrl?: string;
+    licenseImgUrl?: string;
   };
   status: 'in-progress' | 'completed' | 'missed';
   times: {

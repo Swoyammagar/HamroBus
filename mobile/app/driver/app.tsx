@@ -12,6 +12,7 @@ import EmergencySOSModal from './component/EmergencySOSModal';
 import { palette } from './theme';
 import { useAuth } from '../context/AuthContext';
 import { AppProvider } from './context/AppContext';
+import { startDriverTrackingNow, forceStopDriverTracking } from '../services/driverTrackingControl';
 import {
   notifyIncomingNotification,
   subscribeIncomingNotification,
@@ -30,6 +31,7 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
+  const sosOpenRef = React.useRef(false);
   const { getCurrentUser, isLoading, token, user, driver } = useAuth();
   const [toast, setToast] = useState<DriverToast | null>(null);
   const currentDriverId = useMemo(
@@ -87,10 +89,28 @@ export default function App() {
         notifyIncomingNotification(payload);
       };
 
+      const onSosAlert = (payload: any) => {
+        if (!mounted) return;
+        console.log('🆘 [DRIVER APP] SOS alert received:', payload);
+        // Avoid double-opening modal if already visible
+        if (!sosOpenRef.current) {
+          sosOpenRef.current = true;
+          setShowSOS(true);
+        }
+        // Also show a toast notification
+        const id = String(payload?._id || payload?.notificationId || Date.now());
+        const title = String(payload?.category || 'SOS Alert');
+        const message = `Emergency reported: ${payload?.details || 'Unknown emergency'}`;
+        const severity: 'low' | 'medium' | 'high' | 'critical' = 'critical';
+        setToast({ id, title, message, severity });
+      };
+
       driverNotificationSocket.onNotification(onIncoming);
+      driverNotificationSocket.onSosAlert(onSosAlert);
 
       return () => {
         driverNotificationSocket.offNotification(onIncoming);
+        driverNotificationSocket.offSosAlert(onSosAlert);
       };
     };
 
@@ -103,6 +123,11 @@ export default function App() {
     };
   }, [currentDriverId]);
 
+  // keep ref in sync with state so socket handler can avoid duplicates
+  useEffect(() => {
+    sosOpenRef.current = !!showSOS;
+  }, [showSOS]);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -113,7 +138,23 @@ export default function App() {
             {/* Header (always safe-area aware) */}
             <Header
               isOnline={isOnline}
-              onToggleOnline={() => setIsOnline(prev => !prev)}
+              onToggleOnline={async () => {
+                const next = !isOnline;
+                setIsOnline(next);
+                if (next) {
+                  try {
+                    await startDriverTrackingNow();
+                  } catch (err) {
+                    console.error('Failed to start tracking on toggle:', err);
+                  }
+                } else {
+                  try {
+                    forceStopDriverTracking();
+                  } catch (err) {
+                    console.error('Failed to stop tracking on toggle:', err);
+                  }
+                }
+              }}
               onMenuPress={() => setMenuOpen(true)}
             />
 

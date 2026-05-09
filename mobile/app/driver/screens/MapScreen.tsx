@@ -419,15 +419,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
         </View>
       )}
 
-      {/* Route Info Badge */}
-      {currentTrip && assignedRoute && (
-        <View style={[styles.routeInfo, shadow.card]}>
-          <View>
-            <Text style={styles.routeInfoTitle}>{assignedRoute.routeName}</Text>
-          </View>
-        </View>
-      )}
-
       {/* Error Alert */}
       {(error || tripError) && isOnline && (
         <View style={[styles.errorBanner, shadow.card]}>

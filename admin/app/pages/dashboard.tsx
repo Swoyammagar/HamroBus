@@ -10,7 +10,10 @@ import Schedules from '../src/mainPages/Schedules';
 import Settings from '../src/mainPages/Settings';
 import Analytics from '../src/mainPages/Analytics';
 import Notifications from '../src/mainPages/Notifications';
+import SosList from '../src/mainPages/SosList';
 import Dashboard from '../src/mainPages/Dashboard';
+import Trips from '../src/mainPages/Trips';
+import AdminChats from './AdminChats';
 
 export default function DashboardPage() {
   const [selected, setSelected] = useState<MenuKey>('dashboard');
@@ -27,10 +30,16 @@ export default function DashboardPage() {
         return <Routes />;
       case 'schedules':
         return <Schedules />;
+      case 'trips':
+        return <Trips />;
       case 'analytics':
         return <Analytics />;
       case 'notifications':
         return <Notifications />;
+      case 'sos':
+        return <SosList />;
+      case 'chats':
+        return <AdminChats />;
       case 'settings':
         return <Settings />;
       default:

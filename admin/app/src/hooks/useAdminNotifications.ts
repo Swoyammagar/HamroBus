@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import {
   connectAdminSocket,
   disconnectAdminSocket,
   onNotificationReceived,
 } from '../services/notificationSocket';
+import { onSosAlertReceived, onSosClearedReceived } from '../services/notificationSocket';
 
 export type NotificationAudience =
   | 'all'
@@ -92,6 +93,8 @@ export const useAdminNotifications = (auth: { token: string | null; loading: boo
   const [loading, setLoading] = useState<boolean>(false);
   const [sending, setSending] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentToast, setCurrentToast] = useState<NotificationRecord | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     saveReadIds(readNotificationIds);
@@ -236,22 +239,91 @@ export const useAdminNotifications = (auth: { token: string | null; loading: boo
 
   useEffect(() => {
     if (authLoading || !token) return;
-
+    // Ensure socket connection is active (preferred real-time channel)
     connectAdminSocket();
     const unsubscribe = onNotificationReceived((incoming: NotificationRecord) => {
+      console.log('🔔 onNotificationReceived callback fired with:', incoming);
       const normalized = normalizeNotification(incoming);
-      if (!normalized) return;
+      if (!normalized) {
+        console.warn('Received invalid notification payload:', incoming);
+        return;
+      }
       setNotifications((prev) => {
         const exists = prev.some((item) => item._id === normalized._id);
         return exists ? prev : [normalized, ...prev];
       });
+      setCurrentToast(normalized);
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+      toastTimerRef.current = setTimeout(() => {
+        setCurrentToast((prev) => (prev?._id === normalized._id ? null : prev));
+        toastTimerRef.current = null;
+      }, 3500);
+    });
+
+    const unsubscribeSos = onSosAlertReceived((sosPayload: any) => {
+      console.log('🔔 onSosAlertReceived callback fired with:', sosPayload);
+      // Create a synthetic notification record for SOS to display in the same UI
+      const id = String(sosPayload?.sosRecordId || sosPayload?.notificationId || `sos_${Date.now()}`);
+      const toastRecord: NotificationRecord = {
+        _id: id,
+        notificationId: `sos_${id}`,
+        title: `SOS: ${String(sosPayload?.category || 'Emergency').toUpperCase()}`,
+        message: String(sosPayload?.details || sosPayload?.message || 'SOS reported'),
+        type: 'emergency',
+        severity: 'critical',
+        sentBy: 'driver',
+        targetAudience: 'admins',
+        createdAt: sosPayload?.timestamp || new Date().toISOString(),
+      };
+
+      setNotifications((prev) => {
+        const exists = prev.some((item) => item._id === toastRecord._id);
+        return exists ? prev : [toastRecord, ...prev];
+      });
+
+      setCurrentToast(toastRecord);
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+      toastTimerRef.current = setTimeout(() => {
+        setCurrentToast((prev) => (prev?._id === toastRecord._id ? null : prev));
+        toastTimerRef.current = null;
+      }, 3500);
+    });
+
+    const unsubscribeSosCleared = onSosClearedReceived((payload: any) => {
+      console.log('🔔 onSosClearedReceived fired:', payload);
+      // Update any matching notifications / state to reflect cleared status
+      // We won't remove the record; just mark its status if present.
+      setNotifications((prev) => prev.map((n) => (n._id === String(payload?.sosRecordId || '') ? { ...n, status: 'cleared' as any } : n)));
     });
 
     return () => {
       unsubscribe();
+      unsubscribeSos();
+      unsubscribeSosCleared();
       disconnectAdminSocket();
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
     };
   }, [authLoading, token]);
+
+  // No polling: rely on socket for real-time updates. Add debug logging to help trace events.
+  useEffect(() => {
+    // noop - left intentionally to indicate we rely on socket events only
+  }, [authLoading, token]);
+
+  const dismissToast = useCallback(() => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    setCurrentToast(null);
+  }, []);
 
   return useMemo(
     () => ({
@@ -268,6 +340,8 @@ export const useAdminNotifications = (auth: { token: string | null; loading: boo
       unreadIncomingCount,
       markNotificationAsRead,
       markAllAsRead,
+      currentToast,
+      dismissToast,
     }),
     [
       notifications,
@@ -283,6 +357,8 @@ export const useAdminNotifications = (auth: { token: string | null; loading: boo
       unreadIncomingCount,
       markNotificationAsRead,
       markAllAsRead,
+      currentToast,
+      dismissToast,
     ]
   );
 };

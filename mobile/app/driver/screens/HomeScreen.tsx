@@ -10,6 +10,7 @@ import PassengerLogModal from '../component/PassengerLogModal';
 import NextTripSeatModal, { type SeatReservation } from '../component/NextTripSeatModal';
 import BookingQrScannerModal from '../component/BookingQrScannerModal';
 import driverService from '../services/driverService';
+import socketService from '../services/socketService';
 
 interface Props {
   onSOSPress: () => void;
@@ -97,6 +98,53 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       refreshAll();
     }
   }, [isOnline]);
+
+  // ========== REAL-TIME SEAT MODAL REFRESH ==========
+  // Listen for new bookings and refresh seat map if modal is open
+  useEffect(() => {
+    if (!showSeatMapModal || !selectedSchedule?._id) {
+      return;
+    }
+
+    const handleSeatBooked = (data: any) => {
+      console.log('🎫 [SEAT BOOKED] New booking detected:', data);
+      
+      // Compute service date here to avoid dependency array issues
+      let serviceDate = '';
+      if (selectedSchedule) {
+        if (currentTrip?.scheduleId) {
+          serviceDate = new Date(currentTrip.startTime || Date.now()).toISOString().split('T')[0];
+        } else {
+          const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          const targetDay = days.indexOf(selectedSchedule.dayOfWeek || '');
+          if (targetDay >= 0) {
+            const today = new Date();
+            const todayDay = today.getDay();
+            const daysUntil = (targetDay - todayDay + 7) % 7;
+            const result = new Date(today);
+            result.setDate(result.getDate() + daysUntil);
+            serviceDate = result.toISOString().split('T')[0];
+          }
+        }
+      }
+      
+      // Refresh seat map if this is for the current schedule
+      if (String(data.scheduleId) === String(selectedSchedule._id) && serviceDate) {
+        console.log('🔄 Refreshing seat map due to new booking');
+        loadSeatMap(selectedSchedule, serviceDate);
+        
+        // Show toast notification
+        Alert.alert('New Booking', `Seats ${data.seatNumbers.join(', ')} just got booked!`);
+      }
+    };
+
+    socketService.on('seat:booked', handleSeatBooked);
+
+    return () => {
+      socketService.off('seat:booked', handleSeatBooked);
+    };
+  }, [showSeatMapModal, selectedSchedule?._id, currentTrip?.scheduleId, currentTrip?.startTime]);
+  // ========== END REAL-TIME SEAT MODAL REFRESH ==========
 
   // Get today's schedules sorted by time
   const getTodaySchedules = () => {
@@ -725,6 +773,8 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
         reservedSeats={seatMapReservations}
         onClose={() => setShowSeatMapModal(false)}
         onScanQrPress={() => setShowQrScanner(true)}
+        currentStop={currentTrip?.currentStop || null}
+        previousStop={currentTrip?.previousStop || null}
       />
 
       <BookingQrScannerModal

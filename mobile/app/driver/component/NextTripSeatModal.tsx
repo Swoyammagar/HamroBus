@@ -28,6 +28,8 @@ type Props = {
   reservedSeats: SeatReservation[];
   onClose: () => void;
   onScanQrPress: () => void;
+  currentStop?: string | null;
+  previousStop?: string | null;
 };
 
 export default function NextTripSeatModal({
@@ -38,7 +40,9 @@ export default function NextTripSeatModal({
   totalSeats,
   reservedSeats,
   onClose,
-  onScanQrPress
+  onScanQrPress,
+  currentStop,
+  previousStop
 }: Props) {
   const [selectedSeat, setSelectedSeat] = useState<SeatReservation | null>(null);
 
@@ -130,6 +134,17 @@ export default function NextTripSeatModal({
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Next Trip Seat Map</Text>
               <Text style={styles.subtitle}>{scheduleLabel}</Text>
+              {(previousStop || currentStop) && (
+                <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.subtitle, { fontSize: 12, color: '#666' }]}>
+                    {previousStop ? `Last: ${previousStop}` : 'Starting trip'}
+                  </Text>
+                  <Feather name="arrow-right" size={12} color="#999" />
+                  <Text style={[styles.subtitle, { fontSize: 12, color: palette.primary, fontWeight: '600' }]}>
+                    {currentStop || 'Next stop...'}
+                  </Text>
+                </View>
+              )}
             </View>
             <Pressable onPress={onScanQrPress} style={styles.scanBtn}>
               <Feather name="camera" size={16} color={palette.primary} />

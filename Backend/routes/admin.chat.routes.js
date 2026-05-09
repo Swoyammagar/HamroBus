@@ -7,19 +7,19 @@ const AdminChatController = require('../controllers/admin.chat.controller');
 router.use(chatAuth);
 
 // Get all chats (with optional filtering by status)
-router.get('/chats', AdminChatController.getAllChats);
+router.get('/', AdminChatController.getAllChats);
 
 // Get specific chat with all messages
-router.get('/chat/:chatId', AdminChatController.getChat);
+router.get('/:chatId', AdminChatController.getChat);
 
 // Assign chat to admin
-router.patch('/chat/:chatId/assign', AdminChatController.assignChat);
+router.patch('/:chatId/assign', AdminChatController.assignChat);
 
 // Send reply to chat
-router.post('/chat/:chatId/message', AdminChatController.sendReply);
+router.post('/:chatId/message', AdminChatController.sendReply);
 
 // Update chat status
-router.patch('/chat/:chatId/status', AdminChatController.updateChatStatus);
+router.patch('/:chatId/status', AdminChatController.updateChatStatus);
 
 // Get chat statistics
 router.get('/stats/overview', AdminChatController.getChatStats);

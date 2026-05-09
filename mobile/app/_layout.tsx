@@ -38,6 +38,10 @@ export default function RootLayout() {
               name="passenger/screens/review"
               options={{ presentation: "card" }}
             />
+            <Stack.Screen 
+              name="passenger/screens/profile-edit"
+              options={{ presentation: "card" }}
+            />
           </Stack>
         </PassengerSignupProvider>
       </DriverSignupProvider>

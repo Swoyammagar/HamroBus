@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Location from 'expo-location';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { registerDriverTrackingStopper, unregisterDriverTrackingStopper } from '../../services/driverTrackingControl';
+import { registerDriverTrackingStopper, unregisterDriverTrackingStopper, registerDriverTrackingStarter, unregisterDriverTrackingStarter } from '../../services/driverTrackingControl';
 
 const SOCKET_URL = (process.env.EXPO_PUBLIC_API_BASE?.trim().replace('/api', '') || 'https://hamrobus-auos.onrender.com').trim();
 
@@ -40,65 +40,75 @@ export const useLocation = (): UseLocationReturn => {
   const trackingStartedRef = useRef(false); // ✅ Prevent duplicate watch listeners
   const trackingActiveRef = useRef(false);
 
-  // Initialize socket connection
-  useEffect(() => {
-    const initSocket = async () => {
-      try {
-        // Get driver data from AsyncStorage
-        const driverProfile = await AsyncStorage.getItem('driverProfile');
-        const user = await AsyncStorage.getItem('user');
-        
-        if (driverProfile && user) {
-          const driver = JSON.parse(driverProfile);
-          
-          driverDataRef.current = {
-            driverId: driver.id,
-            busId: driver.assignedBus?._id || driver.assignedBus || '',
-          };
+  // Helper function to initialize socket connection
+  const ensureSocketConnection = useCallback(async () => {
+    // If socket already exists and is connected, reuse it
+    if (socketRef.current?.connected) {
+      console.log('✅ Socket already connected, reusing:', socketRef.current.id);
+      return;
+    }
 
-          // Initialize socket connection
-          const socket = io(SOCKET_URL, {
-            transports: ['websocket', 'polling'],
-            timeout: 20000,
-            reconnection: true,
-            reconnectionAttempts: Infinity,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 10000,
-            randomizationFactor: 0.5,
-          });
-
-          socketRef.current = socket;
-
-          socket.on('connect', () => {
-            console.log('✅ Driver socket connected:', socket.id);
-            setIsSocketConnected(true);
-          });
-
-          socket.on('disconnect', () => {
-            console.log('❌ Driver socket disconnected');
-            setIsSocketConnected(false);
-          });
-
-          socket.on('connect_error', (err) => {
-            console.error('Socket connection error:', err);
-            setIsSocketConnected(false);
-          });
-
-          socket.on('reconnect_attempt', (attempt) => {
-            console.warn(`🔄 Driver socket reconnect attempt #${attempt}`);
-          });
-
-          socket.on('reconnect_failed', () => {
-            console.error('❌ Driver socket reconnect failed (will keep retrying with current settings)');
-            setIsSocketConnected(false);
-          });
-        }
-      } catch (err) {
-        console.error('Error initializing socket:', err);
+    try {
+      // Get driver data from AsyncStorage
+      const driverProfile = await AsyncStorage.getItem('driverProfile');
+      const user = await AsyncStorage.getItem('user');
+      
+      if (!driverProfile || !user) {
+        console.warn('⚠️ Driver profile or user not found in AsyncStorage');
+        return;
       }
-    };
 
-    initSocket();
+      const driver = JSON.parse(driverProfile);
+      
+      driverDataRef.current = {
+        driverId: driver.id,
+        busId: driver.assignedBus?._id || driver.assignedBus || '',
+      };
+
+      // Initialize socket connection
+      const socket = io(SOCKET_URL, {
+        transports: ['websocket', 'polling'],
+        timeout: 20000,
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 10000,
+        randomizationFactor: 0.5,
+      });
+
+      socketRef.current = socket;
+
+      socket.on('connect', () => {
+        console.log('✅ Driver socket connected:', socket.id);
+        setIsSocketConnected(true);
+      });
+
+      socket.on('disconnect', () => {
+        console.log('❌ Driver socket disconnected');
+        setIsSocketConnected(false);
+      });
+
+      socket.on('connect_error', (err) => {
+        console.error('Socket connection error:', err);
+        setIsSocketConnected(false);
+      });
+
+      socket.on('reconnect_attempt', (attempt) => {
+        console.warn(`🔄 Driver socket reconnect attempt #${attempt}`);
+      });
+
+      socket.on('reconnect_failed', () => {
+        console.error('❌ Driver socket reconnect failed (will keep retrying with current settings)');
+        setIsSocketConnected(false);
+      });
+    } catch (err) {
+      console.error('Error initializing socket:', err);
+    }
+  }, []);
+
+  // Initialize socket connection on mount
+  useEffect(() => {
+    ensureSocketConnection();
 
     // Cleanup on unmount
     return () => {
@@ -107,7 +117,7 @@ export const useLocation = (): UseLocationReturn => {
         socketRef.current = null;
       }
     };
-  }, []);
+  }, [ensureSocketConnection]);
 
   // Emit location to server via socket
   const emitLocationToServer = useCallback((locationData: LocationCoords) => {
@@ -208,6 +218,9 @@ export const useLocation = (): UseLocationReturn => {
       setError(null);
       console.log('📍 [startTracking] Starting...');
 
+      // Ensure socket is connected before starting location tracking
+      await ensureSocketConnection();
+
       // Check/request permission first
       let hasPermissionGranted = hasPermission;
       if (!hasPermissionGranted) {
@@ -277,33 +290,27 @@ export const useLocation = (): UseLocationReturn => {
       setLoading(false);
       trackingStartedRef.current = false;
     }
-  }, [hasPermission, requestPermission, emitLocationToServer]);
+  }, [hasPermission, requestPermission, emitLocationToServer, ensureSocketConnection]);
 
   // Stop tracking location
   const stopTracking = useCallback(() => {
     trackingActiveRef.current = false;
 
+    // Emit offline event BEFORE stopping location tracking
     if (socketRef.current && socketRef.current.connected && driverDataRef.current) {
       const { driverId, busId } = driverDataRef.current;
       socketRef.current.emit('driver:go-offline', { driverId, busId });
       console.log('🛑 Driver offline emitted:', { driverId, busId });
     }
 
+    // Stop watching location but KEEP socket connected so we can reconnect quickly
     if (watchRef.current) {
       watchRef.current.remove();
       watchRef.current = null;
       setWatchId(null);
       trackingStartedRef.current = false;
-      console.log('🛑 Location tracking stopped');
+      console.log('🛑 Location tracking stopped, but socket remains connected');
     }
-
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-      setIsSocketConnected(false);
-    }
-
-    driverDataRef.current = null;
   }, []);
 
   // Cleanup on unmount
@@ -315,9 +322,11 @@ export const useLocation = (): UseLocationReturn => {
 
   useEffect(() => {
     registerDriverTrackingStopper(stopTracking);
+    registerDriverTrackingStarter(startTracking);
 
     return () => {
       unregisterDriverTrackingStopper(stopTracking);
+      unregisterDriverTrackingStarter(startTracking);
     };
   }, [stopTracking]);
 

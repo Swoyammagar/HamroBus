@@ -71,6 +71,7 @@ export interface TripSession {
         passengersAlighted: number;
     }>;
     currentStop?: string;
+    previousStop?: string;
     notes?: string;
     createdAt: Date;
     updatedAt: Date;
@@ -101,6 +102,15 @@ export interface ScanBookingQrResponse {
     isBoarded: boolean;
     boardedAt?: string;
     passengerCount?: number;
+}
+
+export interface SosAlertPayload {
+    busId: string;
+    tripId?: string;
+    category: string;
+    details?: string;
+    latitude?: number;
+    longitude?: number;
 }
 
 export interface DriverScheduleSeatMap {
@@ -221,6 +231,16 @@ const driverService = {
 
     scanBookingQr: async (qrData: string): Promise<ScanBookingQrResponse> => {
         const response = await apiClient.post('/trips/scan-booking-qr', { qrData });
+        return response.data;
+    },
+
+    sendSosAlert: async (payload: SosAlertPayload) => {
+        const response = await apiClient.post('/sos/send', payload);
+        return response.data;
+    },
+
+    clearSosAlert: async (payload: { busId: string; tripId?: string }) => {
+        const response = await apiClient.post('/sos/clear', payload);
         return response.data;
     },
 };

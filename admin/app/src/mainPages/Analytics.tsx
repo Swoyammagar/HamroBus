@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   useWindowDimensions,
+  FlatList,
 } from 'react-native';
 import { Tabs, Card, StatusBadge, EmptyState, Button, SearchBar } from '../../components/ui';
 import { useDriver, type AdminReviewItem, type DriverLeaderboardRow } from '../../context/domains';
@@ -203,7 +204,7 @@ const Analytics = () => {
           ) : filteredReviews.length === 0 ? (
             <EmptyState title="No reviews found" description="There are no driver reviews yet." />
           ) : (
-            <View style={styles.cardGrid}>
+            <ScrollView style={styles.reviewsScroll} contentContainerStyle={styles.cardGrid}>
               {filteredReviews.map((review) => {
                 const driver = review.driverId && typeof review.driverId !== 'string' ? review.driverId : null;
                 const busNumber = getBusNumber(review);
@@ -231,7 +232,7 @@ const Analytics = () => {
                   </Card>
                 );
               })}
-            </View>
+            </ScrollView>
           )}
         </View>
       ) : (
@@ -278,7 +279,7 @@ const Analytics = () => {
           ) : leaderboard.length === 0 ? (
             <EmptyState title="No leaderboard data" description="Not enough reviews yet to rank drivers." />
           ) : (
-            <View style={styles.cardGrid}>
+            <ScrollView style={styles.leaderboardScroll} contentContainerStyle={styles.cardGrid}>
               {leaderboard.map((row, index) => {
                 const fullName = `${row.firstName || ''} ${row.lastName || ''}`.trim() || 'Unknown Driver';
                 const highlight = index < 3;
@@ -327,7 +328,7 @@ const Analytics = () => {
                   </Card>
                 );
               })}
-            </View>
+            </ScrollView>
           )}
         </View>
       )}
@@ -422,6 +423,12 @@ const styles = StyleSheet.create({
   pageWrap: {
     flex: 1,
     gap: 12,
+  },
+  reviewsScroll: {
+    flex: 1,
+  },
+  leaderboardScroll: {
+    flex: 1,
   },
   sectionHeaderRow: {
     flexDirection: 'row',

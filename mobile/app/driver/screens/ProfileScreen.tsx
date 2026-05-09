@@ -1,20 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, 
-  Pressable, Modal 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Image,
+  ActivityIndicator,
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { palette, spacing, radius, shadow } from '../theme';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import ReviewsSection from '../component/ReviewsSection';
-import { Alert } from 'react-native';
-import { useRouter } from 'expo-router';
-export default function ProfileScreen() {
-  const { user, driver } = useAuth();
+import { palette, spacing, radius, shadow } from '../theme';
+
+const ProfileScreen = () => {
+  const router = useRouter();
+  const { user, driver, logout } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
-  const { logout } = useAuth();
-  const router = useRouter();
+
   useEffect(() => {
     if (user) {
       setIsLoading(false);
@@ -23,31 +30,43 @@ export default function ProfileScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" color={palette.primary} />
+        <Text style={styles.loadingText}>Loading profile...</Text>
       </View>
     );
   }
 
-  // Get initials as fallback
   const getInitials = (firstName: string, lastName: string) => {
     return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
   };
 
+  const handleEditProfile = () => {
+    router.push('./profile-edit');
+  };
+
+  const handleResetPassword = () => {
+    router.push('./password-reset');
+  };
+
+  const handleViewDocuments = () => {
+    router.push('./documents');
+  };
+
   const handleLogout = () => {
-      Alert.alert('Logout', 'Are you sure you want to logout?', [
-        {
-          text: 'Logout',
-          onPress: () => {
-            logout();
-            Alert.alert('Success', 'You have been logged out');
-            router.push('/pages/mobilelogin');
-          },
-          style: 'destructive',
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      {
+        text: 'Logout',
+        onPress: () => {
+          logout();
+          Alert.alert('Success', 'You have been logged out');
+          router.push('/pages/mobilelogin');
         },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-    };
+        style: 'destructive',
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
 
   const initials = user ? getInitials(user.firstName, user.lastName) : '?';
   const fullName = user ? `${user.firstName} ${user.lastName}` : 'Unknown Driver';
@@ -56,277 +75,404 @@ export default function ProfileScreen() {
   const licenseImage = driver?.licenseImgUrl;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      {/* Profile Header with Image */}
-      <View style={[styles.headerCard, shadow.card]}>
-        <View style={styles.avatarContainer}>
-          {profileImage ? (
-            <Image 
-              source={{ uri: profileImage }} 
-              style={styles.profileImage}
-            />
-          ) : (
-            <View style={[styles.avatar, { backgroundColor: palette.primary }]}>
-              <Text style={styles.avatarText}>{initials}</Text>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>My Profile</Text>
+        <Text style={styles.headerSubtitle}>Manage your account</Text>
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Profile Card */}
+        <View style={styles.profileCard}>
+          <View style={styles.avatarWrapper}>
+            {profileImage ? (
+              <Image source={{ uri: profileImage }} style={styles.profileImage} />
+            ) : (
+              <View style={[styles.profileAvatar, { backgroundColor: palette.primary }]}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>{fullName}</Text>
+
+            <View style={styles.metaRow}>
+              <Feather name="mail" size={12} color="#6b7280" />
+              <Text style={styles.metaText}>{user?.email}</Text>
             </View>
-          )}
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.name}>{fullName}</Text>
-          <Text style={styles.sub}>Driver ID: {driverId}</Text>
-          <Text style={styles.email}>{user?.email}</Text>
-        </View>
-      </View>
 
-      {/* <View style={styles.infoRow}>
-        <Stat icon="phone" label="Phone" value={user?.phoneNumber || 'N/A'} />
-        <Stat icon="mail" label="Email" value={user?.email.split('@')[0] || 'N/A'} />
-      </View> */}
+            <View style={styles.metaRow}>
+              <Feather name="phone" size={12} color="#6b7280" />
+              <Text style={styles.metaText}>{user?.phoneNumber || 'N/A'}</Text>
+            </View>
 
-      <View style={[styles.card, shadow.card]}>
-        <Text style={styles.cardTitle}>Account Status</Text>
-        <View style={styles.statusRow}>
-          <Feather name="check-circle" size={16} color={palette.success} />
-          <Text style={[styles.statusText, { color: palette.success }]}>
-            Email Verified
-          </Text>
-        </View>
-        <View style={styles.statusRow}>
-          <Feather 
-            name={user?.passwordResetVerified ? "check-circle" : "x-circle"} 
-            size={16} 
-            color={user?.passwordResetVerified ? palette.success : palette.warning} 
-          />
-          <Text style={[
-            styles.statusText, 
-            { color: user?.passwordResetVerified ? palette.success : palette.warning }
-          ]}>
-            Password {user?.passwordResetVerified ? 'Verified' : 'Not Verified'}
-          </Text>
-        </View>
-      </View>
+            {driverId && (
+              <View style={styles.metaRow}>
+                <Feather name="hash" size={12} color="#6b7280" />
+                <Text style={styles.metaText}>ID: {driverId}</Text>
+              </View>
+            )}
+          </View>
 
-      {/* Documents Section with License Image */}
-      <View style={[styles.card, shadow.card]}>
-        <Text style={styles.cardTitle}>Documents</Text>
-        
-        <View style={styles.licenseCard}>
-          <View style={{ flex: 1 }}>
-            <View style={styles.docRow}>
-              <Feather 
-                name={driver?.licenseNo ? "check" : "alert-circle"} 
-                size={16} 
-                color={driver?.licenseNo ? palette.success : palette.warning} 
-              />
-              <Text style={styles.docText}>
-                License {driver?.licenseNo ? `(${driver.licenseNo})` : '· Pending'}
-              </Text>
+          <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
+            <Feather name="edit-2" size={16} color={palette.primary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Account Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account</Text>
+
+          <TouchableOpacity style={styles.menuItem} onPress={handleResetPassword}>
+            <View style={styles.menuItemLeft}>
+              <Feather name="lock" size={20} color={palette.primary} />
+              <View style={styles.menuItemContent}>
+                <Text style={styles.menuItemLabel}>Reset Password</Text>
+                <Text style={styles.menuItemSubtitle}>Update your password</Text>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={20} color="#d1d5db" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={handleViewDocuments}>
+            <View style={styles.menuItemLeft}>
+              <Feather name="file-text" size={20} color={palette.primary} />
+              <View style={styles.menuItemContent}>
+                <Text style={styles.menuItemLabel}>Documents</Text>
+                <Text style={styles.menuItemSubtitle}>Manage your license</Text>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={20} color="#d1d5db" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Driver Information Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Driver Information</Text>
+
+          <View style={styles.infoBox}>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>License Number</Text>
+              <Text style={styles.infoValue}>{driver?.licenseNo || 'Not assigned'}</Text>
+            </View>
+
+            <View style={styles.infoDivider} />
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Email Status</Text>
+              <Text style={[styles.infoValue, { color: palette.success }]}>Verified</Text>
             </View>
           </View>
-          
-          {licenseImage && (
-            <Pressable 
-              style={styles.viewButton}
-              onPress={() => setExpandedImage(licenseImage)}
-            >
-              <Feather name="eye" size={14} color="white" />
-              <Text style={styles.viewButtonText}>View</Text>
-            </Pressable>
-          )}
         </View>
 
-        {driver?.assignedRoute && (
-          <View style={styles.docRow}>
-            <Feather name="map-pin" size={16} color={palette.muted} />
-            <Text style={styles.docText}>Route {driver.assignedRoute}</Text>
-          </View>
-        )}
-        
-        {driver?.assignedBus && (
-          <View style={styles.docRow}>
-            <Feather name="truck" size={16} color={palette.muted} />
-            <Text style={styles.docText}>Bus {driver.assignedBus}</Text>
-          </View>
-        )}
-      </View>
+        {/* Recent Reviews Section */}
+        <ReviewsSection />
 
-      <ReviewsSection />
-      <Pressable 
-        style={[styles.logoutButton, shadow.card]}
-        onPress={handleLogout}
-      >
-        <Feather name="log-out" size={18} color="white" />
-        <Text style={styles.logoutText}>Logout</Text>
-      </Pressable>
+        {/* Logout Button */}
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Feather name="log-out" size={20} color="#ef4444" />
+          <Text style={styles.logoutButtonText}>Logout</Text>
+        </TouchableOpacity>
 
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Hamro Bus v1.0.0</Text>
+          <Text style={styles.footerSubtext}>© 2024 All rights reserved</Text>
+        </View>
+      </ScrollView>
 
-      {/* Image Expansion Modal */}
-      <Modal
-        visible={expandedImage !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setExpandedImage(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <Pressable 
-            style={styles.modalClose}
+      {/* Expanded Image Modal */}
+      {expandedImage && (
+        <View style={styles.expandedImageContainer}>
+          <TouchableOpacity
+            style={styles.expandedImageBackdrop}
             onPress={() => setExpandedImage(null)}
-          >
-            <Feather name="x" size={28} color="white" />
-          </Pressable>
-          
-          {expandedImage && (
+          />
+          <View style={styles.expandedImageContent}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setExpandedImage(null)}
+            >
+              <Feather name="x" size={24} color={palette.text} />
+            </TouchableOpacity>
             <Image
               source={{ uri: expandedImage }}
               style={styles.expandedImage}
               resizeMode="contain"
             />
-          )}
+          </View>
         </View>
-      </Modal>
-    </ScrollView>
+      )}
+    </SafeAreaView>
   );
-}
-
-function Stat({ icon, label, value }: { icon: any; label: string; value: string }) {
-  return (
-    <View style={[styles.stat, shadow.card]}>
-      <Feather name={icon} size={16} color={palette.primary} />
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-    </View>
-  );
-}
+};
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: palette.background },
-  scrollContent: { padding: spacing.lg, gap: spacing.md, paddingBottom: 120 },
-  
-  headerCard: {
-    backgroundColor: palette.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  
-  avatarContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.xl,
-    overflow: 'hidden',
-    backgroundColor: '#E0ECFF',
-  },
-  logoutButton: {
-    backgroundColor: '#EF4444',
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.md,
-  },
-  
-  logoutText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  profileImage: {
-    width: '100%',
-    height: '100%',
-  },
-  
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  
-  avatarText: { fontSize: 24, fontWeight: '700', color: '#FFFFFF' },
-  name: { fontSize: 18, fontWeight: '700', color: palette.text },
-  sub: { color: palette.muted, fontSize: 12 },
-  email: { color: palette.muted, fontSize: 11, marginTop: 2 },
-  
-  infoRow: { flexDirection: 'row', gap: spacing.sm },
-  
-  stat: {
+  container: {
     flex: 1,
-    backgroundColor: palette.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    alignItems: 'flex-start',
-    gap: spacing.xs,
-    borderWidth: 1,
-    borderColor: palette.border,
+    backgroundColor: '#f9fafb',
   },
-  
-  statValue: { fontSize: 16, fontWeight: '700', color: palette.text },
-  statLabel: { color: palette.muted, fontSize: 12 },
-  
-  card: {
-    backgroundColor: palette.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: palette.border,
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  
-  cardTitle: { fontWeight: '700', color: palette.text, fontSize: 14 },
-  
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: 6 },
-  statusText: { fontSize: 13, fontWeight: '500' },
-  
-  licenseCard: {
+  header: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: palette.text,
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  profileCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    marginBottom: 16,
+
+    flexDirection: 'row',
+    alignItems: 'center',
+
+    borderWidth: 1,
+    borderColor: '#eef0f4',
+
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+
+  avatarWrapper: {
+    marginRight: 14,
+  },
+
+  profileImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#e5e7eb',
+  },
+
+  profileAvatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  avatarText: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#fff',
+  },
+
+  profileInfo: {
+    flex: 1,
+  },
+
+  profileName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: palette.text,
+    marginBottom: 6,
+  },
+
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+
+  metaText: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+
+  editButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#f1f5ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  profileEmail: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 2,
+  },
+  profilePhone: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 2,
+  },
+  profileId: {
+    fontSize: 11,
+    color: '#9ca3af',
+  },
+  section: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.text,
+    marginBottom: 12,
+    marginLeft: 4,
+  },
+  menuItem: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  menuItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  menuItemContent: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  menuItemLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.text,
+  },
+  menuItemSubtitle: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  infoBox: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 8,
   },
-  
-  docRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: 4 },
-  docText: { color: palette.muted, fontSize: 13 },
-  
-  viewButton: {
-    flexDirection: 'row',
-    backgroundColor: palette.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    gap: 4,
+  infoLabel: {
+    fontSize: 14,
+    color: '#6b7280',
   },
-  
-  viewButtonText: {
-    color: 'white',
-    fontSize: 12,
+  infoValue: {
+    fontSize: 14,
     fontWeight: '600',
+    color: palette.text,
   },
-  
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+  infoDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+  },
+  logoutButton: {
+    backgroundColor: '#fef2f2',
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  logoutButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ef4444',
+  },
+  footer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  footerSubtext: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 4,
+  },
+  expandedImageContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  
-  modalClose: {
+  expandedImageBackdrop: {
     position: 'absolute',
-    top: 20,
-    right: 20,
-    zIndex: 10,
-    padding: spacing.md,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
-  
-  expandedImage: {
+  expandedImageContent: {
+    position: 'relative',
     width: '90%',
-    height: '80%',
+    maxHeight: '80%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 1,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  expandedImage: {
+    width: '100%',
+    height: 400,
   },
 });
+
+export default ProfileScreen;

@@ -83,7 +83,15 @@ const Profile = () => {
   };
 
   const handleEditProfile = () => {
-    Alert.alert('Edit Profile', 'Profile editing feature coming soon');
+    router.push('../screens/profile-edit');
+  };
+
+  const handleResetPassword = () => {
+    router.push('../screens/password-reset');
+  };
+
+  const handleTravelHistory = () => {
+    router.push('../(tabs)/bookings');
   };
 
   if (loading) {
@@ -170,29 +178,18 @@ const Profile = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
 
-          <View style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={handleResetPassword}>
             <View style={styles.menuItemLeft}>
-              <Ionicons name="card-outline" size={20} color="#3b82f6" />
+              <Ionicons name="lock-closed-outline" size={20} color="#3b82f6" />
               <View style={styles.menuItemContent}>
-                <Text style={styles.menuItemLabel}>Payment Methods</Text>
-                <Text style={styles.menuItemSubtitle}>Manage your cards</Text>
+                <Text style={styles.menuItemLabel}>Reset Password</Text>
+                <Text style={styles.menuItemSubtitle}>Update your password</Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.menuItem}>
-            <View style={styles.menuItemLeft}>
-              <Ionicons name="map-outline" size={20} color="#3b82f6" />
-              <View style={styles.menuItemContent}>
-                <Text style={styles.menuItemLabel}>Saved Locations</Text>
-                <Text style={styles.menuItemSubtitle}>Home, Work, etc.</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
-          </View>
-
-          <View style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={handleTravelHistory}>
             <View style={styles.menuItemLeft}>
               <Ionicons name="time-outline" size={20} color="#3b82f6" />
               <View style={styles.menuItemContent}>
@@ -201,25 +198,12 @@ const Profile = () => {
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Preferences Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Preferences</Text>
-
-          <View style={styles.preferenceItem}>
-            <View style={styles.preferenceLeft}>
-              <Ionicons name="notifications-outline" size={20} color="#3b82f6" />
-              <Text style={styles.preferenceLabel}>Notifications</Text>
-            </View>
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={setNotificationsEnabled}
-              trackColor={{ false: '#d1d5db', true: '#a3e635' }}
-              thumbColor={notificationsEnabled ? '#3b82f6' : '#f3f4f6'}
-            />
-          </View>
 
           <View style={styles.preferenceItem}>
             <View style={styles.preferenceLeft}>
@@ -292,13 +276,6 @@ const Profile = () => {
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Member Since</Text>
               <Text style={styles.infoValue}>{formatDate(profile.memberSince)}</Text>
-            </View>
-
-            <View style={styles.infoDivider} />
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Account ID</Text>
-              <Text style={styles.infoValue}>{profile.id}</Text>
             </View>
 
             <View style={styles.infoDivider} />
