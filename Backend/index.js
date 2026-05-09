@@ -332,8 +332,167 @@ io.on('connection', (socket) => {
   });
   // ========== END NEW ==========
   
+  // ===================== CHAT MESSAGING SYSTEM =====================
+  const ChatSocketService = require('./services/chatSocket.service');
+  const chatSocketService = new ChatSocketService(io);
+
+  // Driver joining chat room
+  socket.on('driver:join-chat', ({ driverId, chatId }) => {
+    socket.data.driverId = driverId;
+    socket.data.chatId = chatId;
+    socket.join(`chat:${chatId}`);
+    chatSocketService.registerUser(driverId, socket.id, 'driver');
+    console.log(`💬 Driver ${driverId} joined chat:${chatId}`);
+  });
+
+  // Admin joining chat room
+  socket.on('admin:join-chat', ({ adminId, chatId }) => {
+    socket.data.adminId = adminId;
+    socket.data.chatId = chatId;
+    socket.join(`chat:${chatId}`);
+    chatSocketService.registerUser(adminId, socket.id, 'admin');
+    console.log(`💬 Admin ${adminId} joined chat:${chatId}`);
+  });
+
+  // Driver sending message
+  socket.on('driver:send_message', async (data) => {
+    try {
+      const driverId = socket.data.driverId;
+      const result = await chatSocketService.handleDriverSendMessage(data, driverId);
+      
+      if (result.error) {
+        socket.emit('error', { message: result.error });
+      } else {
+        // Emit to all in the chat room
+        io.to(`chat:${data.chatId}`).emit('driver:new_message', {
+          chatId: data.chatId,
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      console.error('Error handling driver send_message:', error);
+      socket.emit('error', { message: 'Failed to send message' });
+    }
+  });
+
+  // Admin sending message
+  socket.on('admin:send_message', async (data) => {
+    try {
+      const adminId = socket.data.adminId;
+      const result = await chatSocketService.handleAdminSendMessage(data, adminId);
+      
+      if (result.error) {
+        socket.emit('error', { message: result.error });
+      } else {
+        // Emit to all in the chat room
+        io.to(`chat:${data.chatId}`).emit('admin:new_message', {
+          chatId: data.chatId,
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      console.error('Error handling admin send_message:', error);
+      socket.emit('error', { message: 'Failed to send message' });
+    }
+  });
+
+  // Driver initiating chat
+  socket.on('driver:initiate_chat', async (driverId) => {
+    try {
+      const result = await chatSocketService.handleDriverInitiateChat(driverId);
+      
+      if (result.error) {
+        socket.emit('error', { message: result.error });
+      } else {
+        socket.emit('driver:chat_created', { chat: result.chat });
+      }
+    } catch (error) {
+      console.error('Error handling driver initiate_chat:', error);
+      socket.emit('error', { message: 'Failed to create chat' });
+    }
+  });
+
+  // Admin assigning chat to self
+  socket.on('admin:assign_chat', async (data) => {
+    try {
+      const adminId = socket.data.adminId;
+      const { chatId } = data;
+      const result = await chatSocketService.handleAdminAssignChat(chatId, adminId);
+      
+      if (result.error) {
+        socket.emit('error', { message: result.error });
+      } else {
+        // Notify all admins about assignment
+        io.to('admin-room').emit('admin:chat_assigned', {
+          chatId,
+          adminId,
+          chat: result.chat,
+        });
+      }
+    } catch (error) {
+      console.error('Error handling admin assign_chat:', error);
+      socket.emit('error', { message: 'Failed to assign chat' });
+    }
+  });
+
+  // Admin resolving chat
+  socket.on('admin:resolve_chat', async (data) => {
+    try {
+      const { chatId } = data;
+      const result = await chatSocketService.handleResolveChat(chatId, socket.data.adminId);
+      
+      if (result.error) {
+        socket.emit('error', { message: result.error });
+      } else {
+        io.to(`chat:${chatId}`).emit('admin:chat_resolved', {
+          chatId,
+          chat: result.chat,
+        });
+      }
+    } catch (error) {
+      console.error('Error handling admin resolve_chat:', error);
+      socket.emit('error', { message: 'Failed to resolve chat' });
+    }
+  });
+
+  // Mark messages as read
+  socket.on('chat:mark_read', async (data) => {
+    try {
+      const { chatId } = data;
+      const userId = socket.data.driverId || socket.data.adminId;
+      const userType = socket.data.driverId ? 'driver' : 'admin';
+      
+      const result = await chatSocketService.markMessagesAsRead(chatId, userId, userType);
+      
+      if (!result.error) {
+        io.to(`chat:${chatId}`).emit('chat:messages_read', { chatId });
+      }
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
+  });
+
+  // Admin joins admin room for notifications
+  socket.on('admin:join-room', ({ adminId }) => {
+    socket.data.adminId = adminId;
+    socket.join('admin-room');
+    console.log(`👨‍💼 Admin ${adminId} joined admin-room`);
+  });
+
+  // ===================== END CHAT MESSAGING SYSTEM =====================
+  
   socket.on('disconnect', () => {
-    const { driverId, busId, passengerId } = socket.data || {};
+    const { driverId, busId, passengerId, adminId } = socket.data || {};
+    const ChatSocketService = require('./services/chatSocket.service');
+    const chatSocketService = new ChatSocketService(io);
+    
+    // Unregister from chat
+    if (driverId) {
+      chatSocketService.unregisterUser(driverId, 'driver');
+    }
+    if (adminId) {
+      chatSocketService.unregisterUser(adminId, 'admin');
+    }
     
     // Handle driver disconnect
     if (driverId) {
