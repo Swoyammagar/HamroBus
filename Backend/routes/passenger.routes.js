@@ -4,7 +4,9 @@ const {
     registerPassenger, 
     loginPassenger, 
     getPassengerProfile,
-    updatePassengerProfile 
+    updatePassengerProfile,
+    changePassengerPassword,
+    checkPhoneNumberAvailability
 } = require('../controllers/passenger.controller');
 const {
     getPublicRoutes,
@@ -35,6 +37,7 @@ const {
 // Public routes
 router.post('/register', registerPassenger);
 router.post('/login', loginPassenger);
+router.get('/check-phone-availability', checkPhoneNumberAvailability);
 router.get('/routes', getPublicRoutes);
 router.get('/routes/search', searchPublicRoutes);
 router.get('/routes/:routeId', getPublicRouteById);
@@ -49,6 +52,7 @@ router.get('/payments/khalti-return', khaltiReturnBridge);
 // Protected routes (require authentication)
 router.get('/profile', authenticatePassenger, getPassengerProfile);
 router.put('/profile', authenticatePassenger, updatePassengerProfile);
+router.post('/change-password', authenticatePassenger, changePassengerPassword);
 router.get('/bookings', authenticatePassenger, getMyBookings);
 router.post('/bookings', authenticatePassenger, createBooking);
 router.post('/bookings/:bookingId/cancel', authenticatePassenger, cancelBooking);

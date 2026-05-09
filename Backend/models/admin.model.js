@@ -35,6 +35,10 @@ const adminSchema = new mongoose.Schema({
     refreshToken: {
         type: String,
         default: null,
+    },
+    phone: {
+        type: String,
+        default: null
     }
 }, {
     timestamps: true // ✅ Add timestamps

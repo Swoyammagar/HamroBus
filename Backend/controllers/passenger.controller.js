@@ -1,6 +1,6 @@
 const Passenger = require('../models/passenger.model');
 const bcrypt = require('bcrypt');
-const { generateToken, generateRefreshToken } = require('../utils/authutils');
+const { generateToken, generateRefreshToken, isPhoneNumberUnique, hashPassword, comparePassword } = require('../utils/authutils');
 
 const registerPassenger = async (req, res) => {
     const { firstName, lastName, address, phoneNumber, gender, dob, email, password, profileImgUrl } = req.body;
@@ -148,10 +148,10 @@ const getPassengerProfile = async (req, res) => {
     }
 };
 
-// Update Passenger Profile
+// Update Passenger Profile (firstName, lastName, phoneNumber, profileImgUrl)
 const updatePassengerProfile = async (req, res) => {
     const passengerId = req.user.id; // From JWT middleware
-    const { firstName, lastName, address, phoneNumber } = req.body;
+    const { firstName, lastName, address, phoneNumber, profileImgUrl } = req.body;
 
     try {
         const passenger = await Passenger.findById(passengerId);
@@ -159,17 +159,37 @@ const updatePassengerProfile = async (req, res) => {
             return res.status(404).json({ message: "Passenger not found" });
         }
 
-        // Update fields if provided
-        if (firstName) passenger.firstName = firstName;
-        if (lastName) passenger.lastName = lastName;
-        if (address) passenger.address = address;
+        // Validate and update firstName
+        if (firstName !== undefined && firstName !== null && firstName.trim() !== '') {
+            passenger.firstName = firstName.trim();
+        } else if (firstName === '') {
+            return res.status(400).json({ message: "First name cannot be empty" });
+        }
+
+        // Validate and update lastName
+        if (lastName !== undefined && lastName !== null && lastName.trim() !== '') {
+            passenger.lastName = lastName.trim();
+        } else if (lastName === '') {
+            return res.status(400).json({ message: "Last name cannot be empty" });
+        }
+
+        // Update address
+        if (address !== undefined) {
+            passenger.address = address || '';
+        }
+
+        // Validate and update phone number
         if (phoneNumber) {
-            // Check if phone number is already taken by another passenger
-            const existingPassenger = await Passenger.findOne({ phoneNumber, _id: { $ne: passengerId } });
-            if (existingPassenger) {
-                return res.status(400).json({ message: "Phone number already in use" });
+            const isUnique = await isPhoneNumberUnique(Passenger, phoneNumber, passengerId);
+            if (!isUnique) {
+                return res.status(400).json({ message: "Phone number already in use by another user" });
             }
             passenger.phoneNumber = phoneNumber;
+        }
+
+        // Update profile image
+        if (profileImgUrl !== undefined) {
+            passenger.profileImgUrl = profileImgUrl || '';
         }
 
         await passenger.save();
@@ -182,12 +202,96 @@ const updatePassengerProfile = async (req, res) => {
                 firstName: passenger.firstName,
                 lastName: passenger.lastName,
                 phoneNumber: passenger.phoneNumber,
-                address: passenger.address
+                address: passenger.address,
+                profileImgUrl: passenger.profileImgUrl
             }
         });
 
     } catch (error) {
         console.error("Error updating passenger profile:", error);
+        if (error.code === 11000) {
+            const field = Object.keys(error.keyPattern)[0];
+            return res.status(400).json({ message: `${field} already exists` });
+        }
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+/**
+ * Change passenger password
+ * Requires: currentPassword, newPassword, confirmPassword
+ */
+const changePassengerPassword = async (req, res) => {
+    const passengerId = req.user.id; // From JWT middleware
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    try {
+        // Validate input
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({ message: "Current password, new password, and confirmation are required" });
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ message: "New passwords do not match" });
+        }
+
+        if (newPassword.length < 8) {
+            return res.status(400).json({ message: "New password must be at least 8 characters long" });
+        }
+
+        if (currentPassword === newPassword) {
+            return res.status(400).json({ message: "New password must be different from current password" });
+        }
+
+        // Find passenger
+        const passenger = await Passenger.findById(passengerId);
+        if (!passenger) {
+            return res.status(404).json({ message: "Passenger not found" });
+        }
+
+        // Verify current password
+        const isPasswordValid = await comparePassword(currentPassword, passenger.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: "Current password is incorrect" });
+        }
+
+        // Hash and save new password
+        const hashedPassword = await hashPassword(newPassword);
+        passenger.password = hashedPassword;
+        await passenger.save();
+
+        res.status(200).json({
+            message: "Password changed successfully"
+        });
+
+    } catch (error) {
+        console.error("Error changing passenger password:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+/**
+ * Get phone number availability for checking
+ * Public endpoint to check if a phone number is available during signup/update
+ */
+const checkPhoneNumberAvailability = async (req, res) => {
+    try {
+        const { phoneNumber, userId } = req.query;
+
+        if (!phoneNumber) {
+            return res.status(400).json({ message: "Phone number is required" });
+        }
+
+        const isUnique = await isPhoneNumberUnique(Passenger, phoneNumber, userId || null);
+
+        res.status(200).json({
+            available: isUnique,
+            phoneNumber,
+            message: isUnique ? "Phone number is available" : "Phone number is already in use"
+        });
+
+    } catch (error) {
+        console.error("Error checking phone number availability:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 };
@@ -196,5 +300,7 @@ module.exports = {
     registerPassenger,
     loginPassenger,
     getPassengerProfile,
-    updatePassengerProfile
+    updatePassengerProfile,
+    changePassengerPassword,
+    checkPhoneNumberAvailability
 };

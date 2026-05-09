@@ -2,7 +2,7 @@ const Driver = require('../models/driver.model');
 const Location = require('../models/location.model');
 const Notification = require('../models/notification.model');
 const bcrypt = require('bcrypt');
-const { generateToken, generateRefreshToken } = require('../utils/authutils');
+const { generateToken, generateRefreshToken, isPhoneNumberUnique, isLicenseNumberUnique, hashPassword, comparePassword } = require('../utils/authutils');
 const { sendEmail } = require('../utils/sendEmail');
 const { generateOTP } = require('../utils/OTPutils');
 const { sendVerificationEmail } = require('../utils/OTPutils');
@@ -440,6 +440,201 @@ const getAllDrivers = async (req, res) => {
     }
 };
 
+/**
+ * Update driver profile (firstName, lastName, phoneNumber, profileImgUrl, licenseNo, licenseImgUrl)
+ */
+const updateDriverProfile = async (req, res) => {
+    const driverId = req.user.id; // From JWT middleware
+    const { firstName, lastName, phoneNumber, profileImgUrl, licenseNo, licenseImgUrl, address } = req.body;
+
+    try {
+        const driver = await Driver.findById(driverId);
+        if (!driver) {
+            return res.status(404).json({ message: "Driver not found" });
+        }
+
+        // Validate and update firstName
+        if (firstName !== undefined && firstName !== null && firstName.trim() !== '') {
+            driver.firstName = firstName.trim();
+        } else if (firstName === '') {
+            return res.status(400).json({ message: "First name cannot be empty" });
+        }
+
+        // Validate and update lastName
+        if (lastName !== undefined && lastName !== null && lastName.trim() !== '') {
+            driver.lastName = lastName.trim();
+        } else if (lastName === '') {
+            return res.status(400).json({ message: "Last name cannot be empty" });
+        }
+
+        // Update address
+        if (address !== undefined) {
+            driver.address = address || '';
+        }
+
+        // Validate and update phone number
+        if (phoneNumber) {
+            const isUnique = await isPhoneNumberUnique(Driver, phoneNumber, driverId);
+            if (!isUnique) {
+                return res.status(400).json({ message: "Phone number already in use by another user" });
+            }
+            driver.phoneNumber = phoneNumber;
+        }
+
+        // Validate and update license number
+        if (licenseNo) {
+            const isLicenseUnique = await isLicenseNumberUnique(licenseNo, driverId);
+            if (!isLicenseUnique) {
+                return res.status(400).json({ message: "License number already registered" });
+            }
+            driver.licenseNo = licenseNo;
+        }
+
+        // Update profile image
+        if (profileImgUrl !== undefined) {
+            driver.profileImgUrl = profileImgUrl || '';
+        }
+
+        // Update license image
+        if (licenseImgUrl !== undefined) {
+            driver.licenseImgUrl = licenseImgUrl || '';
+        }
+
+        await driver.save();
+
+        res.status(200).json({
+            message: "Profile updated successfully",
+            user: {
+                id: driver._id,
+                email: driver.email,
+                firstName: driver.firstName,
+                lastName: driver.lastName,
+                phoneNumber: driver.phoneNumber,
+                address: driver.address,
+                profileImgUrl: driver.profileImgUrl
+            },
+            driver: {
+                id: driver._id,
+                licenseNo: driver.licenseNo,
+                licenseImgUrl: driver.licenseImgUrl
+            }
+        });
+
+    } catch (error) {
+        console.error("Error updating driver profile:", error);
+        if (error.code === 11000) {
+            const field = Object.keys(error.keyPattern)[0];
+            return res.status(400).json({ message: `${field} already exists` });
+        }
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+/**
+ * Change driver password
+ * Requires: currentPassword, newPassword, confirmPassword
+ */
+const changeDriverPassword = async (req, res) => {
+    const driverId = req.user.id; // From JWT middleware
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    try {
+        // Validate input
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({ message: "Current password, new password, and confirmation are required" });
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ message: "New passwords do not match" });
+        }
+
+        if (newPassword.length < 8) {
+            return res.status(400).json({ message: "New password must be at least 8 characters long" });
+        }
+
+        if (currentPassword === newPassword) {
+            return res.status(400).json({ message: "New password must be different from current password" });
+        }
+
+        // Find driver
+        const driver = await Driver.findById(driverId);
+        if (!driver) {
+            return res.status(404).json({ message: "Driver not found" });
+        }
+
+        // Verify current password
+        const isPasswordValid = await comparePassword(currentPassword, driver.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: "Current password is incorrect" });
+        }
+
+        // Hash and save new password
+        const hashedPassword = await hashPassword(newPassword);
+        driver.password = hashedPassword;
+        await driver.save();
+
+        res.status(200).json({
+            message: "Password changed successfully"
+        });
+
+    } catch (error) {
+        console.error("Error changing driver password:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+/**
+ * Check phone number availability for drivers
+ * Public endpoint to check if a phone number is available during signup/update
+ */
+const checkPhoneNumberAvailability = async (req, res) => {
+    try {
+        const { phoneNumber, driverId } = req.query;
+
+        if (!phoneNumber) {
+            return res.status(400).json({ message: "Phone number is required" });
+        }
+
+        const isUnique = await isPhoneNumberUnique(Driver, phoneNumber, driverId || null);
+
+        res.status(200).json({
+            available: isUnique,
+            phoneNumber,
+            message: isUnique ? "Phone number is available" : "Phone number is already in use"
+        });
+
+    } catch (error) {
+        console.error("Error checking phone number availability:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+/**
+ * Check license number availability for drivers
+ * Public endpoint to check if a license number is available during signup/update
+ */
+const checkLicenseNumberAvailability = async (req, res) => {
+    try {
+        const { licenseNo, driverId } = req.query;
+
+        if (!licenseNo) {
+            return res.status(400).json({ message: "License number is required" });
+        }
+
+        const isUnique = await isLicenseNumberUnique(licenseNo, driverId || null);
+
+        res.status(200).json({
+            available: isUnique,
+            licenseNo,
+            message: isUnique ? "License number is available" : "License number is already registered"
+        });
+
+    } catch (error) {
+        console.error("Error checking license number availability:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 module.exports = {
     registerDriver,
     loginDriver,
@@ -449,5 +644,9 @@ module.exports = {
     getPendingDrivers,
     approveDriver,
     rejectDriver,
-    getAllDrivers
+    getAllDrivers,
+    updateDriverProfile,
+    changeDriverPassword,
+    checkPhoneNumberAvailability,
+    checkLicenseNumberAvailability
 };

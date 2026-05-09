@@ -11,6 +11,7 @@ const initializeAdmin = async () => {
       const newAdmin = new Admin({
         email: process.env.ADMIN_EMAIL,
         password: hashedPassword,
+        phone: process.env.ADMIN_PHONE
       });
 
       await newAdmin.save();
