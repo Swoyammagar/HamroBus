@@ -17,11 +17,15 @@ export default function DriverLayout() {
       {/* Expo Router still sees these screens */}
       <Stack.Screen name="screens/HomeScreen" />
       <Stack.Screen name="screens/ProfileScreen" />
+      <Stack.Screen name="screens/profile-edit" />
+      <Stack.Screen name="screens/password-reset" />
+      <Stack.Screen name="screens/documents" />
       <Stack.Screen name="screens/HistoryScreen" />
       <Stack.Screen name="screens/MapScreen" />
       <Stack.Screen name="screens/SchedulesScreen" />
       <Stack.Screen name="screens/NotificationsScreen" />
       <Stack.Screen name="screens/AllReviewsScreen" />
+      <Stack.Screen name="screens/ChatScreen" />
     </Stack>
   );
 }

@@ -1,9 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, Dimensions, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { palette, spacing, radius, shadow } from '../theme';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import { DriverChatService } from '../services/driverChatService';
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -17,11 +19,12 @@ type MenuItem = {
 };
 
 const menuItems: MenuItem[] = [
+  { icon: 'user', label: 'My Profile', route: '/driver/screens/ProfileScreen' },
+  { icon: 'file-text', label: 'Documents', route: '/driver/screens/documents' },
   { icon: 'star', label: 'All Reviews', route: '/driver/screens/AllReviewsScreen' },
+  { icon: 'message-circle', label: 'Help Centre', route: '/driver/screens/ChatScreen' },
   { icon: 'settings', label: 'Settings' },
-  { icon: 'file-text', label: 'Documents' },
   { icon: 'shield', label: 'Safety & Support' },
-  { icon: 'help-circle', label: 'Help Center' },
   { icon: 'moon', label: 'Dark Mode' },
 ];
 
@@ -29,6 +32,25 @@ export default function SideMenu({ isOpen, onClose, isOnline }: Props) {
   const slide = useRef(new Animated.Value(-Dimensions.get('window').width)).current;
   const router = useRouter();
   const { logout } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Load unread message count
+  useEffect(() => {
+    if (isOpen) {
+      loadUnreadCount();
+    }
+  }, [isOpen]);
+
+  const loadUnreadCount = async () => {
+    try {
+      const response = await DriverChatService.getChatHistory(1, 1);
+      if (response.unreadCount) {
+        setUnreadCount(response.unreadCount);
+      }
+    } catch (error) {
+      console.error('Error loading unread count:', error);
+    }
+  };
 
   const handleMenuItemPress = (item: MenuItem) => {
     onClose();
@@ -87,9 +109,20 @@ export default function SideMenu({ isOpen, onClose, isOnline }: Props) {
 
         <View style={styles.menuList}>
           {menuItems.map((item) => (
-            <Pressable key={item.label} style={styles.menuItem} onPress={() => handleMenuItemPress(item)}>
-              <Feather name={item.icon as any} size={18} color={palette.text} />
-              <Text style={styles.menuLabel}>{item.label}</Text>
+            <Pressable
+              key={item.label}
+              style={styles.menuItem}
+              onPress={() => handleMenuItemPress(item)}
+            >
+              <View style={styles.menuItemContent}>
+                <Feather name={item.icon as any} size={18} color={palette.text} />
+                <Text style={styles.menuLabel}>{item.label}</Text>
+              </View>
+              {item.label === 'Help Centre' && unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
             </Pressable>
           ))}
         </View>
@@ -167,13 +200,33 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
+  },
+  menuItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flex: 1,
   },
   menuLabel: {
     fontSize: 16,
     color: palette.text,
+  },
+  badge: {
+    backgroundColor: palette.danger,
+    borderRadius: radius.md,
+    minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   logout: {
     marginTop: 'auto',
