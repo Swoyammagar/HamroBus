@@ -6,6 +6,9 @@ const AdminChatController = require('../controllers/admin.chat.controller');
 // All routes require authentication
 router.use(chatAuth);
 
+// Get chat statistics (must come BEFORE /:chatId to avoid being matched as chatId='stats')
+router.get('/stats/overview', AdminChatController.getChatStats);
+
 // Get all chats (with optional filtering by status)
 router.get('/', AdminChatController.getAllChats);
 
@@ -15,13 +18,10 @@ router.get('/:chatId', AdminChatController.getChat);
 // Assign chat to admin
 router.patch('/:chatId/assign', AdminChatController.assignChat);
 
-// Send reply to chat
-router.post('/:chatId/message', AdminChatController.sendReply);
-
 // Update chat status
 router.patch('/:chatId/status', AdminChatController.updateChatStatus);
 
-// Get chat statistics
-router.get('/stats/overview', AdminChatController.getChatStats);
+// Send reply to chat
+router.post('/:chatId/message', AdminChatController.sendReply);
 
 module.exports = router;
