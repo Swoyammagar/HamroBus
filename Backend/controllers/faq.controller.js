@@ -9,7 +9,14 @@ const { v4: uuidv4 } = require('uuid');
 const submitFAQ = async (req, res, io) => {
     try {
         const { name, phoneNumber, email, title, message, role } = req.body;
-        const userId = req.user?.id || req.body?.userId;
+        const userId = req.user?.id; // Captured from authenticatePassenger middleware
+
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Authentication required to submit FAQ'
+            });
+        }
 
         if (!name || !phoneNumber || !title || !message || !role) {
             return res.status(400).json({
@@ -33,7 +40,7 @@ const submitFAQ = async (req, res, io) => {
             title: title.trim(),
             message: message.trim(),
             role,
-            userId: userId || null,
+            userId: userId,  // Now guaranteed from authenticated middleware
         });
 
         const savedFAQ = await newFAQ.save();

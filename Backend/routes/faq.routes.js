@@ -11,11 +11,17 @@ const { authenticateAdmin } = require('../middlewares/admin.auth.middleware');
 
 const router = express.Router();
 
-// Public route - Submit FAQ
-router.post('/submit', (req, res) => {
+// Authenticated route - Submit FAQ (passengers/drivers)
+router.post('/submit', authenticatePassenger, (req, res) => {
     const io = req.app.get('io');
     submitFAQ(req, res, io);
 });
+
+router.post('/driver-submit', authenticateDriver, (req, res) => {
+    const io = req.app.get('io');
+    submitFAQ(req, res, io);
+});
+
 
 // User route - Get user's own FAQs (passenger)
 router.get('/user', authenticatePassenger, getUserFAQs);
