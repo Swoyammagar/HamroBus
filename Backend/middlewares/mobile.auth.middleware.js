@@ -39,7 +39,7 @@ async function authenticateDriver(req, res, next) {
       });
     }
 
-    req.userId = data.id;
+    req.userId = data.id || data._id; // Handle both id and _id cases
 
     const driver = await Driver.findById(req.userId);
     if (!driver) {
@@ -73,12 +73,18 @@ async function authenticateDriver(req, res, next) {
 // Expects token in Authorization header: "Bearer <token>"
 async function authenticatePassenger(req, res, next) {
   try {
+    console.log('\n=== AUTHENTICATE PASSENGER MIDDLEWARE ===');
+    console.log('Method:', req.method);
+    console.log('URL:', req.originalUrl);
+    console.log('Path:', req.path);
+    
     // Read token from Authorization header
     const authHeader = req.headers.authorization;
-    console.log('[Passenger Auth] Authorization header:', authHeader ? 'Present' : 'Missing');
+    console.log('Authorization header:', authHeader ? `Present (${authHeader.substring(0, 30)}...)` : 'MISSING');
+    console.log('All headers keys:', Object.keys(req.headers));
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('[Passenger Auth] Missing or invalid header format');
+      console.log('[Passenger Auth] REJECTED: Missing or invalid header format');
       return res.status(401).json({ 
         success: false,
         error: "Access token missing",
@@ -87,12 +93,13 @@ async function authenticatePassenger(req, res, next) {
     }
 
     const token = authHeader.split(' ')[1];
+    console.log('Token extracted:', token.substring(0, 20) + '...');
 
     // Verify token
     let data;
     try {
       data = jwt.verify(token, process.env.JWT_SECRET);
-      console.log('[Passenger Auth] Token verified for user:', data.id);
+      console.log('[Passenger Auth] Token verified for user ID:', data.id);
     } catch (err) {
       console.log('[Passenger Auth] Token verification failed:', err.name, err.message);
       if (err.name === 'TokenExpiredError') {
@@ -110,7 +117,8 @@ async function authenticatePassenger(req, res, next) {
       });
     }
 
-    req.userId = data.id;
+    req.userId = data.id || data._id; // Handle both id and _id cases
+    console.log('Looking for passenger with ID:', req.userId);
 
     const passenger = await Passenger.findById(req.userId);
     if (!passenger) {
@@ -122,6 +130,7 @@ async function authenticatePassenger(req, res, next) {
       });
     }
 
+    console.log('Passenger found:', passenger._id);
     req.user = {
       id: passenger._id,
       email: passenger.email,
@@ -130,7 +139,9 @@ async function authenticatePassenger(req, res, next) {
       profileImgUrl: passenger.profileImgUrl
     };
 
-    console.log('[Passenger Auth] Authentication successful');
+    console.log('req.user set to:', req.user);
+    console.log('[Passenger Auth] Authentication SUCCESSFUL, calling next()');
+    console.log('=== END MIDDLEWARE ===\n');
     next();
   } catch (err) {
     console.error("Passenger auth error:", err);
