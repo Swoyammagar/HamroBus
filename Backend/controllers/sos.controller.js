@@ -108,7 +108,22 @@ const sendSosAlert = async (req, res) => {
 
     // Emit immediate event to admin room so admin panel can play SOS sound and show marker
     if (io) {
+      // Primary SOS alert event (triggers sound)
       io.to('admin-room').emit('sos:alert', payload);
+      
+      // Also send as notification:new so it appears in notifications list
+      io.to('admin-room').emit('notification:new', {
+        _id: notification._id.toString(),
+        notificationId: notification.notificationId,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        severity: notification.severity,
+        sentBy: notification.sentBy,
+        targetAudience: notification.targetAudience,
+        createdAt: notification.createdAt,
+      });
+
       // Also inform all passengers viewing the bus so their maps show red marker
       io.to(`bus:${busId}`).emit('driver:sos', payload);
       // Inform the driver that SOS was registered immediately
@@ -151,6 +166,32 @@ const clearSos = async (req, res) => {
 
     if (io) {
       io.to('admin-room').emit('sos:cleared', payload);
+      
+      // Create and emit a notification for SOS cleared
+      const clearedNotification = new Notification({
+        notificationId: `notif_${uuidv4()}`,
+        title: 'Emergency SOS Cleared',
+        message: `SOS alert for bus has been cleared. The driver has resumed normal operations.`,
+        sentBy: 'system',
+        targetAudience: 'admins',
+        status: 'sent',
+        type: 'alert',
+        severity: 'high'
+      });
+      await clearedNotification.save();
+      
+      io.to('admin-room').emit('notification:new', {
+        _id: clearedNotification._id.toString(),
+        notificationId: clearedNotification.notificationId,
+        title: clearedNotification.title,
+        message: clearedNotification.message,
+        type: clearedNotification.type,
+        severity: clearedNotification.severity,
+        sentBy: clearedNotification.sentBy,
+        targetAudience: clearedNotification.targetAudience,
+        createdAt: clearedNotification.createdAt,
+      });
+
       io.to(`bus:${busId}`).emit('driver:sos-cleared', payload);
       // Inform the driver that SOS was cleared
       io.to('driver:' + driverId).emit('sos:cleared', payload);

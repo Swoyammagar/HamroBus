@@ -634,6 +634,9 @@ const updatePassengerCount = async (req, res) => {
 
         await trip.save();
 
+        // Get io instance before using it
+        const io = req.app.get('io');
+
         const bookingCompletionStats = normalizedStopId
             ? await completeBookingsByReachedStop({ trip, reachedStopName: normalizedStopId, io })
             : { matched: 0, modified: 0 };
@@ -643,7 +646,6 @@ const updatePassengerCount = async (req, res) => {
         }
 
         // Emit socket event for real-time updates to specific driver
-        const io = req.app.get('io');
         if (io) {
             io.to(`driver:${driverId}`).emit('trip:updated', trip);
 

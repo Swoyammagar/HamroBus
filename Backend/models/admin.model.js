@@ -41,22 +41,6 @@ const adminSchema = new mongoose.Schema({
         default: null
     },
     
-    // Messaging System
-    hasUnreadMessages: {
-        type: Boolean,
-        default: false
-    },
-    unreadMessageCount: {
-        type: Number,
-        default: 0,
-        min: 0
-    },
-    assignedChats: [
-        {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Chat'
-        }
-    ]
 }, {
     timestamps: true // ✅ Add timestamps
 });

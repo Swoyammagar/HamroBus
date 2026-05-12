@@ -103,22 +103,6 @@ const driverSchema = new mongoose.Schema({
         default: 0,
         min: 0
     },
-    
-    // Messaging System
-    hasUnreadMessages: {
-        type: Boolean,
-        default: false
-    },
-    unreadMessageCount: {
-        type: Number,
-        default: 0,
-        min: 0
-    },
-    lastChatId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Chat',
-        default: null
-    }
 }, {
     timestamps: true
 });

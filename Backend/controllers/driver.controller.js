@@ -136,16 +136,17 @@ const registerDriver = async (req, res) => {
         // 🔔 Socket logic for real-time admin notification
         const io = req.app.get('io');
         if (io) {
-            io.to('admin-room').emit('new-driver-request', {
-                driverId: newDriver._id.toString(),
-                name: `${newDriver.firstName} ${newDriver.lastName}`,
-                email: newDriver.email,
-                phoneNumber: newDriver.phoneNumber,
-                licenseNo: newDriver.licenseNo,
-                profileImg: newDriver.profileImgUrl,
-                licenseImg: newDriver.licenseImgUrl,
-                timestamp: new Date(),
-                notificationId: notificationId,
+            io.to('admin-room').emit('notification:new', {
+                _id: adminNotification._id.toString(),
+                notificationId: adminNotification.notificationId,
+                title: adminNotification.title,
+                message: adminNotification.message,
+                type: adminNotification.type,
+                severity: adminNotification.severity,
+                sentBy: adminNotification.sentBy,
+                targetAudience: adminNotification.targetAudience,
+                createdAt: adminNotification.createdAt,
+                metadata: adminNotification.metadata
             });
         }
 
@@ -381,8 +382,35 @@ const approveDriver = async (req, res) => {
 
         const io = req.app.get('io');
         if (io) {
-            io.to('admin-room').emit('driver-approved', {
-                driverId: driver._id.toString(),
+            // Create notification for approval
+            const approvalNotification = await Notification.create({
+                notificationId: `notif_${uuidv4()}`,
+                title: `Driver Approved: ${driver.firstName} ${driver.lastName}`,
+                message: `Driver ${driver.firstName} ${driver.lastName} (${driver.licenseNo}) has been approved and can now log in.`,
+                sentBy: 'admin',
+                targetAudience: 'admins',
+                status: 'sent',
+                type: 'info',
+                severity: 'medium',
+                metadata: {
+                    driverId: driver._id.toString(),
+                    driverName: `${driver.firstName} ${driver.lastName}`,
+                    licenseNo: driver.licenseNo,
+                    actionType: 'driver_approved'
+                }
+            });
+
+            io.to('admin-room').emit('notification:new', {
+                _id: approvalNotification._id.toString(),
+                notificationId: approvalNotification.notificationId,
+                title: approvalNotification.title,
+                message: approvalNotification.message,
+                type: approvalNotification.type,
+                severity: approvalNotification.severity,
+                sentBy: approvalNotification.sentBy,
+                targetAudience: approvalNotification.targetAudience,
+                createdAt: approvalNotification.createdAt,
+                metadata: approvalNotification.metadata
             });
         }
 
@@ -417,8 +445,35 @@ const rejectDriver = async (req, res) => {
 
         const io = req.app.get('io');
         if (io) {
-            io.to('admin-room').emit('driver-rejected', {
-                driverId: driver._id.toString(),
+            // Create notification for rejection
+            const rejectionNotification = await Notification.create({
+                notificationId: `notif_${uuidv4()}`,
+                title: `Driver Rejected: ${driver.firstName} ${driver.lastName}`,
+                message: `Driver ${driver.firstName} ${driver.lastName} (${driver.licenseNo}) has been rejected and cannot log in.`,
+                sentBy: 'admin',
+                targetAudience: 'admins',
+                status: 'sent',
+                type: 'alert',
+                severity: 'medium',
+                metadata: {
+                    driverId: driver._id.toString(),
+                    driverName: `${driver.firstName} ${driver.lastName}`,
+                    licenseNo: driver.licenseNo,
+                    actionType: 'driver_rejected'
+                }
+            });
+
+            io.to('admin-room').emit('notification:new', {
+                _id: rejectionNotification._id.toString(),
+                notificationId: rejectionNotification.notificationId,
+                title: rejectionNotification.title,
+                message: rejectionNotification.message,
+                type: rejectionNotification.type,
+                severity: rejectionNotification.severity,
+                sentBy: rejectionNotification.sentBy,
+                targetAudience: rejectionNotification.targetAudience,
+                createdAt: rejectionNotification.createdAt,
+                metadata: rejectionNotification.metadata
             });
         }
 
