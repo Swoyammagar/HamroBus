@@ -7,7 +7,7 @@ const {
     deleteFAQ
 } = require('../controllers/faq.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
-const adminAuthMiddleware = require('../middlewares/admin.auth.middleware');
+const { authenticateAdmin } = require('../middlewares/admin.auth.middleware');
 
 const router = express.Router();
 
@@ -22,17 +22,15 @@ router.get('/user', authMiddleware, getUserFAQs);
 
 // Admin routes
 // Get all FAQs (with role filter and pagination)
-router.get('/admin/all', adminAuthMiddleware, getAllFAQs);
+router.get('/admin/all', authenticateAdmin, getAllFAQs);
 
 // Get single FAQ by ID
-router.get('/admin/:faqId', adminAuthMiddleware, getFAQById);
+router.get('/admin/:faqId', authenticateAdmin, getFAQById);
 
 // Delete FAQ
-router.delete('/admin/:faqId', adminAuthMiddleware, (req, res) => {
+router.delete('/admin/:faqId', authenticateAdmin, (req, res) => {
     const io = req.app.get('io');
     deleteFAQ(req, res, io);
 });
-
-module.exports = router;
 
 module.exports = router;
