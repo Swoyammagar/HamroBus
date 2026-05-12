@@ -1,5 +1,7 @@
 const jwt = require("jsonwebtoken");
 const Admin = require("../models/admin.model");
+const Driver = require("../models/driver.model");
+const Passenger = require("../models/passenger.model");
 
 /**
  * @deprecated Use authenticateAdmin from admin.auth.middleware.js instead
@@ -48,4 +50,66 @@ async function authenticateUser(req, res, next) {
   }
 }
 
-module.exports = authenticateUser;
+async function authUser(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        error: "Access token missing",
+        code: "NO_TOKEN",
+      });
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    let data;
+
+    try {
+      data = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid or expired token",
+        code: "INVALID_TOKEN",
+      });
+    }
+
+    req.userId = data.id;
+    req.userRole = data.role; // IMPORTANT (driver/passenger)
+
+    // Try passenger first
+    let user =
+      (await Passenger.findById(req.userId)) ||
+      (await Driver.findById(req.userId));
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        error: "User not found",
+        code: "USER_NOT_FOUND",
+      });
+    }
+
+    req.user = {
+      id: user._id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      profileImgUrl: user.profileImgUrl,
+      role: data.role,
+    };
+
+    next();
+  } catch (err) {
+    console.error("Auth error:", err);
+    return res.status(403).json({
+      success: false,
+      error: "Authentication failed",
+      code: "AUTH_FAILED",
+    });
+  }
+}
+
+module.exports = authenticateUser, authUser;

@@ -6,7 +6,7 @@ const {
     getUserFAQs,
     deleteFAQ
 } = require('../controllers/faq.controller');
-const authMiddleware = require('../middlewares/auth.middleware');
+const authUser = require('../middlewares/auth.middleware');
 const { authenticateAdmin } = require('../middlewares/admin.auth.middleware');
 
 const router = express.Router();
@@ -18,7 +18,7 @@ router.post('/submit', (req, res) => {
 });
 
 // User route - Get user's own FAQs
-router.get('/user', authMiddleware, getUserFAQs);
+router.get('/user', authUser, getUserFAQs);
 
 // Admin routes
 // Get all FAQs (with role filter and pagination)
