@@ -112,4 +112,5 @@ async function authUser(req, res, next) {
   }
 }
 
-module.exports = authenticateUser, authUser;
+module.exports = authenticateUser;
+module.exports.authUser = authUser;

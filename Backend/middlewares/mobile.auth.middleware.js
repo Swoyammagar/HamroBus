@@ -75,8 +75,10 @@ async function authenticatePassenger(req, res, next) {
   try {
     // Read token from Authorization header
     const authHeader = req.headers.authorization;
+    console.log('[Passenger Auth] Authorization header:', authHeader ? 'Present' : 'Missing');
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('[Passenger Auth] Missing or invalid header format');
       return res.status(401).json({ 
         success: false,
         error: "Access token missing",
@@ -90,7 +92,9 @@ async function authenticatePassenger(req, res, next) {
     let data;
     try {
       data = jwt.verify(token, process.env.JWT_SECRET);
+      console.log('[Passenger Auth] Token verified for user:', data.id);
     } catch (err) {
+      console.log('[Passenger Auth] Token verification failed:', err.name, err.message);
       if (err.name === 'TokenExpiredError') {
         return res.status(401).json({ 
           success: false,
@@ -110,6 +114,7 @@ async function authenticatePassenger(req, res, next) {
 
     const passenger = await Passenger.findById(req.userId);
     if (!passenger) {
+      console.log('[Passenger Auth] Passenger not found for user:', req.userId);
       return res.status(401).json({ 
         success: false,
         error: "Passenger not found",
@@ -125,6 +130,7 @@ async function authenticatePassenger(req, res, next) {
       profileImgUrl: passenger.profileImgUrl
     };
 
+    console.log('[Passenger Auth] Authentication successful');
     next();
   } catch (err) {
     console.error("Passenger auth error:", err);
