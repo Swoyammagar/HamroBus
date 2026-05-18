@@ -2,7 +2,7 @@ const Passenger = require('../models/passenger.model');
 const Driver = require('../models/driver.model');
 const Booking = require('../models/booking.model');
 const Review = require('../models/review.model');
-const TripSession = require('../models/tripsession.model');
+const TripSession = require('../models/tripSession.model');
 
 const DELETION_GRACE_PERIOD_DAYS = 7;
 const GRACE_PERIOD_MS = DELETION_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
