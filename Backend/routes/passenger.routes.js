@@ -8,7 +8,12 @@ const {
     changePassengerPassword,
     checkPhoneNumberAvailability,
     getRewardPoints,
-    redeemPointsForDiscount
+    redeemPointsForDiscount,
+    getMyReviews,
+    getMyReviewStats,
+    requestDeleteProfile,
+    cancelDeleteProfile,
+    checkDeletionStatus
 } = require('../controllers/passenger.controller');
 const {
     getPublicRoutes,
@@ -70,5 +75,14 @@ router.get('/reviews/me', authenticatePassenger, getMyReviews);
 // Reward Points Routes
 router.get('/rewards/points', authenticatePassenger, getRewardPoints);
 router.post('/rewards/redeem', authenticatePassenger, redeemPointsForDiscount);
+
+// Review Routes
+router.get('/reviews/my-reviews', authenticatePassenger, getMyReviews);
+router.get('/reviews/stats', authenticatePassenger, getMyReviewStats);
+
+// Profile Deletion Routes
+router.post('/profile/request-delete', authenticatePassenger, requestDeleteProfile);
+router.post('/profile/cancel-delete', authenticatePassenger, cancelDeleteProfile);
+router.get('/profile/deletion-status', authenticatePassenger, checkDeletionStatus);
 
 module.exports = router;

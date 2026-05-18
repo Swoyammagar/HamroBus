@@ -103,6 +103,13 @@ const driverSchema = new mongoose.Schema({
         default: 0,
         min: 0
     },
+
+    // Profile Deletion
+    deleteRequestedAt: {
+        type: Date,
+        required: false,
+        index: true
+    }
 }, {
     timestamps: true
 });

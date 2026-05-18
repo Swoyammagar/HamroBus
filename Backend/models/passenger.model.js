@@ -117,7 +117,14 @@ const passengerSchema = new mongoose.Schema({
             type: Date,
             default: Date.now
         }
-    }]
+    }],
+
+    // Profile Deletion
+    deleteRequestedAt: {
+        type: Date,
+        required: false,
+        index: true
+    }
 }, {
     timestamps: true
 });

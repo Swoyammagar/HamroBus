@@ -2,6 +2,8 @@ const Passenger = require('../models/passenger.model');
 const bcrypt = require('bcrypt');
 const { generateToken, generateRefreshToken, isPhoneNumberUnique, hashPassword, comparePassword } = require('../utils/authutils');
 const { getRewardInfo, redeemPoints } = require('../services/rewardService');
+const { getPassengerReviews, getPassengerReviewStats } = require('../services/passengerReviewService');
+const { requestPassengerProfileDeletion, cancelPassengerProfileDeletion, checkPassengerDeletionStatusOnLogin } = require('../services/deleteAccountService');
 
 const registerPassenger = async (req, res) => {
     const { firstName, lastName, address, phoneNumber, gender, dob, email, password, profileImgUrl } = req.body;
@@ -364,6 +366,180 @@ const redeemPointsForDiscount = async (req, res) => {
     }
 };
 
+/**
+ * Get all reviews given by the passenger
+ */
+const getMyReviews = async (req, res) => {
+    try {
+        const passengerId = req.user?.id || req.body?.passengerId;
+
+        if (!passengerId) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Passenger ID is required" 
+            });
+        }
+
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const sortBy = req.query.sortBy || 'createdAt';
+        const sortOrder = req.query.sortOrder || 'desc';
+
+        const result = await getPassengerReviews(passengerId, {
+            page,
+            limit,
+            sortBy,
+            sortOrder
+        });
+
+        if (!result.success) {
+            return res.status(500).json(result);
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Reviews retrieved successfully",
+            data: result.data
+        });
+    } catch (error) {
+        console.error("Error getting passenger reviews:", error);
+        res.status(500).json({ 
+            success: false,
+            message: "Internal server error" 
+        });
+    }
+};
+
+/**
+ * Get review statistics for the passenger
+ */
+const getMyReviewStats = async (req, res) => {
+    try {
+        const passengerId = req.user?.id || req.body?.passengerId;
+
+        if (!passengerId) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Passenger ID is required" 
+            });
+        }
+
+        const result = await getPassengerReviewStats(passengerId);
+
+        if (!result.success) {
+            return res.status(500).json(result);
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Review statistics retrieved successfully",
+            data: result.data
+        });
+    } catch (error) {
+        console.error("Error getting review stats:", error);
+        res.status(500).json({ 
+            success: false,
+            message: "Internal server error" 
+        });
+    }
+};
+
+/**
+ * Request profile deletion (7-day grace period)
+ */
+const requestDeleteProfile = async (req, res) => {
+    try {
+        const passengerId = req.user?.id || req.body?.passengerId;
+
+        if (!passengerId) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Passenger ID is required" 
+            });
+        }
+
+        const result = await requestPassengerProfileDeletion(passengerId);
+
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: result.message,
+            deleteScheduledFor: result.deleteScheduledFor
+        });
+    } catch (error) {
+        console.error("Error requesting profile deletion:", error);
+        res.status(500).json({ 
+            success: false,
+            message: "Internal server error" 
+        });
+    }
+};
+
+/**
+ * Cancel profile deletion
+ */
+const cancelDeleteProfile = async (req, res) => {
+    try {
+        const passengerId = req.user?.id || req.body?.passengerId;
+
+        if (!passengerId) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Passenger ID is required" 
+            });
+        }
+
+        const result = await cancelPassengerProfileDeletion(passengerId);
+
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: result.message
+        });
+    } catch (error) {
+        console.error("Error cancelling profile deletion:", error);
+        res.status(500).json({ 
+            success: false,
+            message: "Internal server error" 
+        });
+    }
+};
+
+/**
+ * Check deletion status (called during login or profile access)
+ */
+const checkDeletionStatus = async (req, res) => {
+    try {
+        const passengerId = req.user?.id || req.body?.passengerId;
+
+        if (!passengerId) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Passenger ID is required" 
+            });
+        }
+
+        const result = await checkPassengerDeletionStatusOnLogin(passengerId);
+
+        return res.status(200).json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        console.error("Error checking deletion status:", error);
+        res.status(500).json({ 
+            success: false,
+            message: "Internal server error" 
+        });
+    }
+};
+
 module.exports = {
     registerPassenger,
     loginPassenger,
@@ -373,4 +549,9 @@ module.exports = {
     checkPhoneNumberAvailability,
     getRewardPoints,
     redeemPointsForDiscount,
+    getMyReviews,
+    getMyReviewStats,
+    requestDeleteProfile,
+    cancelDeleteProfile,
+    checkDeletionStatus,
 }

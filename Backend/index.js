@@ -15,6 +15,7 @@ const TripSession = require('./models/tripSession.model');
 const Route = require('./models/route.model');
 const { detectAndUpdateCurrentStop } = require('./services/distanceUtils');
 const { setIoInstance } = require('./services/ioManager');
+const { setupAccountDeletionCron } = require('./utils/accountDeletionCron');
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -417,6 +418,7 @@ const startServer = async () => {
   const PORT = process.env.PORT || 5000;
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running at http://localhost:${PORT}`);
+    setupAccountDeletionCron();
   });
 };
 

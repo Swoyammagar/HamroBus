@@ -6,6 +6,7 @@ const { generateToken, generateRefreshToken, isPhoneNumberUnique, isLicenseNumbe
 const { sendEmail } = require('../utils/sendEmail');
 const { generateOTP } = require('../utils/OTPutils');
 const { sendVerificationEmail } = require('../utils/OTPutils');
+const { requestDriverProfileDeletion, cancelDriverProfileDeletion, checkDriverDeletionStatusOnLogin } = require('../services/deleteAccountService');
 
 // Driver Registration
 const registerDriver = async (req, res) => {
@@ -690,6 +691,102 @@ const checkLicenseNumberAvailability = async (req, res) => {
     }
 };
 
+/**
+ * Request profile deletion (7-day grace period)
+ */
+const requestDeleteProfile = async (req, res) => {
+    try {
+        const driverId = req.user?.id || req.body?.driverId;
+
+        if (!driverId) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Driver ID is required" 
+            });
+        }
+
+        const result = await requestDriverProfileDeletion(driverId);
+
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: result.message,
+            deleteScheduledFor: result.deleteScheduledFor
+        });
+    } catch (error) {
+        console.error("Error requesting profile deletion:", error);
+        res.status(500).json({ 
+            success: false,
+            message: "Internal server error" 
+        });
+    }
+};
+
+/**
+ * Cancel profile deletion
+ */
+const cancelDeleteProfile = async (req, res) => {
+    try {
+        const driverId = req.user?.id || req.body?.driverId;
+
+        if (!driverId) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Driver ID is required" 
+            });
+        }
+
+        const result = await cancelDriverProfileDeletion(driverId);
+
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: result.message
+        });
+    } catch (error) {
+        console.error("Error cancelling profile deletion:", error);
+        res.status(500).json({ 
+            success: false,
+            message: "Internal server error" 
+        });
+    }
+};
+
+/**
+ * Check deletion status (called during login or profile access)
+ */
+const checkDeletionStatus = async (req, res) => {
+    try {
+        const driverId = req.user?.id || req.body?.driverId;
+
+        if (!driverId) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Driver ID is required" 
+            });
+        }
+
+        const result = await checkDriverDeletionStatusOnLogin(driverId);
+
+        return res.status(200).json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        console.error("Error checking deletion status:", error);
+        res.status(500).json({ 
+            success: false,
+            message: "Internal server error" 
+        });
+    }
+};
+
 module.exports = {
     registerDriver,
     loginDriver,
@@ -703,5 +800,8 @@ module.exports = {
     updateDriverProfile,
     changeDriverPassword,
     checkPhoneNumberAvailability,
-    checkLicenseNumberAvailability
+    checkLicenseNumberAvailability,
+    requestDeleteProfile,
+    cancelDeleteProfile,
+    checkDeletionStatus
 };

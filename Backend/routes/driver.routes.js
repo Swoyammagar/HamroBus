@@ -13,7 +13,10 @@ const {
   updateDriverProfile,
   changeDriverPassword,
   checkPhoneNumberAvailability,
-  checkLicenseNumberAvailability
+  checkLicenseNumberAvailability,
+  requestDeleteProfile,
+  cancelDeleteProfile,
+  checkDeletionStatus
 } = require('../controllers/driver.controller');
 const { authenticateAdmin } = require('../middlewares/admin.auth.middleware');
 const { authenticateDriver } = require('../middlewares/mobile.auth.middleware');
@@ -41,5 +44,10 @@ router.post('/location', authenticateDriver, updateDriverLocation);
 router.get('/location/:driverId', getDriverLocationHistory);
 router.get('/reviews/summary', authenticateDriver, getMyRatingSummary);
 router.get('/reviews', authenticateDriver, getMyReviews);
+
+// Profile Deletion Routes
+router.post('/profile/request-delete', authenticateDriver, requestDeleteProfile);
+router.post('/profile/cancel-delete', authenticateDriver, cancelDeleteProfile);
+router.get('/profile/deletion-status', authenticateDriver, checkDeletionStatus);
 
 module.exports = router;
