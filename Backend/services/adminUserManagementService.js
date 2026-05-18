@@ -2,7 +2,7 @@ const Passenger = require('../models/passenger.model');
 const Driver = require('../models/driver.model');
 const Booking = require('../models/booking.model');
 const Review = require('../models/review.model');
-const TripSession = require('../models/tripsession.model');
+const TripSession = require('../models/tripSession.model');
 const nodemailer = require('nodemailer');
 
 // Configure email transporter (update with your email config)
