@@ -5,6 +5,7 @@ const TripSession = require('../models/tripSession.model');
 const Bus = require('../models/bus.model');
 const Notification = require('../models/notification.model');
 const { sendEmail } = require('../utils/sendEmail');
+const { awardPoints } = require('./rewardService');
 const { v4: uuidv4 } = require('uuid');
 const { missed_trip_apology_boilerplate } = require('../utils/boilerplate.data');
 
@@ -324,6 +325,17 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {})
       if (b.passengerId) {
         io.to(`passenger:${String(b.passengerId)}`).emit('booking:status-updated', payload);
         io.to(`passenger:${String(b.passengerId)}`).emit('booking:completed', payload);
+
+        // ========== NEW: Award reward points ==========
+        try {
+          const rewardResult = await awardPoints(String(b.passengerId), String(b._id));
+          if (rewardResult.success) {
+            console.log(`🎁 Rewards awarded to passenger ${b.passengerId}: ${rewardResult.message}`);
+          }
+        } catch (err) {
+          console.error(`Failed to award points to passenger ${b.passengerId}:`, err);
+        }
+        // ========== END NEW ==========
       }
     }
   }

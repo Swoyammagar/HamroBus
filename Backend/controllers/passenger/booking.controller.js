@@ -11,6 +11,7 @@ const QRCode = require('qrcode');
 const { v4: uuidv4 } = require('uuid');
 const { getCurrentStopSequence } = require('../../services/distanceUtils');
 const { getIoInstance } = require('../../services/ioManager');
+const { deductPoints, checkBanStatus } = require('../../services/rewardService');
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 // Seats are considered taken only for confirmed or in-progress bookings.
@@ -567,6 +568,18 @@ const cancelBooking = async (req, res) => {
       return res.status(400).json({ message: 'Invalid bookingId' });
     }
 
+    // ========== NEW: Check if passenger is banned ==========
+    const banStatus = await checkBanStatus(passengerId);
+    if (banStatus.isBanned) {
+      return res.status(403).json({
+        message: `You are temporarily banned from cancelling bookings. Please try again in ${banStatus.minutesRemaining} minutes.`,
+        isBanned: true,
+        banUntil: banStatus.banUntil,
+        minutesRemaining: banStatus.minutesRemaining,
+      });
+    }
+    // ========== END NEW ==========
+
     const booking = await Booking.findOne({
       _id: bookingId,
       passengerId,
@@ -584,6 +597,36 @@ const cancelBooking = async (req, res) => {
     booking.cancelledAt = new Date();
     booking.cancellationReason = String(reason || '').trim();
     await booking.save();
+
+    // ========== NEW: Deduct reward points and handle cancellation streak ==========
+    try {
+      const deductResult = await deductPoints(passengerId, bookingId);
+      if (deductResult.success) {
+        console.log(`❌ Cancellation recorded for passenger ${passengerId}:`, deductResult.message);
+
+        if (deductResult.isBanned) {
+          return res.status(200).json({
+            message: 'Booking cancelled successfully',
+            warning: `You have cancelled bookings ${deductResult.cancellationStreak} times consecutively. You are now temporarily banned from cancelling for 30 minutes.`,
+            booking: mapBookingResponse(booking),
+            rewardPoints: deductResult.rewardPoints,
+            isBanned: true,
+            banUntil: deductResult.banUntil,
+          });
+        }
+
+        return res.status(200).json({
+          message: 'Booking cancelled successfully',
+          booking: mapBookingResponse(booking),
+          rewardPoints: deductResult.rewardPoints,
+          pointsDeducted: deductResult.message,
+          cancellationStreak: deductResult.cancellationStreak,
+        });
+      }
+    } catch (err) {
+      console.error('Error deducting reward points:', err);
+    }
+    // ========== END NEW ==========
 
     return res.status(200).json({
       message: 'Booking cancelled successfully',

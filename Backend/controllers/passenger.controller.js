@@ -1,6 +1,7 @@
 const Passenger = require('../models/passenger.model');
 const bcrypt = require('bcrypt');
 const { generateToken, generateRefreshToken, isPhoneNumberUnique, hashPassword, comparePassword } = require('../utils/authutils');
+const { getRewardInfo, redeemPoints } = require('../services/rewardService');
 
 const registerPassenger = async (req, res) => {
     const { firstName, lastName, address, phoneNumber, gender, dob, email, password, profileImgUrl } = req.body;
@@ -296,11 +297,80 @@ const checkPhoneNumberAvailability = async (req, res) => {
     }
 };
 
+/**
+ * Get passenger reward points and information
+ */
+const getRewardPoints = async (req, res) => {
+    const passengerId = req.user.id;
+
+    try {
+        const rewardInfo = await getRewardInfo(passengerId);
+
+        if (!rewardInfo.success) {
+            return res.status(404).json({ message: "Passenger not found" });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: rewardInfo
+        });
+
+    } catch (error) {
+        console.error("Error fetching reward points:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+/**
+ * Redeem reward points for a discount on booking
+ */
+const redeemPointsForDiscount = async (req, res) => {
+    const passengerId = req.user.id;
+    const { bookingAmount } = req.body;
+
+    try {
+        if (!bookingAmount || bookingAmount <= 0) {
+            return res.status(400).json({ message: "Valid booking amount is required" });
+        }
+
+        const redeemResult = await redeemPoints(passengerId, bookingAmount);
+
+        if (!redeemResult.success) {
+            return res.status(400).json({
+                success: false,
+                message: redeemResult.message,
+                pointsNeeded: redeemResult.pointsNeeded || null,
+                currentPoints: redeemResult.rewardPoints || null
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: redeemResult.message,
+            data: {
+                discountCode: redeemResult.discountCode,
+                discountPercentage: redeemResult.discountPercentage,
+                originalAmount: redeemResult.originalAmount,
+                discountAmount: redeemResult.discountAmount,
+                finalAmount: redeemResult.finalAmount,
+                pointsUsed: redeemResult.message.split(' ')[1], // Extract points from message
+                remainingPoints: redeemResult.rewardPoints
+            }
+        });
+
+    } catch (error) {
+        console.error("Error redeeming points:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 module.exports = {
     registerPassenger,
     loginPassenger,
     getPassengerProfile,
     updatePassengerProfile,
     changePassengerPassword,
-    checkPhoneNumberAvailability
-};
+    checkPhoneNumberAvailability,
+    getRewardPoints,
+    redeemPointsForDiscount,
+}

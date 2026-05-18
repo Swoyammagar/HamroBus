@@ -6,7 +6,9 @@ const {
     getPassengerProfile,
     updatePassengerProfile,
     changePassengerPassword,
-    checkPhoneNumberAvailability
+    checkPhoneNumberAvailability,
+    getRewardPoints,
+    redeemPointsForDiscount
 } = require('../controllers/passenger.controller');
 const {
     getPublicRoutes,
@@ -64,5 +66,9 @@ router.post('/payments/verify-khalti', authenticatePassenger, verifyKhaltiPaymen
 router.get('/bookings/reviewable', authenticatePassenger, getMyReviewableBookings);
 router.post('/bookings/:bookingId/review', authenticatePassenger, createBookingReview);
 router.get('/reviews/me', authenticatePassenger, getMyReviews);
+
+// Reward Points Routes
+router.get('/rewards/points', authenticatePassenger, getRewardPoints);
+router.post('/rewards/redeem', authenticatePassenger, redeemPointsForDiscount);
 
 module.exports = router;
