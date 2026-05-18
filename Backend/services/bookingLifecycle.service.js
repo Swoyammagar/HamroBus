@@ -263,8 +263,26 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {})
   try {
     const tripDoc = await TripSession.findById(trip._id);
     if (tripDoc) {
-      tripDoc.passengerCount = Math.max(0, Number(tripDoc.passengerCount || 0) - seatsFreed);
+      const previousOccupancy = Number(tripDoc.passengerCount || 0);
+      tripDoc.passengerCount = Math.max(0, previousOccupancy - seatsFreed);
+      
+      // ========== NEW: Add to occupancy history ==========
+      if (!tripDoc.occupancyHistory) {
+        tripDoc.occupancyHistory = [];
+      }
+      tripDoc.occupancyHistory.push({
+        timestamp: new Date(),
+        stopName: reachedStopName,
+        stopSequence: reachedSequence,
+        passengersBoarded: 0,
+        passengersAlighted: seatsFreed,
+        currentOccupancy: tripDoc.passengerCount,
+        eventType: 'alighting'
+      });
+      // ========== END NEW ==========
+      
       await tripDoc.save();
+      console.log(`📍 Occupancy history logged at ${reachedStopName}: ${seatsFreed} alighted, current occupancy: ${tripDoc.passengerCount}`);
     }
 
     if (trip.busId) {

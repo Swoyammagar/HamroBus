@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 const { generateToken, generateRefreshToken } = require('../utils/authutils');
 const { generateOTP } = require('../utils/OTPutils');
 const { sendPasswordResetEmail } = require('../utils/OTPutils');
-const { hashPassword } = require('../utils/authutils');
+const { hashPassword, comparePassword } = require('../utils/authutils');
 
 
 const Login = async (req, res) =>{
@@ -152,4 +152,81 @@ const verifyOTPUser = async (req, res) => {
     });
   }
 };
-module.exports = { Login, requestPasswordReset, resetPassword, verifyOTPUser };
+
+/**
+ * Change admin password
+ * Requires: currentPassword, newPassword, confirmPassword
+ * Requires JWT authentication
+ */
+const changeAdminPassword = async (req, res) => {
+  const adminId = req.user.id; // From JWT middleware
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+
+  try {
+    // Validate input
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Current password, new password, and confirmation are required" 
+      });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ 
+        success: false,
+        message: "New passwords do not match" 
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ 
+        success: false,
+        message: "New password must be at least 8 characters long" 
+      });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ 
+        success: false,
+        message: "New password must be different from current password" 
+      });
+    }
+
+    // Find admin
+    const admin = await Admin.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Admin not found" 
+      });
+    }
+
+    // Verify current password
+    const isPasswordValid = await comparePassword(currentPassword, admin.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ 
+        success: false,
+        message: "Current password is incorrect" 
+      });
+    }
+
+    // Hash and save new password
+    const hashedPassword = await hashPassword(newPassword);
+    admin.password = hashedPassword;
+    await admin.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Password changed successfully"
+    });
+
+  } catch (error) {
+    console.error("Error changing admin password:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
+  }
+};
+
+module.exports = { Login, requestPasswordReset, resetPassword, verifyOTPUser, changeAdminPassword };

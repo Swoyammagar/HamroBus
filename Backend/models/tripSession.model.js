@@ -87,7 +87,39 @@ const tripSessionSchema = new mongoose.Schema({
     notes: {
         type: String,
         required: false
-    }
+    },
+    occupancyHistory: [{
+        timestamp: {
+            type: Date,
+            default: () => new Date()
+        },
+        stopName: {
+            type: String,
+            trim: true,
+            required: true
+        },
+        stopSequence: {
+            type: Number,
+            required: false
+        },
+        passengersBoarded: {
+            type: Number,
+            default: 0
+        },
+        passengersAlighted: {
+            type: Number,
+            default: 0
+        },
+        currentOccupancy: {
+            type: Number,
+            required: true
+        },
+        eventType: {
+            type: String,
+            enum: ['boarding', 'alighting', 'manual-update'],
+            default: 'manual-update'
+        }
+    }]
 }, {
     timestamps: true
 });

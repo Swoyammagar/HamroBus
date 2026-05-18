@@ -612,7 +612,25 @@ const updatePassengerCount = async (req, res) => {
         const normalizedStopId = typeof stopId === 'string' ? stopId.trim() : '';
 
         // Update passenger count and prevent negative values.
-        trip.passengerCount = Math.max(0, (trip.passengerCount || 0) + boarded - alighted);
+        const previousOccupancy = trip.passengerCount || 0;
+        trip.passengerCount = Math.max(0, previousOccupancy + boarded - alighted);
+
+        // ========== NEW: Track occupancy history for manual boarding/alighting updates ==========
+        if (normalizedStopId && (boarded > 0 || alighted > 0)) {
+            if (!trip.occupancyHistory) {
+                trip.occupancyHistory = [];
+            }
+            trip.occupancyHistory.push({
+                timestamp: new Date(),
+                stopName: normalizedStopId,
+                passengersBoarded: boarded,
+                passengersAlighted: alighted,
+                currentOccupancy: trip.passengerCount,
+                eventType: 'manual-update'
+            });
+            console.log(`📊 Occupancy history logged at ${normalizedStopId}: ${boarded} boarded, ${alighted} alighted, current: ${trip.passengerCount}`);
+        }
+        // ========== END NEW ==========
 
         // Mark stop as completed only once (route stops are tracked by stop name).
         if (normalizedStopId) {
@@ -734,8 +752,15 @@ const getTripHistory = async (req, res) => {
             status: { $in: ['completed', 'cancelled', 'missed'] }
         });
 
+        // Enrich trips with occupancy info
+        const enrichedTrips = trips.map(trip => ({
+            ...trip.toObject(),
+            currentOccupancy: trip.passengerCount || 0,
+            occupancyHistory: trip.occupancyHistory || []
+        }));
+
         res.status(200).json({
-            trips: trips,
+            trips: enrichedTrips,
             total: total,
             hasMore: skip + trips.length < total
         });
@@ -1094,6 +1119,8 @@ const getAllTripsWithBookings = async (req, res) => {
           status: trip.status,
           startTime: trip.startTime || trip.createdAt,
           delayMinutes: trip.startDelayMinutes || 0,
+          currentOccupancy: trip.passengerCount || 0,
+          occupancyHistory: trip.occupancyHistory || [],
           passengerCount: bookings.length,
           bookingCount: bookings.length,
           totalSeats: bookings.reduce((sum, b) => sum + (b.seatCount || 0), 0),
@@ -1180,11 +1207,13 @@ const getTripDetailsById = async (req, res) => {
       },
       metrics: {
         passengerCount: bookings.length,
+        currentOccupancy: trip.passengerCount || 0,
         totalSeats: bookings.reduce((sum, b) => sum + (b.seatCount || 0), 0),
         totalFare: bookings.reduce((sum, b) => sum + (b.totalFare || 0), 0),
         paidBookings: bookings.filter(b => b.payment?.status === 'paid').length,
         pendingPayments: bookings.filter(b => b.payment?.status !== 'paid').length,
       },
+      occupancyHistory: trip.occupancyHistory || [],
       bookings: bookings.map(b => ({
         bookingCode: b.bookingCode,
         passengerName: [b.passengerId?.firstName, b.passengerId?.lastName].filter(Boolean).join(' '),
