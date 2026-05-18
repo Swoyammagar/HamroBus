@@ -4,6 +4,14 @@ const { generateToken, generateRefreshToken } = require('../utils/authutils');
 const { generateOTP } = require('../utils/OTPutils');
 const { sendPasswordResetEmail } = require('../utils/OTPutils');
 const { hashPassword, comparePassword } = require('../utils/authutils');
+const {
+  getAllPassengers,
+  getPassengerDetails,
+  adminDeletePassenger,
+  getAllDrivers,
+  getDriverDetails,
+  adminDeleteDriver,
+} = require('../services/adminUserManagementService');
 
 
 const Login = async (req, res) =>{
@@ -229,4 +237,183 @@ const changeAdminPassword = async (req, res) => {
   }
 };
 
-module.exports = { Login, requestPasswordReset, resetPassword, verifyOTPUser, changeAdminPassword };
+// ==================== USER MANAGEMENT FUNCTIONS ====================
+
+/**
+ * GET /admin/passengers
+ * Get all passengers with pagination and search
+ */
+const getPassengersList = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || '';
+
+    const result = await getAllPassengers(page, limit, search);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    console.error('Error fetching passengers:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching passengers',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * GET /admin/passengers/:passengerId
+ * Get detailed information about a specific passenger
+ */
+const getPassengerInfo = async (req, res) => {
+  try {
+    const { passengerId } = req.params;
+
+    const result = await getPassengerDetails(passengerId);
+
+    if (!result.success) {
+      return res.status(404).json(result);
+    }
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error fetching passenger info:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching passenger information',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * DELETE /admin/passengers/:passengerId
+ * Delete a passenger account immediately (by admin action)
+ */
+const deletePassengerByAdmin = async (req, res) => {
+  try {
+    const { passengerId } = req.params;
+    const adminId = req.admin?.id; // From auth middleware
+
+    const result = await adminDeletePassenger(passengerId, adminId);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error deleting passenger:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting passenger',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * GET /admin/drivers
+ * Get all drivers with pagination and search
+ */
+const getDriversList = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || '';
+
+    const result = await getAllDrivers(page, limit, search);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    console.error('Error fetching drivers:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching drivers',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * GET /admin/drivers/:driverId
+ * Get detailed information about a specific driver
+ */
+const getDriverInfo = async (req, res) => {
+  try {
+    const { driverId } = req.params;
+
+    const result = await getDriverDetails(driverId);
+
+    if (!result.success) {
+      return res.status(404).json(result);
+    }
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error fetching driver info:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching driver information',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * DELETE /admin/drivers/:driverId
+ * Delete a driver account immediately (by admin action)
+ */
+const deleteDriverByAdmin = async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    const adminId = req.admin?.id; // From auth middleware
+
+    const result = await adminDeleteDriver(driverId, adminId);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error deleting driver:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting driver',
+      error: error.message,
+    });
+  }
+};
+
+module.exports = { 
+  Login, 
+  requestPasswordReset, 
+  resetPassword, 
+  verifyOTPUser, 
+  changeAdminPassword,
+  // User Management
+  getPassengersList,
+  getPassengerInfo,
+  deletePassengerByAdmin,
+  getDriversList,
+  getDriverInfo,
+  deleteDriverByAdmin,
+};

@@ -9,7 +9,6 @@ const {
     checkPhoneNumberAvailability,
     getRewardPoints,
     redeemPointsForDiscount,
-    getMyReviews,
     getMyReviewStats,
     requestDeleteProfile,
     cancelDeleteProfile,
