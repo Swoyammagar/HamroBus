@@ -332,7 +332,8 @@ const createBooking = async (req, res) => {
 
     if (redeemRewardPoints === true) {
       try {
-        const passenger = await Passenger.findById(passengerId).select('rewardPoints firstName lastName');
+        // ========== FIX: Load full reward fields, not just a subset ==========
+        const passenger = await Passenger.findById(passengerId).select('rewardPoints totalPointsRedeemed pointsHistory firstName lastName');
         
         if (passenger && passenger.rewardPoints >= 500) {
           discountPercentage = 10;
@@ -344,10 +345,17 @@ const createBooking = async (req, res) => {
           // Deduct points from passenger
           passenger.rewardPoints -= 500;
           passenger.totalPointsRedeemed += 500;
+          
+          // Initialize pointsHistory if not present
+          if (!passenger.pointsHistory) {
+            passenger.pointsHistory = [];
+          }
+          
           passenger.pointsHistory.push({
             action: 'redeemed',
             points: 500,
             description: `Redeemed 10% discount on booking (${discountCode})`,
+            bookingId: bookingId,
             timestamp: new Date(),
           });
           await passenger.save();
@@ -415,15 +423,69 @@ const createBooking = async (req, res) => {
 
     const qrCodeDataUrl = await generateQrDataUrlFromPayload(qrPayload);
 
-    // ========== MID-TRIP NOTIFICATIONS ==========
+    // ========== DRIVER NOTIFICATION - ALWAYS SEND FOR ANY BOOKING ==========
+    try {
+      const io = getIoInstance();
+      
+      // Get driver ID based on trip state
+      let driverIdToNotify = null;
+      if (isMidTripBooking && existingTrip) {
+        driverIdToNotify = existingTrip.driverId;
+      } else {
+        // Pre-trip booking
+        driverIdToNotify = (schedule && schedule.driverId) || bus.assignedDriverId || null;
+      }
+
+      if (io && driverIdToNotify) {
+        const passengerDoc = await Passenger.findById(passengerId).select('firstName lastName').lean();
+        const passengerName = [passengerDoc?.firstName, passengerDoc?.lastName].filter(Boolean).join(' ').trim() || 'Passenger';
+        const driverNotifMessage = `New booking for ${selectedSeats.join(', ')} by ${passengerName} to ${destinationStop.stopName}. Service: ${schedule.startTime}-${schedule.endTime}.`;
+
+        const driverNotif = await Notification.create({
+          notificationId: `notif_${uuidv4()}`,
+          title: isMidTripBooking ? 'New Booking - Mid-Trip' : 'New Booking',
+          message: driverNotifMessage,
+          sentBy: 'system',
+          targetAudience: 'specific_user',
+          targetUserIds: [toObjectId(driverIdToNotify)],
+          status: 'sent',
+          type: 'alert',
+          severity: 'medium',
+        });
+
+        // Emit to driver socket room
+        io.to(`driver:${String(driverIdToNotify)}`).emit('booking:created', {
+          _id: String(driverNotif._id),
+          notificationId: driverNotif.notificationId,
+          title: driverNotif.title,
+          message: driverNotifMessage,
+          type: 'alert',
+          severity: 'medium',
+          sentBy: 'system',
+          bookingCode,
+          passengerName,
+          seatNumbers: selectedSeats,
+          destinationStop: destinationStop.stopName,
+          tripDate: normalizedServiceDate.toISOString().split('T')[0],
+          tripStartTime: schedule.startTime,
+          tripEndTime: schedule.endTime,
+          isMidTripBooking,
+          createdAt: new Date(),
+        });
+
+        console.log(`📢 [DRIVER NOTIF] Driver ${driverIdToNotify} notified of ${isMidTripBooking ? 'mid-trip' : 'pre-trip'} booking: ${driverNotifMessage}`);
+      }
+    } catch (driverNotifErr) {
+      console.error('Error sending driver booking notification:', driverNotifErr);
+    }
+
+    // ========== PASSENGER NOTIFICATION FOR MID-TRIP BOOKINGS ==========
     if (isMidTripBooking && existingTrip) {
       try {
         const io = getIoInstance();
-        if (io && existingTrip.driverId) {
-          // Get passenger and driver details
-          const [passengerDoc, driverDoc, tripDoc, scheduleDoc] = await Promise.all([
-            Passenger.findById(passengerId).select('firstName lastName').lean(),
-            Driver.findById(existingTrip.driverId).select('firstName lastName').lean(),
+        if (io) {
+          // Get trip and schedule details for ETA
+          const [tripDoc, scheduleDoc] = await Promise.all([
             TripSession.findById(existingTrip._id).select('startDelayMinutes startTime endTime').lean(),
             Route.findById(routeId)
               .select('schedules')
@@ -435,47 +497,9 @@ const createBooking = async (req, res) => {
               }),
           ]);
 
-          const passengerName = [passengerDoc?.firstName, passengerDoc?.lastName].filter(Boolean).join(' ').trim() || 'Passenger';
-          const driverName = [driverDoc?.firstName, driverDoc?.lastName].filter(Boolean).join(' ').trim() || 'Driver';
-          const seatDisplay = selectedSeats.join(', ');
           const startDelayMinutes = tripDoc?.startDelayMinutes || 0;
 
-          // 1. Send notification to DRIVER about new booking
-          const driverNotifMessage = `New booking for ${seatDisplay} by ${passengerName} to ${destinationStop.stopName}. Trip: ${schedule.startTime}-${schedule.endTime}.`;
-          const driverNotif = await Notification.create({
-            notificationId: `notif_${uuidv4()}`,
-            title: 'New Booking - Mid-Trip',
-            message: driverNotifMessage,
-            sentBy: 'system',
-            targetAudience: 'specific_user',
-            targetUserId: existingTrip.driverId,
-            status: 'sent',
-            type: 'alert',
-            severity: 'medium',
-          });
-
-          // Emit to driver socket room
-          io.to(`driver:${String(existingTrip.driverId)}`).emit('booking:created', {
-            _id: String(driverNotif._id),
-            notificationId: driverNotif.notificationId,
-            title: driverNotif.title,
-            message: driverNotifMessage,
-            type: 'alert',
-            severity: 'medium',
-            sentBy: 'system',
-            bookingCode,
-            passengerName,
-            seatNumbers: selectedSeats,
-            destinationStop: destinationStop.stopName,
-            tripDate: normalizedServiceDate.toISOString().split('T')[0],
-            tripStartTime: schedule.startTime,
-            tripEndTime: schedule.endTime,
-            createdAt: new Date(),
-          });
-
-          console.log(`✅ [BOOKING NOTIF] Driver ${existingTrip.driverId} notified:`, driverNotifMessage);
-
-          // 2. Send trip reminder to PASSENGER about arrival time and delay
+          // Send trip reminder to passenger with arrival time and delay info
           const arrivalTimeObj = scheduleDoc?.stopArrivals?.find((s) =>
             String(s.stopName || '').trim().toLowerCase() === String(destinationStop.stopName || '').trim().toLowerCase()
           );
@@ -513,82 +537,32 @@ const createBooking = async (req, res) => {
             createdAt: new Date(),
           });
 
-          console.log(`✅ [TRIP REMINDER] Passenger ${passengerId} notified:`, passengerNotifMessage);
-
-          // 3. Emit seat:booked event to driver's seat modal
-          io.to(`bus:${String(busId)}`).emit('seat:booked', {
-            busId: String(busId),
-            routeId: String(routeId),
-            scheduleId: String(scheduleId),
-            serviceDate: normalizedServiceDate,
-            seatNumbers: selectedSeats,
-            bookingCode,
-          });
-
-          console.log(`✅ [SEAT UPDATE] Emitted seat:booked for bus ${busId}:`, selectedSeats);
+          console.log(`ℹ️ [TRIP REMINDER] Passenger ${passengerId} notified:`, passengerNotifMessage);
         }
-      } catch (notifError) {
-        console.error('Error sending mid-trip notifications:', notifError);
-        // Don't fail the booking if notifications fail
+      } catch (passengerNotifErr) {
+        console.error('Error sending passenger trip reminder:', passengerNotifErr);
       }
     }
-    // ========== END MID-TRIP NOTIFICATIONS ==========
 
-    // Notify assigned driver for non mid-trip bookings (upcoming schedules)
-    if (!isMidTripBooking) {
-      try {
-        const io = getIoInstance();
-        // driver may be on schedule.driverId or bus.assignedDriverId
-        const driverIdToNotify = (schedule && schedule.driverId) || bus.assignedDriverId || null;
-        if (io && driverIdToNotify) {
-          const passengerDoc = await Passenger.findById(passengerId).select('firstName lastName').lean();
-          const passengerName = [passengerDoc?.firstName, passengerDoc?.lastName].filter(Boolean).join(' ').trim() || 'Passenger';
-          const driverNotifMessage = `New booking for ${selectedSeats.join(', ')} by ${passengerName} to ${destinationStop.stopName}. Service: ${schedule.startTime}-${schedule.endTime}.`;
+    // ========== SEAT UPDATE BROADCAST ==========
+    try {
+      const io = getIoInstance();
+      if (io) {
+        io.to(`bus:${String(busId)}`).emit('seat:booked', {
+          busId: String(busId),
+          routeId: String(routeId),
+          scheduleId: String(scheduleId),
+          serviceDate: normalizedServiceDate,
+          seatNumbers: selectedSeats,
+          bookingCode,
+        });
 
-          const driverNotif = await Notification.create({
-            notificationId: `notif_${uuidv4()}`,
-            title: 'New Booking',
-            message: driverNotifMessage,
-            sentBy: 'system',
-            targetAudience: 'specific_user',
-            targetUserId: driverIdToNotify,
-            status: 'sent',
-            type: 'alert',
-            severity: 'medium',
-          });
-
-          io.to(`driver:${String(driverIdToNotify)}`).emit('booking:created', {
-            _id: String(driverNotif._id),
-            notificationId: driverNotif.notificationId,
-            title: driverNotif.title,
-            message: driverNotifMessage,
-            type: 'alert',
-            severity: 'medium',
-            sentBy: 'system',
-            bookingCode,
-            passengerName,
-            seatNumbers: selectedSeats,
-            destinationStop: destinationStop.stopName,
-            tripDate: normalizedServiceDate.toISOString().split('T')[0],
-            tripStartTime: schedule.startTime,
-            tripEndTime: schedule.endTime,
-            createdAt: new Date(),
-          });
-
-          // Emit seat update to bus room
-          io.to(`bus:${String(busId)}`).emit('seat:booked', {
-            busId: String(busId),
-            routeId: String(routeId),
-            scheduleId: String(scheduleId),
-            serviceDate: normalizedServiceDate,
-            seatNumbers: selectedSeats,
-            bookingCode,
-          });
-        }
-      } catch (notifyErr) {
-        console.error('Error sending booking notification to driver:', notifyErr);
+        console.log(`✅ [SEAT UPDATE] Emitted seat:booked for bus ${busId}:`, selectedSeats);
       }
+    } catch (seatUpdateErr) {
+      console.error('Error broadcasting seat update:', seatUpdateErr);
     }
+    // ========== END NOTIFICATIONS ==========
 
     return res.status(201).json({
       message: 'Booking created successfully',

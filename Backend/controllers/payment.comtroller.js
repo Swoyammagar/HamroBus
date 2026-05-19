@@ -157,10 +157,13 @@ const initiateKhaltiPayment = async (req, res) => {
       }
     }
 
-    const amount = Math.round(Number(booking.totalFare || 0) * 100);
+    // ========== USE FINAL FARE (WITH DISCOUNT IF REDEEMED) ==========
+    const chargeAmount = Number(booking.finalFare || booking.totalFare || 0);
+    const amount = Math.round(chargeAmount * 100);
     if (amount <= 0) {
       return res.status(400).json({ message: 'Invalid booking amount for payment' });
     }
+    // ========== END NEW ==========
 
     const fallbackReturnUrl = String(process.env.KHALTI_RETURN_URL || 'https://example.com/khalti-return').trim();
     const fallbackWebsiteUrl = String(process.env.KHALTI_WEBSITE_URL || 'https://example.com').trim();
