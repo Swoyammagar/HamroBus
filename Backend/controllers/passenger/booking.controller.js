@@ -322,6 +322,11 @@ const createBooking = async (req, res) => {
 
     const farePerSeat = Number(route.fareInfo || 0);
     const totalFare = farePerSeat * parsedSeatCount;
+
+    // ========== CREATE BOOKING ID FIRST (needed for reward history) ==========
+    const bookingId = new mongoose.Types.ObjectId();
+    const bookingCode = makeBookingCode();
+    // ========== END NEW ==========
     
     // ========== NEW: Handle Reward Points Redemption ==========
     let discountCode = null;
@@ -368,9 +373,6 @@ const createBooking = async (req, res) => {
       }
     }
     // ========== END NEW ==========
-
-    const bookingId = new mongoose.Types.ObjectId();
-    const bookingCode = makeBookingCode();
     const qrToken = makeQrToken();
     const bookingStatus = 'confirmed';
     const qrRawPayload = buildBookingQrRawPayload({
