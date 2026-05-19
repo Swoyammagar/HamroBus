@@ -1,11 +1,13 @@
 const Booking = require('../models/booking.model');
 const Route = require('../models/route.model');
 const Driver = require('../models/driver.model');
+const Passenger = require('../models/passenger.model');
 const TripSession = require('../models/tripSession.model');
 const Bus = require('../models/bus.model');
 const Notification = require('../models/notification.model');
 const { sendEmail } = require('../utils/sendEmail');
 const { awardPoints } = require('./rewardService');
+const { getIoInstance } = require('./ioManager');
 const { v4: uuidv4 } = require('uuid');
 const { missed_trip_apology_boilerplate } = require('../utils/boilerplate.data');
 
@@ -397,6 +399,191 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
     status: 'completed',
     completedAt: transitionTime,
   }));
+
+  // ========== NEW: Award reward points to each passenger ==========
+  for (const booking of changedBookings) {
+    if (booking.passengerId) {
+      try {
+        const rewardResult = await awardPoints(String(booking.passengerId), String(booking.bookingId));
+        if (rewardResult.success) {
+          console.log(`🎁 Rewards awarded to passenger ${booking.passengerId} on trip end: ${rewardResult.message}`);
+        }
+      } catch (err) {
+        console.error(`Failed to award points to passenger ${booking.passengerId} on trip end:`, err);
+      }
+    }
+  }
+  // ========== END NEW ==========
+
+  // ========== NEW: Decrease occupancy when trip ends ==========
+  const passengersCompleted = result.modifiedCount || 0;
+  if (passengersCompleted > 0) {
+    try {
+      const io = getIoInstance();
+
+      // Update trip session passenger count
+      const tripDoc = await TripSession.findById(trip._id);
+      if (tripDoc) {
+        const previousOccupancy = Number(tripDoc.passengerCount || 0);
+        tripDoc.passengerCount = Math.max(0, previousOccupancy - passengersCompleted);
+
+        if (!tripDoc.occupancyHistory) {
+          tripDoc.occupancyHistory = [];
+        }
+        tripDoc.occupancyHistory.push({
+          timestamp: new Date(),
+          stopName: 'Trip End',
+          stopSequence: -1,
+          passengersBoarded: 0,
+          passengersAlighted: passengersCompleted,
+          currentOccupancy: tripDoc.passengerCount,
+          eventType: 'trip-ended'
+        });
+
+        await tripDoc.save();
+        console.log(`🏁 Trip ended - Occupancy decreased: ${passengersCompleted} passengers alighted. Current: ${tripDoc.passengerCount}`);
+      }
+
+      // Update bus current passengers
+      if (trip.busId) {
+        const busDoc = await Bus.findById(trip.busId).select('currentPassengers');
+        if (busDoc) {
+          busDoc.currentPassengers = Math.max(0, Number(busDoc.currentPassengers || 0) - passengersCompleted);
+          await busDoc.save();
+
+          // Emit occupancy update to passengers and driver viewing this bus
+          if (io) {
+            io.to(`bus:${String(trip.busId)}`).emit('trip:occupancy-updated', {
+              tripId: String(trip._id),
+              busId: String(trip.busId),
+              passengerCount: busDoc.currentPassengers,
+              eventType: 'trip-end',
+              passengersAlighted: passengersCompleted,
+              timestamp: new Date().toISOString(),
+            });
+
+            console.log(`📲 Occupancy update emitted for bus ${trip.busId}: ${busDoc.currentPassengers} passengers remaining`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error updating occupancy on trip end:', err);
+    }
+  }
+  // ========== END NEW ==========
+
+  // ========== NEW: Handle no-show bookings (confirmed but never boarded) ==========
+  const noShowFilter = {
+    routeId: trip.routeId,
+    busId: trip.busId,
+    scheduleId: trip.scheduleId,
+    serviceDate: tripDate,
+    status: 'confirmed', // Bookings that were never boarded
+    $or: [
+      { tripSessionId: trip._id },
+      { tripSessionId: { $exists: false } },
+      { tripSessionId: null },
+    ],
+  };
+
+  const noShowCandidates = await Booking.find(noShowFilter)
+    .select('_id bookingCode passengerId')
+    .lean();
+
+  if (noShowCandidates.length > 0) {
+    const noShowResult = await Booking.updateMany(
+      noShowFilter,
+      {
+        $set: {
+          status: 'cancelled',
+          cancelledAt: transitionTime,
+          cancellationReason: 'No-show - Did not board the bus',
+          tripSessionId: trip._id,
+        },
+      }
+    );
+
+    const noShowBookings = noShowCandidates.map((row) => ({
+      bookingId: String(row._id),
+      bookingCode: row.bookingCode,
+      passengerId: String(row.passengerId),
+      status: 'cancelled',
+      cancelledAt: transitionTime,
+      reason: 'No-show - Did not board the bus',
+    }));
+
+    changedBookings.push(...noShowBookings);
+
+    console.log(`⚠️ No-show bookings marked as cancelled for trip ${trip._id}: ${noShowResult.modifiedCount} bookings`);
+
+    // ========== NEW: Send no-show notifications to passengers ==========
+    try {
+      const io = getIoInstance();
+      const Bus_doc = await Bus.findById(trip.busId).select('busNumber').lean();
+      const Route_doc = await Route.findById(trip.routeId).select('routeName source destination').lean();
+
+      for (const noShowBooking of noShowBookings) {
+        if (noShowBooking.passengerId) {
+          try {
+            // Fetch passenger details
+            const passengerDoc = await Passenger.findById(noShowBooking.passengerId)
+              .select('firstName lastName email')
+              .lean();
+
+            if (passengerDoc) {
+              const passengerName = `${passengerDoc.firstName} ${passengerDoc.lastName}`.trim();
+              const busNumber = Bus_doc?.busNumber || 'Unknown';
+              const routeName = Route_doc?.routeName || 'Unknown Route';
+              const source = Route_doc?.source || 'Unknown';
+              const destination = Route_doc?.destination || 'Unknown';
+
+              // Create database notification
+              const notifMessage = `You missed your trip on ${busNumber} from ${source} to ${destination}. Your booking (${noShowBooking.bookingCode}) has been cancelled.`;
+              
+              const noShowNotif = await Notification.create({
+                notificationId: `notif_${uuidv4()}`,
+                title: 'You Missed Your Trip',
+                message: notifMessage,
+                sentBy: 'system',
+                targetAudience: 'specific_user',
+                targetUserIds: [noShowBooking.passengerId],
+                status: 'sent',
+                type: 'alert',
+                severity: 'medium',
+              });
+
+              // Emit via socket.io to passenger
+              if (io) {
+                io.to(`passenger:${String(noShowBooking.passengerId)}`).emit('trip:missed', {
+                  _id: String(noShowNotif._id),
+                  notificationId: noShowNotif.notificationId,
+                  title: 'You Missed Your Trip',
+                  message: notifMessage,
+                  type: 'alert',
+                  severity: 'medium',
+                  bookingCode: noShowBooking.bookingCode,
+                  busNumber,
+                  route: `${source} → ${destination}`,
+                  cancelledAt: noShowBooking.cancelledAt,
+                  createdAt: new Date(),
+                });
+
+                console.log(`📲 No-show notification sent to passenger ${noShowBooking.passengerId}: ${noShowBooking.bookingCode}`);
+              }
+            }
+          } catch (notifErr) {
+            console.error(`Failed to send no-show notification to passenger ${noShowBooking.passengerId}:`, notifErr);
+            // Don't fail the entire process if one notification fails
+          }
+        }
+      }
+    } catch (notifError) {
+      console.error('Error sending no-show notifications:', notifError);
+      // Don't fail the booking cancellation if notifications fail
+    }
+    // ========== END NEW ==========
+  }
+  // ========== END NEW ==========
 
   return {
     matched: result.matchedCount || 0,

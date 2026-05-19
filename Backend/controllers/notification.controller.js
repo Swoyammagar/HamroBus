@@ -173,6 +173,7 @@ const getAllNotifications = async (req, res) => {
 const getUserNotifications = async (req, res) => {
   try {
     const userId = req.user?.id || req.user?._id;
+    const userIdStr = String(userId); // Convert to string for consistent comparison
     const userType = req.query.userType; // 'driver' or 'passenger'
 
     if (!userType || !['driver', 'passenger'].includes(userType)) {
@@ -187,7 +188,7 @@ const getUserNotifications = async (req, res) => {
       $or: [
         { targetAudience: 'all' },
         { targetAudience: userType === 'driver' ? 'drivers' : 'passengers' },
-        { targetUserIds: userId }
+        { targetUserIds: { $in: [userIdStr] } } // Use $in operator with string comparison
       ]
     })
       .sort({ createdAt: -1 })

@@ -128,6 +128,11 @@ const mapBookingResponse = (booking) => ({
   seatCount: booking.seatCount,
   farePerSeat: booking.farePerSeat,
   totalFare: booking.totalFare,
+  rewardPointsRedeemed: booking.rewardPointsRedeemed || false,
+  discountCode: booking.discountCode || null,
+  discountPercentage: booking.discountPercentage || 0,
+  discountAmount: booking.discountAmount || 0,
+  finalFare: booking.finalFare || booking.totalFare,
   paymentStatus: Boolean(booking.paymentStatus || booking.payment?.status === 'paid'),
   status: booking.status,
   cancelledAt: booking.cancelledAt,
@@ -153,6 +158,7 @@ const createBooking = async (req, res) => {
     destinationStopName,
     seatCount,
     preferredSeatNumbers,
+    redeemRewardPoints,
   } = req.body;
 
   try {
@@ -316,6 +322,45 @@ const createBooking = async (req, res) => {
 
     const farePerSeat = Number(route.fareInfo || 0);
     const totalFare = farePerSeat * parsedSeatCount;
+    
+    // ========== NEW: Handle Reward Points Redemption ==========
+    let discountCode = null;
+    let discountPercentage = 0;
+    let discountAmount = 0;
+    let finalFare = totalFare;
+    let rewardPointsRedeemed = false;
+
+    if (redeemRewardPoints === true) {
+      try {
+        const passenger = await Passenger.findById(passengerId).select('rewardPoints firstName lastName');
+        
+        if (passenger && passenger.rewardPoints >= 500) {
+          discountPercentage = 10;
+          discountAmount = Math.round((totalFare * discountPercentage) / 100 * 100) / 100; // Round to 2 decimals
+          finalFare = Math.round((totalFare - discountAmount) * 100) / 100;
+          discountCode = `HAMRO-${Date.now()}-${String(passengerId).slice(-6).toUpperCase()}`;
+          rewardPointsRedeemed = true;
+
+          // Deduct points from passenger
+          passenger.rewardPoints -= 500;
+          passenger.totalPointsRedeemed += 500;
+          passenger.pointsHistory.push({
+            action: 'redeemed',
+            points: 500,
+            description: `Redeemed 10% discount on booking (${discountCode})`,
+            timestamp: new Date(),
+          });
+          await passenger.save();
+
+          console.log(`🎁 Passenger ${passengerId} redeemed 500 points for ${discountPercentage}% discount on booking`);
+        }
+      } catch (err) {
+        console.error('Error processing reward points redemption:', err);
+        // Don't fail the booking if redemption fails, continue with full price
+      }
+    }
+    // ========== END NEW ==========
+
     const bookingId = new mongoose.Types.ObjectId();
     const bookingCode = makeBookingCode();
     const qrToken = makeQrToken();
@@ -357,6 +402,11 @@ const createBooking = async (req, res) => {
       seatCount: parsedSeatCount,
       farePerSeat,
       totalFare,
+      rewardPointsRedeemed,
+      discountCode,
+      discountPercentage,
+      discountAmount,
+      finalFare,
       status: bookingStatus,
       qrToken,
       qrPayload,
@@ -405,7 +455,7 @@ const createBooking = async (req, res) => {
           });
 
           // Emit to driver socket room
-          io.to(`driver:${existingTrip.driverId}`).emit('booking:created', {
+          io.to(`driver:${String(existingTrip.driverId)}`).emit('booking:created', {
             _id: String(driverNotif._id),
             notificationId: driverNotif.notificationId,
             title: driverNotif.title,
@@ -446,7 +496,7 @@ const createBooking = async (req, res) => {
           });
 
           // Emit to passenger socket room
-          io.to(`passenger:${passengerId}`).emit('trip:reminder', {
+          io.to(`passenger:${String(passengerId)}`).emit('trip:reminder', {
             _id: String(passengerNotif._id),
             notificationId: passengerNotif.notificationId,
             title: 'Trip Started',
@@ -466,7 +516,7 @@ const createBooking = async (req, res) => {
           console.log(`✅ [TRIP REMINDER] Passenger ${passengerId} notified:`, passengerNotifMessage);
 
           // 3. Emit seat:booked event to driver's seat modal
-          io.to(`bus:${busId}`).emit('seat:booked', {
+          io.to(`bus:${String(busId)}`).emit('seat:booked', {
             busId: String(busId),
             routeId: String(routeId),
             scheduleId: String(scheduleId),
@@ -526,7 +576,7 @@ const createBooking = async (req, res) => {
           });
 
           // Emit seat update to bus room
-          io.to(`bus:${busId}`).emit('seat:booked', {
+          io.to(`bus:${String(busId)}`).emit('seat:booked', {
             busId: String(busId),
             routeId: String(routeId),
             scheduleId: String(scheduleId),
