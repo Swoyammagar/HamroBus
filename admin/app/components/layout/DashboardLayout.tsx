@@ -29,12 +29,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     dashboard: 'Dashboard',
     buses: 'Buses',
     drivers: 'Drivers',
+    passengers: 'Passengers',
     routes: 'Routes',
     schedules: 'Schedules',
     trips: 'Trips',
     settings: 'Settings',
     analytics: 'Analytics',
-    notifications: 'Notifications'
+    sos: 'SOS',
+    notifications: 'Notifications',
+    faq: 'FAQ',
   };
 
   return (

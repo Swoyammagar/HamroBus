@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import type { AdminUser, ApiResponse, LoginResponse } from '../src/types/auth';
 
@@ -16,119 +16,70 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-const API_BASE =
-  process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
-
-// Always send cookies
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
 axios.defaults.withCredentials = true;
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AdminUser | null>(null);
-  const [token, setToken] = useState<string | null>(null); // FLAG ONLY
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  /**
-   * Validate session on app load
-   */
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const valid = await validateToken();
-      if (!mounted) return;
-      if (!valid) console.log('[Auth] no valid session');
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  /**
-   * Login
-   */
-  const login = async (email: string, password: string) => {
-    try {
-      const { data } = await axios.post<LoginResponse>(
-        `${API_BASE}/admin/login`,
-        { email, password }
-      );
-
-      if (data?.success) {
-        const valid = await validateToken();
-        if (!valid) {
-          return { success: false, message: 'Session validation failed' };
-        }
-        return { success: true, message: data.message || 'Login successful' };
-      }
-
-      return { success: false, message: data.message || 'Login failed' };
-    } catch (err: any) {
-      return {
-        success: false,
-        message: err?.response?.data?.message || 'Login failed',
-      };
-    }
-  };
-
-  /**
-   * Logout
-   */
-  const logout = async () => {
-    try {
-      await axios.post(`${API_BASE}/auth/logout`);
-    } catch {}
+  const clearSession = () => {
     setUser(null);
     setToken(null);
   };
 
-  /**
-   * Validate access token (cookie-based)
-   */
-  const validateToken = async (): Promise<boolean> => {
-    setLoading(true);
+  const logout = async () => {
+    try { await axios.post(`${API_BASE}/auth/logout`); } catch {}
+    clearSession();
+  };
+
+  const validateToken = async (silent = false): Promise<boolean> => {
+    if (!silent) setLoading(true);
     try {
       const { data } = await axios.get(`${API_BASE}/admin/current`);
       if (data?.success && data.user) {
         setUser(data.user as AdminUser);
-        setToken('authenticated'); 
-        setLoading(false);
+        setToken('authenticated');
         return true;
       }
       throw new Error('No session');
     } catch {
-      try {
-        await axios.post(`${API_BASE}/auth/refresh`);
-        const { data } = await axios.get(`${API_BASE}/admin/current`);
-        if (data?.success && data.user) {
-          setUser(data.user as AdminUser);
-          setToken('authenticated');
-          setLoading(false);
-          return true;
-        }
-      } catch {
-        logout();
-      }
-      setLoading(false);
+      clearSession();
       return false;
+    } finally {
+      if (!silent) setLoading(false);
     }
   };
 
+  useEffect(() => {
+    let mounted = true;
+    validateToken().then((valid) => {
+      if (!mounted) return;
+      if (!valid) console.log('[Auth] no valid session on mount');
+    });
+    return () => { mounted = false; };
+  }, []);
+
   /**
-   * Axios interceptor: auto refresh on 401 / 403
+   * KEY FIX: The interceptor no longer calls /auth/refresh.
+   * Your backend middleware already refreshes inline and returns 200.
+   * A 401 here means the refresh token itself is expired — just clear session.
    */
   useEffect(() => {
-    const id = axios.interceptors.response.use(
+    const interceptorId = axios.interceptors.response.use(
       (res) => res,
       async (error) => {
-        const status = error?.response?.status;
+        const status: number | undefined = error?.response?.status;
         const originalRequest = error?.config;
 
-        // Prevent refresh loop
-        if (originalRequest?.url?.includes('/auth/refresh')) {
-          return Promise.reject(error);
-        }
+        // Skip auth endpoints to prevent loops
+        const isAuthEndpoint =
+          originalRequest?.url?.includes('/auth/') ||
+          originalRequest?.url?.includes('/admin/login') ||
+          originalRequest?.url?.includes('/admin/current');
+
+        if (isAuthEndpoint) return Promise.reject(error);
 
         if (
           (status === 401 || status === 403) &&
@@ -136,11 +87,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           !originalRequest._retry
         ) {
           originalRequest._retry = true;
+
           try {
-            await axios.post(`${API_BASE}/auth/refresh`);
+            // Retry request once after backend refresh middleware
             return axios(originalRequest);
-          } catch {
-            logout();
+          } catch (retryErr) {
+            console.warn('[Auth] Session expired');
+            clearSession();
           }
         }
 
@@ -148,89 +101,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     );
 
-    return () => axios.interceptors.response.eject(id);
+    return () => axios.interceptors.response.eject(interceptorId);
   }, []);
 
-  /**
-   * Get current user
-   */
+  const login = async (email: string, password: string): Promise<ApiResponse> => {
+    try {
+      const { data } = await axios.post<LoginResponse>(`${API_BASE}/admin/login`, { email, password });
+      if (data?.success) {
+        const valid = await validateToken();
+        if (!valid) return { success: false, message: 'Session validation failed after login' };
+        return { success: true, message: data.message || 'Login successful' };
+      }
+      return { success: false, message: data.message || 'Login failed' };
+    } catch (err: any) {
+      return { success: false, message: err?.response?.data?.message || 'Login failed' };
+    }
+  };
+
   const getCurrentUser = async (): Promise<AdminUser | null> => {
-    const ok = await validateToken();
+    const ok = await validateToken(true);
     return ok ? user : null;
   };
 
-  /**
-   * Password reset email
-   */
-  const passwordResetEmail = async (email: string) => {
+  const passwordResetEmail = async (email: string): Promise<ApiResponse> => {
     try {
-      const { data } = await axios.post<ApiResponse>(
-        `${API_BASE}/admin/request-password-reset`,
-        { email }
-      );
+      const { data } = await axios.post<ApiResponse>(`${API_BASE}/admin/request-password-reset`, { email });
       return { success: !!data.success, message: data.message || '' };
     } catch (err: any) {
-      return {
-        success: false,
-        message: err?.response?.data?.message || 'Network error',
-      };
+      return { success: false, message: err?.response?.data?.message || 'Network error' };
     }
   };
 
-  /**
-   * Reset password
-   */
-  const resetPassword = async (email: string, newPassword: string) => {
+  const resetPassword = async (email: string, newPassword: string): Promise<ApiResponse> => {
     try {
-      const { data } = await axios.post<ApiResponse>(
-        `${API_BASE}/admin/reset-password`,
-        { email, newPassword }
-      );
+      const { data } = await axios.post<ApiResponse>(`${API_BASE}/admin/reset-password`, { email, newPassword });
       return { success: !!data.success, message: data.message || '' };
     } catch (err: any) {
-      return {
-        success: false,
-        message: err?.response?.data?.message || 'Network error',
-      };
+      return { success: false, message: err?.response?.data?.message || 'Network error' };
     }
   };
 
-  /**
-   * Verify OTP
-   */
-  const verifyOTP = async (email: string, otp: string) => {
+  const verifyOTP = async (email: string, otp: string): Promise<ApiResponse> => {
     try {
-      const { data } = await axios.post<ApiResponse & { status?: string }>(
-        `${API_BASE}/admin/verify-otp`,
-        { email, otp }
-      );
-      return {
-        success: data.status === 'success',
-        message: data.message || '',
-      };
+      const { data } = await axios.post<ApiResponse & { status?: string }>(`${API_BASE}/admin/verify-otp`, { email, otp });
+      return { success: data.status === 'success', message: data.message || '' };
     } catch (err: any) {
-      return {
-        success: false,
-        message: err?.response?.data?.message || 'Network error',
-      };
+      return { success: false, message: err?.response?.data?.message || 'Network error' };
     }
-  };
-
-  const value: AuthContextValue = {
-    user,
-    token,
-    loading,
-    login,
-    logout,
-    validateToken,
-    getCurrentUser,
-    passwordResetEmail,
-    resetPassword,
-    verifyOTP,
   };
 
   return (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, validateToken, getCurrentUser, passwordResetEmail, resetPassword, verifyOTP }}>
+      {children}
+    </AuthContext.Provider>
   );
 };
 

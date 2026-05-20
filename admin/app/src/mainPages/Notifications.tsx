@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
+  TouchableOpacity,
 } from 'react-native';
 import { Picker as RNPicker } from '@react-native-picker/picker';
 import { Table, Modal, Input, Button, EmptyState, type TableColumn } from '../../components/ui';
@@ -18,6 +19,8 @@ import {
   type NotificationType,
   type NotificationSeverity,
 } from '../../context/domains';
+import Pagination from '../../components/ui/Pagination';
+import Feather from '@expo/vector-icons/build/Feather';
 
 const Notifications = () => {
   const {
@@ -43,6 +46,9 @@ const Notifications = () => {
   const [type, setType] = useState<NotificationType>('info');
   const [severity, setSeverity] = useState<NotificationSeverity>('medium');
   const [refreshing, setRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState<NotificationRecord | null>(null);
+  const ITEMS_PER_PAGE = 10;
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -60,10 +66,16 @@ const Notifications = () => {
       return true;
     });
 
-    return [...byFilter].sort(
+    const sorted = [...byFilter].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
-  }, [filter, notifications]);
+
+    const totalPages = Math.ceil(sorted.length / ITEMS_PER_PAGE);
+    const safePage = Math.min(currentPage, totalPages || 1);
+    const paginated = sorted.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
+
+    return { data: paginated, total: sorted.length, totalPages };
+  }, [filter, notifications, currentPage]);
 
   const audienceLabel = (audience: NotificationAudience) => {
     if (audience === 'all') return 'All Users';
@@ -105,41 +117,21 @@ const Notifications = () => {
     Alert.alert('Success', result.message);
   };
 
-  const handleDeleteConfirmed = async (item: NotificationRecord) => {
-    const deleteId = item._id || item.notificationId;
-    if (!deleteId) {
-      Alert.alert('Failed', 'Notification id is missing.');
-      return;
-    }
-
-    const result = await deleteNotification(deleteId);
-    if (!result.success) {
-      Alert.alert('Failed', result.message);
-      return;
-    }
-
-    Alert.alert('Success', result.message);
-  };
+ const handleDeleteConfirmed = async (item: NotificationRecord) => {
+  const deleteId = item._id || item.notificationId;
+  if (!deleteId) {
+    Alert.alert('Failed', 'Notification id is missing.');
+    return;
+  }
+  const result = await deleteNotification(deleteId);
+  setConfirmDeleteItem(null);
+  if (!result.success) {
+    Alert.alert('Failed', result.message);
+  }
+};
 
   const handleDelete = (item: NotificationRecord) => {
-    if (Platform.OS === 'web') {
-      const ok = globalThis.confirm?.('Do you want to delete this notification?') ?? false;
-      if (ok) {
-        handleDeleteConfirmed(item);
-      }
-      return;
-    }
-
-    Alert.alert('Delete notification', 'Do you want to delete this notification?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          handleDeleteConfirmed(item);
-        },
-      },
-    ]);
+    setConfirmDeleteItem(item);
   };
 
   const columns: TableColumn<NotificationRecord>[] = [
@@ -174,72 +166,87 @@ const Notifications = () => {
       key: 'type',
       header: 'Type',
       width: 95,
-      render: (item) => (
-        <View
-          style={[
-            styles.badge,
-            item.type === 'alert'
-              ? styles.typeAlert
-              : item.type === 'info'
-                ? styles.typeInfo
-                : item.type === 'maintenance'
-                  ? styles.typeMaintenance
-                  : item.type === 'announcement'
-                    ? styles.typeAnnouncement
-                    : styles.typeEmergency,
-          ]}
-        >
-          <Text style={styles.badgeText}>{item.type.charAt(0).toUpperCase() + item.type.slice(1)}</Text>
-        </View>
-      ),
+      render: (item) => {
+        const map: Record<string, { bg: string; text: string }> = {
+          alert:        { bg: '#fef3c7', text: '#92400e' },
+          info:         { bg: '#dbeafe', text: '#1e40af' },
+          maintenance:  { bg: '#ede9fe', text: '#5b21b6' },
+          announcement: { bg: '#cffafe', text: '#155e75' },
+          emergency:    { bg: '#fee2e2', text: '#991b1b' },
+        };
+        const s = map[item.type] ?? { bg: '#f1f5f9', text: '#475569' };
+        return (
+          <View style={[styles.softBadge, { backgroundColor: s.bg, borderColor: s.bg }]}>
+            <Text style={[styles.softBadgeText, { color: s.text }]}>
+              {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
+            </Text>
+          </View>
+        );
+      },
     },
     {
       key: 'severity',
       header: 'Severity',
       width: 95,
-      render: (item) => (
-        <View
-          style={[
-            styles.badge,
-            item.severity === 'low'
-              ? styles.severityLow
-              : item.severity === 'medium'
-                ? styles.severityMedium
-                : item.severity === 'high'
-                  ? styles.severityHigh
-                  : styles.severityCritical,
-          ]}
-        >
-          <Text style={styles.badgeText}>{item.severity.charAt(0).toUpperCase() + item.severity.slice(1)}</Text>
-        </View>
-      ),
+      render: (item) => {
+        const map: Record<string, { dot: string; text: string }> = {
+          low:      { dot: '#10b981', text: '#065f46' },
+          medium:   { dot: '#f59e0b', text: '#78350f' },
+          high:     { dot: '#f97316', text: '#7c2d12' },
+          critical: { dot: '#dc2626', text: '#7f1d1d' },
+        };
+        const s = map[item.severity] ?? { dot: '#94a3b8', text: '#475569' };
+        return (
+          <View style={styles.dotBadgeRow}>
+            <View style={[styles.dotIndicator, { backgroundColor: s.dot }]} />
+            <Text style={[styles.dotBadgeText, { color: s.text }]}>
+              {item.severity.charAt(0).toUpperCase() + item.severity.slice(1)}
+            </Text>
+          </View>
+        );
+      },
     },
     {
       key: 'targetAudience',
       header: 'Audience',
       width: 110,
-      render: (item) => (
-        <View
-          style={[
-            styles.badge,
-            item.targetAudience === 'all'
-              ? styles.badgeAll
-              : item.targetAudience === 'drivers'
-                ? styles.badgeDrivers
-                : item.targetAudience === 'passengers'
-                  ? styles.badgePassengers
-                  : styles.badgeAll,
-          ]}
-        >
-          <Text style={styles.badgeText}>{audienceLabel(item.targetAudience)}</Text>
-        </View>
-      ),
+      render: (item) => {
+        const map: Record<string, { border: string; text: string }> = {
+          all:            { border: '#2563eb', text: '#1e40af' },
+          drivers:        { border: '#ea580c', text: '#9a3412' },
+          passengers:     { border: '#059669', text: '#065f46' },
+          admins:         { border: '#7c3aed', text: '#4c1d95' },
+          specific_user:  { border: '#64748b', text: '#334155' },
+          specific_route: { border: '#64748b', text: '#334155' },
+          specific_bus:   { border: '#64748b', text: '#334155' },
+        };
+        const s = map[item.targetAudience] ?? { border: '#94a3b8', text: '#475569' };
+        return (
+          <View style={[styles.outlineBadge, { borderColor: s.border }]}>
+            <Text style={[styles.outlineBadgeText, { color: s.text }]}>
+              {audienceLabel(item.targetAudience)}
+            </Text>
+          </View>
+        );
+      },
     },
     {
       key: 'createdAt',
       header: 'Date',
-      width: 160,
-      render: (item) => new Date(item.createdAt).toLocaleString(),
+      width: 130,
+      render: (item) => {
+        const d = new Date(item.createdAt);
+        return (
+          <View style={styles.dateCell}>
+            <Text style={styles.dateLine}>
+              {d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </Text>
+            <Text style={styles.timeLine}>
+              {d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
+        );
+      },
     },
     {
       key: 'actions',
@@ -282,9 +289,10 @@ const Notifications = () => {
       <View style={styles.pickerWrapper}>
         <RNPicker
           selectedValue={filter}
-          onValueChange={(value) =>
-            setFilter(value as 'All' | 'Sent' | 'Received' | 'Drivers' | 'Passengers')
-          }
+          onValueChange={(value) => {
+            setFilter(value as 'All' | 'Sent' | 'Received' | 'Drivers' | 'Passengers');
+            setCurrentPage(1);
+          }}
           style={styles.picker}
         >
           <RNPicker.Item label="All Notifications" value="All" />
@@ -305,19 +313,24 @@ const Notifications = () => {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           style={styles.listArea}
         >
-          {filteredNotifications.length > 0 ? (
-            <Table
-              data={filteredNotifications}
-              columns={columns}
-              keyExtractor={(item) => item._id}
-              emptyMessage="No notifications found"
+            {filteredNotifications.data.length > 0 ? (
+              <Table
+                data={filteredNotifications.data}
+                columns={columns}
+                keyExtractor={(item) => item._id}
+                emptyMessage="No notifications found"
+              />
+            ) : (
+              <EmptyState
+                title="No notifications"
+                description="Send your first announcement to users"
+              />
+            )}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={filteredNotifications.totalPages}
+              onPageChange={setCurrentPage}
             />
-          ) : (
-            <EmptyState
-              title="No notifications"
-              description="Send your first announcement to users"
-            />
-          )}
         </ScrollView>
       )}
 
@@ -403,6 +416,33 @@ const Notifications = () => {
           </View>
         </View>
       </Modal>
+      {confirmDeleteItem && (
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmCard}>
+            <View style={styles.confirmIconWrap}>
+              <Feather name="trash-2" size={24} color="#ef4444" />
+            </View>
+            <Text style={styles.confirmTitle}>Delete Notification?</Text>
+            <Text style={styles.confirmSub}>
+              This will permanently remove "{confirmDeleteItem.title}". This action cannot be undone.
+            </Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                onPress={() => setConfirmDeleteItem(null)}
+                style={styles.confirmCancel}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleDeleteConfirmed(confirmDeleteItem)}
+                style={styles.confirmDelete}
+              >
+                <Text style={styles.confirmDeleteText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
@@ -475,52 +515,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarText: { color: '#374151', fontWeight: '700', fontSize: 13 },
-  badge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    alignSelf: 'flex-start',
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  badgeAll: {
-    backgroundColor: '#2563eb',
-  },
-  badgeDrivers: {
-    backgroundColor: '#ea580c',
-  },
-  badgePassengers: {
-    backgroundColor: '#059669',
-  },
   typeAlert: {
     backgroundColor: '#f59e0b',
-  },
-  typeInfo: {
-    backgroundColor: '#3b82f6',
-  },
-  typeMaintenance: {
-    backgroundColor: '#8b5cf6',
-  },
-  typeAnnouncement: {
-    backgroundColor: '#06b6d4',
-  },
-  typeEmergency: {
-    backgroundColor: '#dc2626',
-  },
-  severityLow: {
-    backgroundColor: '#10b981',
-  },
-  severityMedium: {
-    backgroundColor: '#f59e0b',
-  },
-  severityHigh: {
-    backgroundColor: '#f97316',
-  },
-  severityCritical: {
-    backgroundColor: '#dc2626',
   },
   messageCell: {
     color: '#111827',
@@ -552,4 +548,124 @@ const styles = StyleSheet.create({
   listArea: {
     flex: 1,
   },
+  confirmOverlay: {
+  ...StyleSheet.absoluteFillObject,
+  backgroundColor: 'rgba(15,23,42,0.55)',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 100,
+},
+confirmCard: {
+  width: '82%',
+  backgroundColor: '#fff',
+  borderRadius: 20,
+  padding: 24,
+  alignItems: 'center',
+  gap: 10,
+  shadowColor: '#000',
+  shadowOpacity: 0.18,
+  shadowRadius: 24,
+  shadowOffset: { width: 0, height: 8 },
+  elevation: 12,
+},
+confirmIconWrap: {
+  width: 56,
+  height: 56,
+  borderRadius: 28,
+  backgroundColor: '#fef2f2',
+  borderWidth: 1,
+  borderColor: '#fecaca',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginBottom: 4,
+},
+confirmTitle: {
+  fontSize: 18,
+  fontWeight: '800',
+  color: '#0f172a',
+},
+confirmSub: {
+  fontSize: 13,
+  color: '#64748b',
+  textAlign: 'center',
+  lineHeight: 19,
+},
+confirmActions: {
+  flexDirection: 'row',
+  gap: 10,
+  marginTop: 6,
+  width: '100%',
+},
+confirmCancel: {
+  flex: 1,
+  paddingVertical: 12,
+  borderRadius: 12,
+  backgroundColor: '#f1f5f9',
+  alignItems: 'center',
+},
+confirmCancelText: {
+  fontSize: 14,
+  fontWeight: '600',
+  color: '#334155',
+},
+confirmDelete: {
+  flex: 1,
+  paddingVertical: 12,
+  borderRadius: 12,
+  backgroundColor: '#ef4444',
+  alignItems: 'center',
+},
+confirmDeleteText: {
+  fontSize: 14,
+  fontWeight: '700',
+  color: '#fff',
+},
+softBadge: {
+  borderRadius: 6,
+  paddingHorizontal: 8,
+  paddingVertical: 4,
+  alignSelf: 'flex-start',
+  borderWidth: 1,
+},
+softBadgeText: {
+  fontSize: 12,
+  fontWeight: '600',
+},
+dotBadgeRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+},
+dotIndicator: {
+  width: 7,
+  height: 7,
+  borderRadius: 999,
+},
+dotBadgeText: {
+  fontSize: 13,
+  fontWeight: '600',
+},
+outlineBadge: {
+  borderRadius: 6,
+  borderWidth: 1.5,
+  paddingHorizontal: 8,
+  paddingVertical: 4,
+  alignSelf: 'flex-start',
+},
+outlineBadgeText: {
+  fontSize: 12,
+  fontWeight: '600',
+},
+dateCell: {
+  gap: 2,
+},
+dateLine: {
+  fontSize: 13,
+  fontWeight: '600',
+  color: '#1e293b',
+},
+timeLine: {
+  fontSize: 11,
+  color: '#94a3b8',
+},
 });

@@ -116,6 +116,16 @@ export const useAdminDrivers = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const normalizeDriverRecord = useCallback((drv: DriverRecord): DriverRecord => {
+    const profileImgUrl = drv.profileImgUrl || (drv as any).profileImage || (drv as any).avatarUrl;
+    const licenseImgUrl = drv.licenseImgUrl || (drv as any).licenseImageUrl || (drv as any).licenseImage;
+    return {
+      ...drv,
+      profileImgUrl,
+      licenseImgUrl,
+    };
+  }, []);
+
   const fetchAllDrivers = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -123,14 +133,14 @@ export const useAdminDrivers = () => {
       const { data } = await axios.get<{ drivers?: DriverRecord[] }>(
         `${API_BASE}/driver/allDrivers`
       );
-      setDrivers(data?.drivers || []);
+      setDrivers((data?.drivers || []).map(normalizeDriverRecord));
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Failed to fetch drivers';
       setError(message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [normalizeDriverRecord]);
 
   const fetchPendingDrivers = useCallback(async () => {
     setLoading(true);
@@ -139,14 +149,14 @@ export const useAdminDrivers = () => {
       const { data } = await axios.get<{ drivers?: DriverRecord[] }>(
         `${API_BASE}/driver/pending`
       );
-      setPendingDrivers(data?.drivers || []);
+      setPendingDrivers((data?.drivers || []).map(normalizeDriverRecord));
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Failed to fetch pending drivers';
       setError(message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [normalizeDriverRecord]);
 
   const approveDriver = useCallback(async (driverId: string): Promise<ActionResult> => {
     try {
@@ -154,7 +164,7 @@ export const useAdminDrivers = () => {
         `${API_BASE}/driver/approve/${driverId}`
       );
 
-      const updated = data?.driver;
+      const updated = data?.driver ? normalizeDriverRecord(data.driver) : undefined;
       setPendingDrivers((prev) => prev.filter((drv) => drv._id !== driverId));
       if (updated) {
         setDrivers((prev) => {
@@ -186,7 +196,7 @@ export const useAdminDrivers = () => {
         `${API_BASE}/driver/reject/${driverId}`
       );
 
-      const updated = data?.driver;
+      const updated = data?.driver ? normalizeDriverRecord(data.driver) : undefined;
       setPendingDrivers((prev) => prev.filter((drv) => drv._id !== driverId));
       if (updated) {
         setDrivers((prev) => {

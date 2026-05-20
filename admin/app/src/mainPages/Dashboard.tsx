@@ -1,143 +1,285 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
-import { drivers, buses, routes, schedules, getDriverRatingSummary, notifications } from '../data/dummyData';
+import { View, Text, StyleSheet, Platform, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { Card, StatusBadge } from '../../components/ui';
-import WebMap from './components/WebMap';
-import { useRoute } from '../../context/domains';
+import WebMap from './Maps/WebMap';
+import { useDriver, useNotification, useRoute } from '../../context/domains';
+import { useAdminDashboard } from '../hooks/useAdminDashboard';
+import type { DriverLeaderboardRow } from '../hooks/useAdminDrivers';
+import type { NotificationRecord, NotificationSeverity } from '../hooks/useAdminNotifications';
 
 export default function DashboardOverview() {
-	const { routes, fetchAllRoutes, loading: routeLoading, error: routeError } = useRoute();
+	const { routes, fetchAllRoutes } = useRoute();
+	const { getDriverLeaderboard } = useDriver();
+	const {
+		notifications,
+		loading: notificationsLoading,
+		error: notificationsError,
+	} = useNotification();
+	const { summary, loading: dashboardLoading, error: dashboardError, fetchDashboardData } = useAdminDashboard();
 	const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
-	const [query, setQuery] = useState('');
+	const [leaderboard, setLeaderboard] = useState<DriverLeaderboardRow[]>([]);
+	const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+	const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+	const { width } = useWindowDimensions();
 
-	const totalDrivers = drivers.length;
-	const totalBuses = buses.length;
-	const totalRoutes = routes.length;
-	const totalSchedules = schedules.length;
+	const totalDrivers = summary.totalDrivers;
+	const totalBuses = summary.totalBuses;
+	const totalRoutes = summary.totalRoutes;
+	const totalSchedules = summary.totalSchedules;
+	const isWide = width >= 1100;
+	const isCompact = width < 760;
 
-	const topDrivers = getDriverRatingSummary().slice(0, 5);
-	const latestNotifications = notifications
-		.filter(n => n.target === 'admin')
-		.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-		.slice(0, 5);
+	const statCardStyle = isCompact
+		? { ...styles.statCard, ...styles.statCardCompact }
+		: styles.statCard;
+	const widgetCardStyle = !isWide ? styles.widgetCardStacked : undefined;
 
-		useEffect(() => {
-			if (Platform.OS === 'web') {
-			  const id = 'leaflet-css';
-			  if (!document.getElementById(id)) {
+	const latestNotifications = useMemo(() => notifications
+		.slice()
+		.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+		.slice(0, 5), [notifications]);
+
+	const severityVariant = (severity?: NotificationSeverity) => {
+		if (severity === 'critical' || severity === 'high') return 'danger';
+		if (severity === 'medium') return 'warning';
+		if (severity === 'low') return 'info';
+		return 'neutral';
+	};
+
+	useEffect(() => {
+		if (Platform.OS === 'web') {
+			const id = 'leaflet-css';
+			if (!document.getElementById(id)) {
 				const link = document.createElement('link');
 				link.id = id;
 				link.rel = 'stylesheet';
 				link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-				// avoid integrity/crossorigin to reduce CDN/CSP issues in dev
 				document.head.appendChild(link);
-			  }
 			}
-		  }, []);
-		
-		  // Fetch routes on mount and set initial selection
-		  useEffect(() => {
-			fetchAllRoutes();
-		  }, []);
-		
-		  useEffect(() => {
-			if (routes.length > 0 && !selectedRouteId) {
-			  setSelectedRouteId(routes[0]._id ?? null);
+		}
+	}, []);
+
+	useEffect(() => {
+		fetchAllRoutes();
+		fetchDashboardData();
+	}, [fetchAllRoutes, fetchDashboardData]);
+
+	useEffect(() => {
+		let active = true;
+		const fetchLeaderboard = async () => {
+			setLeaderboardLoading(true);
+			setLeaderboardError(null);
+			try {
+				const result = await getDriverLeaderboard({ limit: 5, minReviews: 1, mode: 'bayesian' });
+				if (active) setLeaderboard(result.leaderboard || []);
+			} catch (err: any) {
+				if (active) setLeaderboardError(err?.response?.data?.message || 'Failed to load driver leaderboard');
+			} finally {
+				if (active) setLeaderboardLoading(false);
 			}
-		  }, [routes]);
-		
-		  const selectedRoute = useMemo(() => routes.find(r => r._id === selectedRouteId) ?? null, [routes, selectedRouteId]);
-	
+		};
+		fetchLeaderboard();
+		return () => { active = false; };
+	}, [getDriverLeaderboard]);
+
+	useEffect(() => {
+		if (routes.length > 0 && !selectedRouteId) {
+			setSelectedRouteId(routes[0]._id ?? null);
+		}
+	}, [routes, selectedRouteId]);
+
+	const selectedRoute = useMemo(
+		() => routes.find(r => r._id === selectedRouteId) ?? null,
+		[routes, selectedRouteId]
+	);
 
 	return (
-		<ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-			{/* Top cards */}
-			<View style={styles.cardsRow}>
-				<Card padding="md" style={styles.statCard}>
+		// Outer container fills entire available space — no scrolling
+		<View style={styles.container}>
+			{dashboardError && (
+				<View style={styles.errorBanner}>
+					<Text style={styles.errorText}>{dashboardError}</Text>
+				</View>
+			)}
+
+			{/* Stat cards row — fixed height at top */}
+			<View style={[styles.cardsRow, isCompact && styles.cardsRowCompact]}>
+				<Card padding="md" style={statCardStyle}>
 					<Text style={styles.cardTitle}>Total Drivers</Text>
-					<Text style={styles.cardValue}>{totalDrivers}</Text>
+					{dashboardLoading
+						? <ActivityIndicator color="#065f46" style={styles.cardLoader} />
+						: <Text style={styles.cardValue}>{totalDrivers}</Text>}
 				</Card>
-				<Card padding="md" style={styles.statCard}>
+				<Card padding="md" style={statCardStyle}>
 					<Text style={styles.cardTitle}>Total Buses</Text>
-					<Text style={styles.cardValue}>{totalBuses}</Text>
+					{dashboardLoading
+						? <ActivityIndicator color="#065f46" style={styles.cardLoader} />
+						: <Text style={styles.cardValue}>{totalBuses}</Text>}
 				</Card>
-				<Card padding="md" style={styles.statCard}>
+				<Card padding="md" style={statCardStyle}>
 					<Text style={styles.cardTitle}>Total Routes</Text>
-					<Text style={styles.cardValue}>{totalRoutes}</Text>
+					{dashboardLoading
+						? <ActivityIndicator color="#065f46" style={styles.cardLoader} />
+						: <Text style={styles.cardValue}>{totalRoutes}</Text>}
 				</Card>
-				<Card padding="md" style={styles.statCard}>
+				<Card padding="md" style={statCardStyle}>
 					<Text style={styles.cardTitle}>Schedules</Text>
-					<Text style={styles.cardValue}>{totalSchedules}</Text>
+					{dashboardLoading
+						? <ActivityIndicator color="#065f46" style={styles.cardLoader} />
+						: <Text style={styles.cardValue}>{totalSchedules}</Text>}
 				</Card>
 			</View>
 
-			{/* Main content: map placeholder and sidebar widgets */}
-			<View style={styles.mainRow}>
+			{/* Main content — flex: 1 so it fills all remaining height */}
+			<View style={[styles.mainRow, !isWide && styles.mainRowStacked]}>
+
+				{/* Map card — flex: 1 to fill height */}
 				<Card padding="md" style={styles.mapCard}>
-						{Platform.OS === 'web' ? (
-                // @ts-ignore
-                <WebMap
-				route={selectedRoute}
-				routes={routes}
-				selectedRouteId={selectedRouteId}
-				onSelectRoute={setSelectedRouteId}
-				/>
-              ) : (
-                <View style={styles.mapPlaceholder}><Text style={{ color: '#6b7280' }}>Map is available on web only.</Text></View>
-              )}
+					{Platform.OS === 'web' ? (
+						// @ts-ignore
+						<WebMap
+							route={selectedRoute}
+							routes={routes}
+							selectedRouteId={selectedRouteId}
+							onSelectRoute={setSelectedRouteId}
+						/>
+					) : (
+						<View style={styles.mapPlaceholder}>
+							<Text style={{ color: '#6b7280' }}>Map is available on web only.</Text>
+						</View>
+					)}
 				</Card>
 
-				<View style={styles.sideColumn}>
-					<Card padding="md">
+				{/* Side column — flex: 0 fixed width, scrollable internally if needed */}
+				<View style={[styles.sideColumn, !isWide && styles.sideColumnStacked]}>
+					{/* Top Drivers */}
+					<Card padding="md" style={widgetCardStyle}>
 						<Text style={styles.widgetTitle}>Top Drivers</Text>
-						{topDrivers.map((d) => (
-							<View key={d._id} style={styles.scoreRow}>
+						{leaderboardLoading && <ActivityIndicator color="#065f46" style={styles.widgetLoader} />}
+						{leaderboardError && <Text style={styles.widgetError}>{leaderboardError}</Text>}
+						{!leaderboardLoading && !leaderboardError && leaderboard.length === 0 && (
+							<Text style={styles.emptyText}>No rated drivers yet.</Text>
+						)}
+						{leaderboard.map((driver) => (
+							<View key={driver.driverId} style={styles.scoreRow}>
 								<View>
-									<Text style={styles.driverName}>{d.name}</Text>
-									<Text style={styles.driverMeta}>{d.totalReviews} reviews</Text>
+									<Text style={styles.driverName} numberOfLines={1}>
+										#{driver.rank} {driver.firstName || ''} {driver.lastName || ''}
+									</Text>
+									<Text style={styles.driverMeta}>{driver.ratingCount} reviews</Text>
 								</View>
-								<StatusBadge label={d.rating.toFixed(1)} variant="success" />
+								<StatusBadge label={driver.averageRating.toFixed(1)} variant="success" />
 							</View>
 						))}
 					</Card>
 
-                    <Card padding="md">
+					{/* Latest Notifications */}
+					<Card padding="md" style={widgetCardStyle}>
 						<Text style={styles.widgetTitle}>Latest Notifications</Text>
-						{latestNotifications.map((n) => (
-							<View key={n._id} style={styles.notifRow}>
+						{notificationsLoading && <ActivityIndicator color="#065f46" style={styles.widgetLoader} />}
+						{notificationsError && <Text style={styles.widgetError}>{notificationsError}</Text>}
+						{!notificationsLoading && !notificationsError && latestNotifications.length === 0 && (
+							<Text style={styles.emptyText}>No notifications yet.</Text>
+						)}
+						{latestNotifications.map((notification: NotificationRecord) => (
+							<View key={notification._id} style={styles.notifRow}>
 								<View style={{ flex: 1 }}>
-									<Text style={styles.driverName} numberOfLines={1} ellipsizeMode="tail">{n.title}</Text>
-									<Text style={styles.driverMeta} numberOfLines={2} ellipsizeMode="tail">{n.message}</Text>
+									<Text style={styles.driverName} numberOfLines={1} ellipsizeMode="tail">
+										{notification.title}
+									</Text>
+									<Text style={styles.driverMeta} numberOfLines={2} ellipsizeMode="tail">
+										{notification.message}
+									</Text>
 								</View>
 								<View style={styles.dateWrap}>
-									<Text style={styles.dateText} numberOfLines={1}>{new Date(n.createdAt).toLocaleString()}</Text>
+									<StatusBadge label={notification.severity} variant={severityVariant(notification.severity)} />
+									<Text style={styles.dateText} numberOfLines={1}>
+										{new Date(notification.createdAt).toLocaleString()}
+									</Text>
 								</View>
 							</View>
 						))}
 					</Card>
 				</View>
 			</View>
-		</ScrollView>
+		</View>
 	);
 }
 
 const styles = StyleSheet.create({
-	container: { flex: 1, padding: 12 },
-	cardsRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-	statCard: { flex: 1 },
+	// flex: 1 + no ScrollView = fills parent height exactly, no white space
+	container: {
+		flex: 1,
+		width: '100%',
+		backgroundColor: '#f8fafc',
+		padding: 16,
+	},
+	cardsRow: {
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+		gap: 12,
+		marginBottom: 16,
+	},
+	cardsRowCompact: { gap: 10 },
+	statCard: { flex: 1, minWidth: 180 },
+	statCardCompact: { minWidth: 150, flexBasis: '47%' },
 	cardTitle: { color: '#065f46', fontWeight: '600' },
 	cardValue: { fontSize: 28, fontWeight: '800', marginTop: 8, color: '#065f46' },
-	mapLoadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
-	mainRow: { flexDirection: 'row', gap: 12 },
-	mapCard: { flex: 2 },
-	mapTitle: { fontWeight: '700', color: '#111827', marginBottom: 8 },
-	mapPlaceholder: { flex: 1, minHeight: 260, borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
-	sideColumn: { flex: 1, gap: 12 },
+	cardLoader: { alignSelf: 'flex-start', marginTop: 12 },
+	errorBanner: { backgroundColor: '#fee2e2', borderRadius: 8, padding: 12, marginBottom: 12 },
+	errorText: { color: '#dc2626', fontSize: 14, fontWeight: '600' },
+	// flex: 1 here is the key — mainRow takes ALL remaining height after stat cards
+	mainRow: {
+		flex: 1,
+		flexDirection: 'row',
+		gap: 12,
+	},
+	mainRowStacked: { flexDirection: 'column' },
+	// flex: 1 so map card stretches to fill mainRow height
+	mapCard: {
+		flex: 1,
+	},
+	mapPlaceholder: {
+		flex: 1,
+		borderRadius: 8,
+		borderWidth: 1,
+		borderColor: '#e5e7eb',
+		backgroundColor: '#f8fafc',
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	// fixed width sidebar, does not grow
+	sideColumn: {
+		width: 340,
+		gap: 12,
+	},
+	sideColumnStacked: {
+		width: '100%',
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+	},
+	widgetCardStacked: { flex: 1, minWidth: 320 },
 	widgetTitle: { fontWeight: '700', color: '#111827', marginBottom: 8 },
-	scoreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-	driverName: { fontWeight: '600', color: '#111827' },
+	widgetLoader: { alignSelf: 'flex-start', marginVertical: 10 },
+	widgetError: { color: '#dc2626', fontSize: 13 },
+	emptyText: { color: '#6b7280', fontSize: 13, paddingVertical: 8 },
+	scoreRow: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+		paddingVertical: 8,
+		borderBottomWidth: 1,
+		borderBottomColor: '#f1f5f9',
+	},
+	driverName: { fontWeight: '600', color: '#111827', maxWidth: 220 },
 	driverMeta: { color: '#6b7280', fontSize: 12 },
-	notifRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-	dateWrap: { marginLeft: 8, alignItems: 'flex-end', width: 110 },
-	dateText: { fontSize: 12, color: '#6b7280' },
+	notifRow: {
+		flexDirection: 'row',
+		alignItems: 'flex-start',
+		paddingVertical: 8,
+		borderBottomWidth: 1,
+		borderBottomColor: '#f1f5f9',
+	},
+	dateWrap: { marginLeft: 8, alignItems: 'flex-end', width: 130, gap: 4 },
+	dateText: { fontSize: 11, color: '#6b7280' },
 });

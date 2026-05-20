@@ -30,6 +30,10 @@ export type {
   ActionResult as NotificationActionResult,
 } from '../src/hooks/useAdminNotifications';
 
+export type { FAQRecord, FAQRole, FAQPagination, FAQListResponse, FAQFilters, ActionResult as FAQActionResult } from '../src/hooks/useAdminFAQs';
+
+export type { PassengerSummary, ReviewItem, BookingHistoryItem, PassengerDetail } from '../src/hooks/useAdminPassengers';
+
 export const useDriver = () => {
   const { driver } = useAdmin();
   return driver;
@@ -49,3 +53,13 @@ export const useNotification = () => {
   const { notification } = useAdmin();
   return notification;
 };
+
+export const useAdminFAQs = () => {
+  const { faq } = useAdmin();
+  return faq;
+}
+
+export const useAdminPassengers = () => {
+  const { passenger } = useAdmin();
+  return passenger;
+}

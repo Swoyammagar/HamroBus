@@ -87,19 +87,47 @@ const WebMap: React.FC<WebMapProps> = ({
     try {
       const AudioContextCtor = (window.AudioContext || (window as any).webkitAudioContext);
       if (!AudioContextCtor) return;
+
       const ctx = new AudioContextCtor();
-      const oscillator = ctx.createOscillator();
-      const gain = ctx.createGain();
-      oscillator.type = 'sine';
-      oscillator.frequency.value = 880;
-      gain.gain.value = 0.06;
-      oscillator.connect(gain);
-      gain.connect(ctx.destination);
-      oscillator.start();
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.value = 880;
+      gain1.gain.value = 0.3;
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.value = 1200;
+      gain2.gain.value = 0.2;
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+
+      const oscillators = [osc1, osc2];
+      const gains = [gain1, gain2];
+
+      oscillators.forEach(osc => osc.start());
+
+      let isOn = true;
+      const pulseTimer = setInterval(() => {
+        if (isOn) {
+          gains.forEach(g => g.gain.value = 0);
+          isOn = false;
+        } else {
+          gains.forEach((g, i) => g.gain.value = i === 0 ? 0.3 : 0.2);
+          isOn = true;
+        }
+      }, 200);
+
       setTimeout(() => {
-        oscillator.stop();
+        clearInterval(pulseTimer);
+        oscillators.forEach(osc => { try { osc.stop(); } catch (e) {} });
         ctx.close().catch(() => undefined);
-      }, 700);
+      }, 3000);
     } catch (error) {
       console.warn('Could not play SOS sound', error);
     }
@@ -114,31 +142,88 @@ const WebMap: React.FC<WebMapProps> = ({
         const rl = await import('react-leaflet');
         const L = await import('leaflet');
 
-        L.Icon.Default.mergeOptions({
-          iconRetinaUrl:
-            'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-          iconUrl:
-            'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-          shadowUrl:
-            'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        // ✅ FIX: Do NOT use L.Icon.Default.mergeOptions with CDN URLs.
+        // Instead we create custom divIcons for all markers to avoid
+        // the broken "Mark" placeholder text caused by failed image loads.
+
+        // Stop marker icon (blue circle with white dot)
+        const stopIcon = L.divIcon({
+          className: '',
+          html: `
+            <div style="
+              width: 28px;
+              height: 28px;
+              background: #2563eb;
+              border: 3px solid white;
+              border-radius: 50%;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            ">
+              <div style="
+                width: 8px;
+                height: 8px;
+                background: white;
+                border-radius: 50%;
+              "></div>
+            </div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+          popupAnchor: [0, -16],
         });
 
-        if (mounted) setLeaflet({ ...rl, L });
+        // Search result marker icon (red pin)
+        const searchIcon = L.divIcon({
+          className: '',
+          html: `
+            <div style="
+              position: relative;
+              width: 30px;
+              height: 40px;
+            ">
+              <div style="
+                width: 30px;
+                height: 30px;
+                background: #ef4444;
+                border: 3px solid white;
+                border-radius: 50%;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              ">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                </svg>
+              </div>
+              <div style="
+                position: absolute;
+                bottom: 0;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 4px;
+                height: 12px;
+                background: #ef4444;
+                border-radius: 0 0 2px 2px;
+              "></div>
+            </div>`,
+          iconSize: [30, 40],
+          iconAnchor: [15, 40],
+          popupAnchor: [0, -42],
+        });
+
+        if (mounted) setLeaflet({ ...rl, L, stopIcon, searchIcon });
       } catch (e) {
         console.error('Leaflet load failed', e);
       }
     })();
 
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
-  /* ---------------- Socket Connection for Driver Locations ---------------- */
+  /* ---------------- Socket Connection ---------------- */
   useEffect(() => {
-    console.log('🔌 Initializing socket connection to:', SOCKET_URL);
-    
-    // Connect to socket server
     const socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -148,22 +233,10 @@ const WebMap: React.FC<WebMapProps> = ({
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('✅ Admin socket connected:', socket.id);
-      console.log('🔑 Joining admin-room...');
-      // Join admin room to receive driver location updates
       socket.emit('join-admin');
-      console.log('✅ Emitted join-admin');
     });
 
     socket.on('driver:location-update', (data: DriverLocation) => {
-      console.log('📍 [ADMIN] Received driver location update:', {
-        driverId: data.driverId,
-        busId: data.busId,
-        lat: data.latitude,
-        lng: data.longitude,
-        speed: data.speed,
-        timestamp: data.timestamp
-      });
       setDriverLocations((prev) => {
         const updated = new Map(prev);
         updated.set(data.driverId, {
@@ -172,7 +245,6 @@ const WebMap: React.FC<WebMapProps> = ({
           isOffline: false,
           tripStatus: data.tripStatus && data.tripStatus !== 'offline' ? data.tripStatus : 'in-progress',
         });
-        console.log('✅ Updated driver locations map, total drivers:', updated.size);
         return updated;
       });
     });
@@ -185,7 +257,6 @@ const WebMap: React.FC<WebMapProps> = ({
         next.add(String(data.busId));
         return next;
       });
-
       setDriverLocations((prev) => {
         const updated = new Map(prev);
         const existing = Array.from(updated.entries()).find(([, value]) => String(value.busId) === String(data.busId));
@@ -210,7 +281,6 @@ const WebMap: React.FC<WebMapProps> = ({
         next.delete(String(data.busId));
         return next;
       });
-
       setDriverLocations((prev) => {
         const updated = new Map(prev);
         for (const [driverId, value] of updated.entries()) {
@@ -236,14 +306,13 @@ const WebMap: React.FC<WebMapProps> = ({
         updated.set(data.driverId, {
           ...existing,
           ...data,
-          isOffline: data.tripStatus === 'offline' ? true : false,
+          isOffline: data.tripStatus === 'offline',
         } as DriverLocation);
         return updated;
       });
     });
 
     socket.on('driver:location-offline', (data: DriverOffline) => {
-      console.log('🛑 [ADMIN] Driver offline received:', data);
       setDriverLocations((prev) => {
         const updated = new Map(prev);
         const existing = updated.get(data.driverId);
@@ -258,31 +327,20 @@ const WebMap: React.FC<WebMapProps> = ({
       });
     });
 
-    socket.on('disconnect', () => {
-      console.log('❌ Admin socket disconnected');
-    });
-
-    socket.on('connect_error', (err) => {
-      console.error('Socket connection error:', err);
-    });
-
-    // Cleanup on unmount
     return () => {
       socket.disconnect();
       socketRef.current = null;
     };
   }, []);
 
-  // Keep SOS state in sync with backend whenever route selection changes.
+  /* ---------------- SOS Hydration on Route Change ---------------- */
   useEffect(() => {
     let active = true;
 
     const hydrateSosStateForRoute = async () => {
       const routeBusIds = extractRouteBusIds(route);
       if (routeBusIds.size === 0) {
-        if (active) {
-          setActiveSosBusIds(new Set());
-        }
+        if (active) setActiveSosBusIds(new Set());
         return;
       }
 
@@ -291,63 +349,39 @@ const WebMap: React.FC<WebMapProps> = ({
           Array.from(routeBusIds).map((busId) =>
             fetch(`${SOCKET_URL}/api/bus/${busId}/sos-state`)
               .then((res) => res.json())
-              .then((data) => ({
-                busId,
-                sosActive: data?.sosActive || false,
-                sosCategory: data?.sosCategory || undefined,
-              }))
-              .catch((err) => {
-                console.error(`Error fetching SOS state for bus ${busId}:`, err);
-                return { busId, sosActive: false, sosCategory: undefined };
-              })
+              .then((data) => ({ busId, sosActive: data?.sosActive || false, sosCategory: data?.sosCategory }))
+              .catch(() => ({ busId, sosActive: false, sosCategory: undefined }))
           )
         );
 
         if (!active) return;
 
         const nextActiveSosBusIds = new Set<string>();
-        sosStates.forEach((state) => {
-          if (state.sosActive) {
-            nextActiveSosBusIds.add(state.busId);
-          }
-        });
-
+        sosStates.forEach((state) => { if (state.sosActive) nextActiveSosBusIds.add(state.busId); });
         setActiveSosBusIds(nextActiveSosBusIds);
 
-        // Also update already-known driver marker payloads so popup/status text is consistent.
         setDriverLocations((prev) => {
           const updated = new Map(prev);
           for (const [driverId, value] of updated.entries()) {
             const busId = String(value.busId || '');
             if (!busId || !routeBusIds.has(busId)) continue;
             const isSos = nextActiveSosBusIds.has(busId);
-            updated.set(driverId, {
-              ...value,
-              sosActive: isSos,
-              tripStatus: isSos ? 'sos-active' : value.tripStatus,
-            });
+            updated.set(driverId, { ...value, sosActive: isSos, tripStatus: isSos ? 'sos-active' : value.tripStatus });
           }
           return updated;
         });
-
-        console.log('✅ SOS state hydrated from backend for selected route:', nextActiveSosBusIds);
       } catch (error) {
-        console.error('Error hydrating SOS state for selected route:', error);
+        console.error('Error hydrating SOS state:', error);
       }
     };
 
     hydrateSosStateForRoute();
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [route]);
 
   /* ---------------- Resize Fix ---------------- */
   useEffect(() => {
-    const onResize = () => {
-      mapRef.current?.invalidateSize?.();
-    };
+    const onResize = () => mapRef.current?.invalidateSize?.();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -355,31 +389,20 @@ const WebMap: React.FC<WebMapProps> = ({
   /* ---------------- Recenter on Route Change ---------------- */
   useEffect(() => {
     if (!mapRef.current) return;
-
-    const center =
-      route?.stops?.length > 0
-        ? [
-            parseFloat(route.stops[0].latitude),
-            parseFloat(route.stops[0].longitude),
-          ]
-        : [27.7172, 85.324];
-
+    const center = route?.stops?.length > 0
+      ? [parseFloat(route.stops[0].latitude), parseFloat(route.stops[0].longitude)]
+      : [27.7172, 85.324];
     mapRef.current.setView(center, 12);
   }, [route]);
 
-  /* ---------------- Search While Typing ---------------- */
+  /* ---------------- Location Search ---------------- */
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
+    if (!searchQuery.trim()) { setSearchResults([]); return; }
 
     const debounce = setTimeout(async () => {
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-            searchQuery
-          )}`
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`
         );
         const data = await res.json();
         setSearchResults(data.slice(0, 5));
@@ -391,46 +414,30 @@ const WebMap: React.FC<WebMapProps> = ({
     return () => clearTimeout(debounce);
   }, [searchQuery]);
 
+  /* ---------------- OSRM Route Path ---------------- */
   useEffect(() => {
-  if (!route?.stops || route.stops.length < 2) {
-    setRoutePath([]);
-    return;
-  }
+    if (!route?.stops || route.stops.length < 2) { setRoutePath([]); return; }
 
-  const fetchRoute = async () => {
-    try {
-      const coords = route.stops
-        .map((s: any) => `${s.longitude},${s.latitude}`)
-        .join(';');
-
-      const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
-
-      const res = await fetch(url);
-      const data = await res.json();
-
-      if (data.routes?.length > 0) {
-        const formatted = data.routes[0].geometry.coordinates.map((c: any) => [
-          c[1],
-          c[0],
-        ]);
-
-        setRoutePath(formatted);
+    const fetchRoute = async () => {
+      try {
+        const coords = route.stops.map((s: any) => `${s.longitude},${s.latitude}`).join(';');
+        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
+        const data = await res.json();
+        if (data.routes?.length > 0) {
+          setRoutePath(data.routes[0].geometry.coordinates.map((c: any) => [c[1], c[0]]));
+        }
+      } catch (err) {
+        console.error('Routing failed:', err);
       }
-    } catch (err) {
-      console.error('Routing failed:', err);
-    }
-  };
+    };
 
-  fetchRoute();
-}, [route]);;
+    fetchRoute();
+  }, [route]);
 
   const positions = React.useMemo(() => {
     return route?.stops
       ?.filter((s: any) => s.latitude && s.longitude)
-      .map((s: any) => [
-        parseFloat(s.latitude),
-        parseFloat(s.longitude),
-      ]) ?? [];
+      .map((s: any) => [parseFloat(s.latitude), parseFloat(s.longitude)]) ?? [];
   }, [route]);
 
   /* ---------------- Loading State ---------------- */
@@ -441,18 +448,11 @@ const WebMap: React.FC<WebMapProps> = ({
       </View>
     );
 
-  const { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip } =
-    leaflet;
+  const { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip } = leaflet;
 
-  const center =
-    route?.stops?.length > 0
-      ? [
-          parseFloat(route.stops[0].latitude),
-          parseFloat(route.stops[0].longitude),
-        ]
-      : [27.7172, 85.324];
-
-  
+  const center = route?.stops?.length > 0
+    ? [parseFloat(route.stops[0].latitude), parseFloat(route.stops[0].longitude)]
+    : [27.7172, 85.324];
 
   const selectedRouteBusIds = extractRouteBusIds(route);
   const visibleDriverLocations = Array.from(driverLocations.values()).filter((driver) => {
@@ -469,9 +469,7 @@ const WebMap: React.FC<WebMapProps> = ({
           onChange={(e) => onSelectRoute(e.target.value)}
           style={s.webSelect as any}
         >
-          <option value="" disabled>
-            Select a Route
-          </option>
+          <option value="" disabled>Select a Route</option>
           {(routes ?? []).map((r) => (
             <option key={r._id} value={r._id}>
               {r.routeName} ({r.routeNumber})
@@ -489,7 +487,6 @@ const WebMap: React.FC<WebMapProps> = ({
           placeholder="Search location..."
           style={s.searchInput as any}
         />
-
         {searchResults.length > 0 && (
           <View style={s.resultsContainer}>
             {searchResults.map((result, index) => (
@@ -499,16 +496,13 @@ const WebMap: React.FC<WebMapProps> = ({
                 onClick={() => {
                   const lat = parseFloat(result.lat);
                   const lon = parseFloat(result.lon);
-
                   mapRef.current?.flyTo([lat, lon], 15);
                   setSearchMarker([lat, lon]);
                   setSearchResults([]);
                   setSearchQuery(result.display_name);
                 }}
               >
-                <Text style={{ fontSize: 12 }}>
-                  {result.display_name}
-                </Text>
+                <Text style={{ fontSize: 12 }}>{result.display_name}</Text>
               </View>
             ))}
           </View>
@@ -534,15 +528,11 @@ const WebMap: React.FC<WebMapProps> = ({
             }}
           />
 
-          {/* Route Stop Markers */}
+          {/* ✅ Route Stop Markers — using custom stopIcon, no CDN images */}
           {positions.map((pos: any, idx: number) => (
-            <Marker key={`stop-${idx}`} position={pos}>
-              <Tooltip>
-                {route?.stops[idx]?.stopName || `Stop ${idx + 1}`}
-              </Tooltip>
-              <Popup>
-                {route?.stops[idx]?.stopName || `Stop ${idx + 1}`}
-              </Popup>
+            <Marker key={`stop-${idx}`} position={pos} icon={leaflet.stopIcon}>
+              <Tooltip>{route?.stops[idx]?.stopName || `Stop ${idx + 1}`}</Tooltip>
+              <Popup>{route?.stops[idx]?.stopName || `Stop ${idx + 1}`}</Popup>
             </Marker>
           ))}
 
@@ -555,8 +545,9 @@ const WebMap: React.FC<WebMapProps> = ({
             const markerColor = isSos ? '#dc2626' : isOffline ? '#6b7280' : isOnBreak ? '#f59e0b' : '#10b981';
             const driverLabel = String(driver.driverName || '').trim() || `Driver ${String(driver.driverId || '').slice(-4)}`;
             const busLabel = String(driver.busNumber || '').trim() || String(driver.busId || '').slice(-4);
+
             const driverIcon = leaflet.L.divIcon({
-              className: 'custom-driver-marker',
+              className: '',
               html: `
                 <div style="
                   position: relative;
@@ -570,58 +561,68 @@ const WebMap: React.FC<WebMapProps> = ({
                   justify-content: center;
                   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
                   transform: rotate(${driver.heading}deg);
+                  ${isSos ? 'animation: sos-pulse 1s infinite;' : ''}
                 ">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    <path d="M18 11H6.83l3.58-3.59L9 6l-6 6 6 6 1.41-1.41L6.83 13H18v-2z"/>
                   </svg>
                 </div>
+                ${isSos ? `
+                <style>
+                  @keyframes sos-pulse {
+                    0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.6); }
+                    50% { box-shadow: 0 0 0 10px rgba(220,38,38,0); }
+                  }
+                </style>` : ''}
               `,
               iconSize: [40, 40],
               iconAnchor: [20, 20],
+              popupAnchor: [0, -22],
             });
 
             return (
-              <Marker 
+              <Marker
                 key={`driver-${driver.driverId}`}
                 position={[driver.latitude, driver.longitude]}
                 icon={driverIcon}
               >
-                <Tooltip permanent direction="top" offset={[0, -20]}>
+                <Tooltip permanent direction="top" offset={[0, -24]}>
                   <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
                     🚌 {busLabel}
                   </div>
                 </Tooltip>
                 <Popup>
-                  <div style={{ fontSize: '12px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '6px' }}>
-                      {driver.driverProfileImgUrl ? (
+                  <div style={{ fontSize: '12px', minWidth: '160px' }}>
+                    {driver.driverProfileImgUrl && (
+                      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '6px' }}>
                         <img
                           src={driver.driverProfileImgUrl}
                           alt="Driver"
-                          style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #fff', marginBottom: '6px' }}
+                          style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #e5e7eb' }}
                         />
-                      ) : null}
-                      <strong>{driverLabel}</strong>
-                    </div>
-                    <strong>Bus:</strong> {busLabel}<br/>
-                    <strong>Status:</strong> {isSos ? `SOS Active${driver.sosCategory ? ` (${driver.sosCategory})` : ''}` : isOffline ? 'Offline' : isOnBreak ? 'On Break' : 'In Trip'}<br/>
-                    <strong>Speed:</strong> {driver.speed.toFixed(1)} km/h<br/>
-                    <strong>Heading:</strong> {driver.heading}°<br/>
-                    <strong>Last Update:</strong> {new Date(driver.timestamp).toLocaleTimeString()}
+                      </div>
+                    )}
+                    <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '6px' }}>{driverLabel}</div>
+                    <div><strong>Bus:</strong> {busLabel}</div>
+                    <div><strong>Status:</strong> {isSos ? `🚨 SOS${driver.sosCategory ? ` (${driver.sosCategory})` : ''}` : isOffline ? '⚫ Offline' : isOnBreak ? '🟡 On Break' : '🟢 In Trip'}</div>
+                    <div><strong>Speed:</strong> {driver.speed.toFixed(1)} km/h</div>
+                    <div><strong>Heading:</strong> {driver.heading}°</div>
+                    <div><strong>Updated:</strong> {new Date(driver.timestamp).toLocaleTimeString()}</div>
                   </div>
                 </Popup>
               </Marker>
             );
           })}
 
+          {/* ✅ Search Marker — using custom searchIcon, no CDN images */}
           {searchMarker && (
-            <Marker position={searchMarker}>
+            <Marker position={searchMarker} icon={leaflet.searchIcon}>
               <Popup>Searched Location</Popup>
             </Marker>
           )}
 
           {routePath.length > 0 && (
-            <Polyline positions={routePath} color="#2563eb" weight={5} />
+            <Polyline positions={routePath} color="#2563eb" weight={5} opacity={0.8} />
           )}
         </MapContainer>
 
@@ -638,14 +639,22 @@ const WebMap: React.FC<WebMapProps> = ({
               <Text style={s.panelTitle}>🚌 Live Drivers ({visibleDriverLocations.length})</Text>
             </View>
             <View style={s.driverList}>
-              {visibleDriverLocations.map((driver) => (
-                <View key={driver.driverId} style={s.driverItem}>
-                  <View style={s.driverDot} />
-                  <Text style={s.driverText}>
-                    Bus {driver.busId.slice(-4)} • {driver.speed.toFixed(0)} km/h
-                  </Text>
-                </View>
-              ))}
+              {visibleDriverLocations.map((driver) => {
+                const isSos = Boolean(driver.sosActive || activeSosBusIds.has(String(driver.busId)));
+                const isOffline = Boolean(driver.isOffline || driver.tripStatus === 'offline');
+                const isOnBreak = Boolean(driver.isOnBreak || driver.tripStatus === 'on-break');
+                const dotColor = isSos ? '#dc2626' : isOffline ? '#6b7280' : isOnBreak ? '#f59e0b' : '#10b981';
+                const busLabel = String(driver.busNumber || '').trim() || String(driver.busId || '').slice(-4);
+                return (
+                  <View key={driver.driverId} style={s.driverItem}>
+                    <View style={[s.driverDot, { backgroundColor: dotColor }]} />
+                    <Text style={s.driverText}>
+                      Bus {busLabel} • {driver.speed.toFixed(0)} km/h
+                      {isSos ? ' 🚨' : ''}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
           </View>
         )}
@@ -655,105 +664,23 @@ const WebMap: React.FC<WebMapProps> = ({
 };
 
 const s = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  mapContainer: {
-    flex: 1,
-    position: 'relative',
-  },
-  mapPlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dropdownContainer: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  webSelect: {
-    width: '100%',
-    padding: '8px',
-    fontSize: '14px',
-    borderRadius: '6px',
-    border: '1px solid #d1d5db',
-  },
-  searchContainer: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  searchInput: {
-    width: '100%',
-    padding: '8px',
-    borderRadius: '6px',
-    border: '1px solid #d1d5db',
-    fontSize: '14px',
-  },
-  resultsContainer: {
-    marginTop: 6,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 6,
-  },
-  resultItem: {
-    padding: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    cursor: 'pointer',
-  },
-  mapLoadingOverlay: {
-    position: 'absolute',
-    inset: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  driverStatusPanel: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 8,
-    padding: 12,
-    minWidth: 200,
-    maxHeight: 300,
-    overflow: 'auto',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-  },
-  panelHeader: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    paddingBottom: 8,
-    marginBottom: 8,
-  },
-  panelTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  driverList: {
-    gap: 6,
-  },
-  driverItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 4,
-  },
-  driverDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#10b981',
-  },
-  driverText: {
-    fontSize: 12,
-    color: '#4b5563',
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
+  mapContainer: { flex: 1, position: 'relative' },
+  mapPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  dropdownContainer: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+  webSelect: { width: '100%', padding: '8px', fontSize: '14px', borderRadius: '6px', border: '1px solid #d1d5db' },
+  searchContainer: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+  searchInput: { width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '14px' },
+  resultsContainer: { marginTop: 6, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 6 },
+  resultItem: { padding: 8, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', cursor: 'pointer' },
+  mapLoadingOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  driverStatusPanel: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: 12, minWidth: 200, maxHeight: 300, overflow: 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' },
+  panelHeader: { borderBottomWidth: 1, borderBottomColor: '#e5e7eb', paddingBottom: 8, marginBottom: 8 },
+  panelTitle: { fontSize: 14, fontWeight: 'bold', color: '#1f2937' },
+  driverList: { gap: 6 },
+  driverItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  driverDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10b981' },
+  driverText: { fontSize: 12, color: '#4b5563' },
 });
 
 export default WebMap;

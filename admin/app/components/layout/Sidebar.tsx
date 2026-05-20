@@ -3,10 +3,8 @@ import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { Feather } from '@expo/vector-icons';
-import * as SecureStore from 'expo-secure-store';
-import AdminChatService from '../../services/adminChatService';
 
-export type MenuKey = 'dashboard' | 'buses' | 'drivers' | 'routes' | 'schedules' | 'trips' | 'notifications' | 'sos' | 'settings' | 'analytics' | 'chats';
+export type MenuKey = 'dashboard' | 'buses' | 'drivers' | 'routes' | 'schedules' | 'trips' | 'notifications' | 'sos' | 'settings' | 'analytics' | 'faq' | 'passengers';
 
 type FeatherIconName = keyof typeof Feather.glyphMap;
 
@@ -14,6 +12,7 @@ const ICON_MAP: Record<MenuKey, FeatherIconName> = {
   dashboard: 'home',
   buses: 'truck',
   drivers: 'users',
+  passengers: 'user',
   routes: 'map',
   schedules: 'calendar',
   trips: 'navigation',
@@ -21,7 +20,7 @@ const ICON_MAP: Record<MenuKey, FeatherIconName> = {
   analytics: 'bar-chart-2',
   notifications: 'bell',
   sos: 'alert-triangle',
-  chats: 'message-square',
+  faq: 'help-circle'
 };
 
 interface SidebarProps {
@@ -40,23 +39,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelect, selectedKey: externa
   // Use external selected key if provided, otherwise use internal state
   const selectedKey = externalSelectedKey ?? internalSelectedKey;
 
-  // Load unread chat count on mount and when sidebar is visible
-  useEffect(() => {
-    loadUnreadCount();
-  }, []);
-
-  const loadUnreadCount = async () => {
-    try {
-      const adminId = await SecureStore.getItemAsync('adminId');
-      if (!adminId) return;
-
-      const count = await AdminChatService.getUnreadCount();
-      setUnreadCount(count);
-    } catch (error) {
-      console.error('Error loading unread count:', error);
-    }
-  };
-
   const items: { key: MenuKey; label: string }[] = [
     { key: 'dashboard', label: 'Dashboard' },
     { key: 'buses', label: 'Buses' },
@@ -67,7 +49,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelect, selectedKey: externa
     { key: 'analytics', label: 'Analytics' },
     { key: 'sos', label: 'SOS' },
     { key: 'notifications', label: 'Notifications' },
-    { key: 'chats', label: 'Driver Chats' },
+    { key: 'faq', label: 'FAQ' },
+    { key: 'passengers', label: 'Passengers' },
     { key: 'settings', label: 'Settings' }
   ];
 
@@ -98,17 +81,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelect, selectedKey: externa
         {items.map((it) => {
           const isSelected = selectedKey === it.key;
           const isHovered = hoverKey === it.key;
-          const showBadge = it.key === 'chats' && unreadCount > 0;
           
           return (
             <Pressable
               key={it.key}
               onPress={() => {
                 handleSelect(it.key);
-                // Refresh unread count when chats is selected
-                if (it.key === 'chats') {
-                  setTimeout(loadUnreadCount, 500);
-                }
               }}
               onHoverIn={() => setHoverKey(it.key)}
               onHoverOut={() => setHoverKey(null)}
@@ -129,11 +107,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelect, selectedKey: externa
                   />
                   {!collapsed && <Text style={[styles.itemText, isSelected && styles.itemTextActive]}>{it.label}</Text>}
                 </View>
-                {!collapsed && showBadge && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-                  </View>
-                )}
               </View>
             </Pressable>
           );

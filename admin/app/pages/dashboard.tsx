@@ -13,7 +13,8 @@ import Notifications from '../src/mainPages/Notifications';
 import SosList from '../src/mainPages/SosList';
 import Dashboard from '../src/mainPages/Dashboard';
 import Trips from '../src/mainPages/Trips';
-import AdminChats from './AdminChats';
+import FAQsPage from '../src/mainPages/FAQ';
+import Passengers from '../src/mainPages/Passengers';
 
 export default function DashboardPage() {
   const [selected, setSelected] = useState<MenuKey>('dashboard');
@@ -26,6 +27,8 @@ export default function DashboardPage() {
         return <Buses />;
       case 'drivers':
         return <Drivers />;
+      case 'passengers':
+        return <Passengers />;
       case 'routes':
         return <Routes />;
       case 'schedules':
@@ -38,10 +41,10 @@ export default function DashboardPage() {
         return <Notifications />;
       case 'sos':
         return <SosList />;
-      case 'chats':
-        return <AdminChats />;
       case 'settings':
         return <Settings />;
+      case 'faq':
+        return <FAQsPage />;
       default:
         return <Dashboard />;
     }

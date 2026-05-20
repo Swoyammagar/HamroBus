@@ -2,6 +2,7 @@ export type AdminUser = {
 	id: string;
 	email: string;
 	fullname?: string;
+	phone?: string | null;
 };
 
 export type ApiResponse = {
@@ -10,7 +11,8 @@ export type ApiResponse = {
 };
 
 export type LoginResponse = {
-	admin?: { id: string; email: string; fullname?: string };
+	admin?: { id: string; email: string; fullname?: string; phone?: string | null };
 	success?: boolean;
 	message?: string;
+	accessToken?: string;
 };
