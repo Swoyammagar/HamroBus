@@ -7,6 +7,9 @@ const { generateToken, verifyRefreshToken } = require("../utils/authutils");
  * Validates JWT and automatically refreshes if expired
  */
 async function authenticateAdmin(req, res, next) {
+  console.log('🍪 Cookies received:', req.cookies);
+  console.log('🔑 access_token:', req.cookies.access_token ? 'PRESENT' : 'MISSING');
+  console.log('🔄 refresh_token:', req.cookies.refresh_token ? 'PRESENT' : 'MISSING');
   try {
     // 1️⃣ Read token from cookies
     const token = req.cookies.access_token;
