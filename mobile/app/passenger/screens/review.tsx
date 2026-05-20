@@ -53,8 +53,8 @@ const ReviewPage = () => {
 
       const newReview: Review = {
         id: `review_${Date.now()}`,
-        bookingId: booking!.id,
-        busId: bus!.id,
+        bookingId: String(booking!.id),
+        busId: String(bus!.id),
         rating,
         comment,
         date: new Date().toISOString(),

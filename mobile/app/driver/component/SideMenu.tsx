@@ -4,7 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { palette, spacing, radius, shadow } from '../theme';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { DriverChatService } from '../services/driverChatService';
+
 
 interface Props {
   isOpen: boolean;
@@ -22,10 +22,7 @@ const menuItems: MenuItem[] = [
   { icon: 'user', label: 'My Profile', route: '/driver/screens/ProfileScreen' },
   { icon: 'file-text', label: 'Documents', route: '/driver/screens/documents' },
   { icon: 'star', label: 'All Reviews', route: '/driver/screens/AllReviewsScreen' },
-  { icon: 'message-circle', label: 'Help Centre', route: '/driver/screens/ChatScreen' },
-  { icon: 'settings', label: 'Settings' },
-  { icon: 'shield', label: 'Safety & Support' },
-  { icon: 'moon', label: 'Dark Mode' },
+  { icon: 'message-circle', label: 'Help Centre', route: '/driver/screens/HelpCentreScreen' },
 ];
 
 export default function SideMenu({ isOpen, onClose, isOnline }: Props) {
@@ -33,24 +30,6 @@ export default function SideMenu({ isOpen, onClose, isOnline }: Props) {
   const router = useRouter();
   const { logout } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
-
-  // Load unread message count
-  useEffect(() => {
-    if (isOpen) {
-      loadUnreadCount();
-    }
-  }, [isOpen]);
-
-  const loadUnreadCount = async () => {
-    try {
-      const response = await DriverChatService.getChatHistory(1, 1);
-      if (response.unreadCount) {
-        setUnreadCount(response.unreadCount);
-      }
-    } catch (error) {
-      console.error('Error loading unread count:', error);
-    }
-  };
 
   const handleMenuItemPress = (item: MenuItem) => {
     onClose();
@@ -94,16 +73,6 @@ export default function SideMenu({ isOpen, onClose, isOnline }: Props) {
           </Pressable>
           <View style={styles.avatar}>
             <Text style={styles.avatarEmoji}>👨‍✈️</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.name}>James Rodriguez</Text>
-            <Text style={styles.sub}>Driver ID: DR-2847</Text>
-            <View style={styles.statusRow}>
-              <View
-                style={[styles.statusDot, { backgroundColor: isOnline ? palette.success : palette.muted }]} 
-              />
-              <Text style={styles.sub}>{isOnline ? 'Online' : 'Offline'}</Text>
-            </View>
           </View>
         </View>
 

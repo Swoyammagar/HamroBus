@@ -139,10 +139,29 @@ const BookingDetailModal = ({
                   <Text style={styles.detailValue}>Rs. {booking.farePerSeat}</Text>
                 </View>
 
-                <View style={[styles.detailRow, styles.priceRow]}>
-                  <Text style={styles.detailLabelBold}>Total Price</Text>
-                  <Text style={styles.detailValueBold}>Rs. {booking.totalFare}</Text>
-                </View>
+                {booking.rewardPointsRedeemed && (booking.discountAmount ?? 0) > 0 ? (
+                  <>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Original Total</Text>
+                      <Text style={styles.detailValue}>Rs. {booking.totalFare}</Text>
+                    </View>
+
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Reward Discount ({booking.discountPercentage}%)</Text>
+                      <Text style={[styles.detailValue, { color: '#10b981' }]}>-Rs. {booking.discountAmount}</Text>
+                    </View>
+
+                    <View style={[styles.detailRow, styles.priceRow]}>
+                      <Text style={styles.detailLabelBold}>Final Price</Text>
+                      <Text style={styles.detailValueBold}>Rs. {booking.finalFare || booking.totalFare}</Text>
+                    </View>
+                  </>
+                ) : (
+                  <View style={[styles.detailRow, styles.priceRow]}>
+                    <Text style={styles.detailLabelBold}>Total Price</Text>
+                    <Text style={styles.detailValueBold}>Rs. {booking.totalFare}</Text>
+                  </View>
+                )}
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Payment Status</Text>

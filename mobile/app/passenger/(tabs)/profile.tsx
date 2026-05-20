@@ -1,99 +1,108 @@
-// mobile/app/passenger/(tabs)/profile.tsx
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  Image,
-  Switch,
-  ActivityIndicator,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  Alert, Image, ActivityIndicator, Pressable, Modal, FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { usePassenger } from '../context/PassengerContext';
 import { formatDate } from '../utils/helpers';
 import { useAuth } from '@/app/context/AuthContext';
-import axios from 'axios';
-
-const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
+import { usePassengerProfile } from '../hooks/useProfile';
+import { useRewardPoints } from '../hooks/useRewardPoints';
+import { useReviews } from '../hooks/useReviews';
+import { useAccountDeletion } from '../hooks/useAccountDeletion';
 
 const Profile = () => {
   const router = useRouter();
   const { profile, setProfile } = usePassenger();
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const { logout, user, passenger, token } = useAuth();
+  const { logout } = useAuth();
 
-  useEffect(() => {
-    fetchPassengerProfile();
-  }, []);
+  // 👇 Replace the inline axios + useState(loading) with your hook
+  const { profileData, loading, error, refetch } = usePassengerProfile();
+  
+  // Reward points
+  const { rewardInfo, loading: rewardLoading, fetchRewardPoints, refetch: refetchRewards } = useRewardPoints();
+  const [showRewardHistory, setShowRewardHistory] = React.useState(false);
 
-  const fetchPassengerProfile = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API_URL}/passenger/profile`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+  // Reviews
+  const { stats: reviewStats, fetchStats: fetchReviewStats } = useReviews();
 
-      const { user: userData, passenger: passengerData } = response.data;
+  // Account Deletion
+  const { isDeletionPending, remainingDays, deletionDate, loading: deletionLoading, requestDeletion, cancelDeletion } = useAccountDeletion();
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+  const [showDeletionStatus, setShowDeletionStatus] = React.useState(false);
 
-      // Map to PassengerProfile format
-      const passengerId = passengerData._id || userData._id;
-      const profileData = {
-        id: passengerId,
-        passengerId: passengerId,
-        name: `${userData.firstName} ${userData.lastName}`,
-        email: userData.email,
-        phone: userData.phoneNumber || 'N/A',
-        profilePicture: userData.profileImgUrl,
-        totalTrips: 0, // These will come from bookings
-        totalSpent: 0,
-        averageRating: 0,
-        memberSince: userData.createdAt || new Date().toISOString(),
-      };
+  // Fetch rewards and reviews when profile tab is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchRewardPoints();
+      fetchReviewStats();
+    }, [fetchRewardPoints, fetchReviewStats])
+  );
 
-      setProfile(profileData);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      Alert.alert('Error', 'Failed to load profile data');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Map hook data into the PassengerProfile shape your UI expects
+  React.useEffect(() => {
+    if (!profileData) return;
 
+    const { user: userData } = profileData;
+    setProfile({
+      id: '',                          // not returned by hook — add to service if needed
+      passengerId: '',
+      name: `${userData.firstName} ${userData.lastName}`,
+      email: userData.email,
+      phone: userData.phoneNumber || 'N/A',
+      profilePicture: userData.profileImgUrl,
+      totalTrips: 0,
+      totalSpent: 0,
+      averageRating: 0,
+      memberSince: new Date().toISOString(), // add createdAt to service if needed
+    });
+  }, [profileData]);
+
+  // --- handlers unchanged ---
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       {
         text: 'Logout',
-        onPress: async () => {
-          await logout();
-          Alert.alert('Success', 'You have been logged out');
-          router.push('/pages/mobilelogin');
-        },
+        onPress: async () => { await logout(); router.push('/pages/mobilelogin'); },
         style: 'destructive',
       },
       { text: 'Cancel', style: 'cancel' },
     ]);
   };
 
-  const handleEditProfile = () => {
-    router.push('../screens/profile-edit');
+  const handleEditProfile    = () => router.push('../screens/profile-edit');
+  const handleResetPassword  = () => router.push('../screens/password-reset');
+  const handleTravelHistory  = () => router.push('../(tabs)/bookings');
+  const handleHelpSupport    = () => router.push('../screens/faq');
+  const handleMyReviews      = () => router.push('../screens/myReviews');
+
+  const handleDeleteProfile = async () => {
+    setShowDeleteConfirm(false);
+    const result = await requestDeletion();
+    if (result.success) {
+      Alert.alert(
+        'Deletion Requested',
+        `Your profile will be permanently deleted on ${result.deleteScheduledFor}. You can cancel anytime before then.`,
+        [{ text: 'OK' }]
+      );
+    } else {
+      Alert.alert('Error', result.error || 'Failed to request deletion');
+    }
   };
 
-  const handleResetPassword = () => {
-    router.push('../screens/password-reset');
+  const handleCancelDeletion = async () => {
+    const result = await cancelDeletion();
+    if (result.success) {
+      Alert.alert('Success', result.message);
+      setShowDeletionStatus(false);
+    } else {
+      Alert.alert('Error', result.error || 'Failed to cancel deletion');
+    }
   };
 
-  const handleTravelHistory = () => {
-    router.push('../(tabs)/bookings');
-  };
-
+  // --- loading / error guards ---
   if (loading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -103,12 +112,12 @@ const Profile = () => {
     );
   }
 
-  if (!profile) {
+  if (error || !profile) {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <Ionicons name="alert-circle" size={48} color="#ef4444" />
-        <Text style={styles.errorText}>Failed to load profile</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchPassengerProfile}>
+        <Text style={styles.errorText}>{error ?? 'Failed to load profile'}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={refetch}> 
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -147,32 +156,60 @@ const Profile = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Stats Section */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <View style={styles.statIcon}>
-              <Ionicons name="bus-outline" size={24} color="#3b82f6" />
+        {/* Reward Points Card */}
+        {rewardInfo && (
+          <TouchableOpacity 
+            style={styles.rewardCard} 
+            onPress={() => setShowRewardHistory(true)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.rewardCardHeader}>
+              <View style={styles.rewardCardTitle}>
+                <Ionicons name="gift" size={28} color="#fff" />
+                <View style={styles.rewardCardTitleText}>
+                  <Text style={styles.rewardCardLabel}>Reward Points</Text>
+                  <Text style={styles.rewardCardSubLabel}>Earn & Redeem</Text>
+                </View>
+              </View>
+              <View style={styles.rewardBadge}>
+                <Ionicons name="information-circle" size={20} color="#fff" />
+              </View>
             </View>
-            <Text style={styles.statValue}>{profile.totalTrips}</Text>
-            <Text style={styles.statLabel}>Total Trips</Text>
-          </View>
 
-          <View style={styles.statCard}>
-            <View style={styles.statIcon}>
-              <Ionicons name="wallet-outline" size={24} color="#10b981" />
-            </View>
-            <Text style={styles.statValue}>Rs. {profile.totalSpent}</Text>
-            <Text style={styles.statLabel}>Total Spent</Text>
-          </View>
+            <View style={styles.rewardCardContent}>
+              <View style={styles.rewardPointsSection}>
+                <Text style={styles.rewardPointsValue}>{rewardInfo.data.rewardPoints}</Text>
+                <Text style={styles.rewardPointsLabel}>Points Available</Text>
+              </View>
 
-          <View style={styles.statCard}>
-            <View style={styles.statIcon}>
-              <Ionicons name="star-outline" size={24} color="#f59e0b" />
+              <View style={styles.rewardDivider} />
+
+              <View style={styles.rewardInfoGrid}>
+                <View style={styles.rewardInfoItem}>
+                  <Text style={styles.rewardInfoLabel}>Earned</Text>
+                  <Text style={styles.rewardInfoValue}>{rewardInfo.data.totalPointsEarned}</Text>
+                </View>
+                <View style={styles.rewardInfoItem}>
+                  <Text style={styles.rewardInfoLabel}>Redeemed</Text>
+                  <Text style={styles.rewardInfoValue}>{rewardInfo.data.totalPointsRedeemed}</Text>
+                </View>
+                <View style={styles.rewardInfoItem}>
+                  <Text style={styles.rewardInfoLabel}>Next Reward</Text>
+                  <Text style={styles.rewardInfoValue}>{rewardInfo.data.pointsNeededForNextReward}</Text>
+                </View>
+              </View>
+
+              {rewardInfo.data.pointsNeededForNextReward <= 0 && (
+                <View style={styles.rewardReadyBadge}>
+                  <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                  <Text style={styles.rewardReadyText}>Ready to Redeem!</Text>
+                </View>
+              )}
+
+              <Text style={styles.rewardCardFooter}>Tap to view history</Text>
             </View>
-            <Text style={styles.statValue}>{profile.averageRating || 'N/A'}</Text>
-            <Text style={styles.statLabel}>Avg Rating</Text>
-          </View>
-        </View>
+          </TouchableOpacity>
+        )}
 
         {/* Account Section */}
         <View style={styles.section}>
@@ -201,29 +238,11 @@ const Profile = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Preferences Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preferences</Text>
-
-          <View style={styles.preferenceItem}>
-            <View style={styles.preferenceLeft}>
-              <Ionicons name="moon-outline" size={20} color="#3b82f6" />
-              <Text style={styles.preferenceLabel}>Dark Mode</Text>
-            </View>
-            <Switch
-              value={darkModeEnabled}
-              onValueChange={setDarkModeEnabled}
-              trackColor={{ false: '#d1d5db', true: '#a3e635' }}
-              thumbColor={darkModeEnabled ? '#3b82f6' : '#f3f4f6'}
-            />
-          </View>
-        </View>
-
         {/* Support Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Support & Legal</Text>
 
-          <View style={styles.menuItem}>
+          <Pressable onPress={handleHelpSupport} style={styles.menuItem}>
             <View style={styles.menuItemLeft}>
               <Ionicons name="help-circle-outline" size={20} color="#3b82f6" />
               <View style={styles.menuItemContent}>
@@ -232,7 +251,7 @@ const Profile = () => {
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
-          </View>
+          </Pressable>
 
           <View style={styles.menuItem}>
             <View style={styles.menuItemLeft}>
@@ -268,6 +287,40 @@ const Profile = () => {
           </View>
         </View>
 
+        {/* Your Reviews Section */}
+        <TouchableOpacity style={styles.section} onPress={handleMyReviews} activeOpacity={0.7}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Your Reviews</Text>
+            <Ionicons name="chevron-forward" size={20} color="#3b82f6" />
+          </View>
+
+          {reviewStats ? (
+            <View style={styles.reviewsQuickView}>
+              <View style={styles.reviewQuickStat}>
+                <Text style={styles.reviewQuickStatValue}>{reviewStats.totalReviews}</Text>
+                <Text style={styles.reviewQuickStatLabel}>Reviews</Text>
+              </View>
+              <View style={styles.reviewQuickDivider} />
+              <View style={styles.reviewQuickStat}>
+                <View style={styles.reviewRatingDisplay}>
+                  <Ionicons name="star" size={16} color="#f59e0b" />
+                  <Text style={styles.reviewQuickStatValue}>{reviewStats.averageRating.toFixed(1)}</Text>
+                </View>
+                <Text style={styles.reviewQuickStatLabel}>Avg Rating</Text>
+              </View>
+              <View style={styles.reviewQuickDivider} />
+              <View style={styles.reviewQuickStat}>
+                <Text style={styles.reviewQuickStatValue}>{reviewStats.ratingDistribution[5]}</Text>
+                <Text style={styles.reviewQuickStatLabel}>5-Star</Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.reviewsQuickView}>
+              <Text style={styles.reviewsEmptyText}>Tap to view your reviews</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
         {/* Account Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Information</Text>
@@ -293,11 +346,236 @@ const Profile = () => {
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
 
+        {/* Delete Profile Button */}
+        <TouchableOpacity 
+          style={[styles.deleteButton, isDeletionPending && styles.deleteButtonWarning]} 
+          onPress={() => isDeletionPending ? setShowDeletionStatus(true) : setShowDeleteConfirm(true)}
+        >
+          <Ionicons name="trash-outline" size={20} color={isDeletionPending ? '#dc2626' : '#ef4444'} />
+          <Text style={[styles.deleteButtonText, isDeletionPending && styles.deleteButtonWarningText]}>
+            {isDeletionPending ? `Delete Profile (${remainingDays} days)` : 'Delete Profile'}
+          </Text>
+        </TouchableOpacity>
+
         <View style={styles.footer}>
           <Text style={styles.footerText}>Hamro Bus v1.0.0</Text>
           <Text style={styles.footerSubtext}>© 2024 All rights reserved</Text>
         </View>
       </ScrollView>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={showDeleteConfirm}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowDeleteConfirm(false)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmModal}>
+            <View style={styles.confirmHeader}>
+              <Ionicons name="alert-circle" size={40} color="#dc2626" />
+            </View>
+
+            <Text style={styles.confirmTitle}>Delete Profile?</Text>
+            <Text style={styles.confirmMessage}>
+              Your profile will be permanently deleted in 7 days. You can cancel anytime before then by logging back in.
+            </Text>
+
+            <View style={styles.confirmDetails}>
+              <View style={styles.detailRow}>
+                <Ionicons name="hourglass" size={16} color="#f59e0b" />
+                <Text style={styles.detailText}>7-day grace period</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Ionicons name="checkmark" size={16} color="#10b981" />
+                <Text style={styles.detailText}>Can restore by logging in</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Ionicons name="alert-circle" size={16} color="#ef4444" />
+                <Text style={styles.detailText}>All data will be anonymized</Text>
+              </View>
+            </View>
+
+            <View style={styles.confirmActions}>
+              <TouchableOpacity 
+                style={styles.confirmCancel}
+                onPress={() => setShowDeleteConfirm(false)}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.confirmDelete}
+                onPress={handleDeleteProfile}
+                disabled={deletionLoading}
+              >
+                {deletionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.confirmDeleteText}>Delete Profile</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Deletion Status Modal */}
+      <Modal
+        visible={showDeletionStatus}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowDeletionStatus(false)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmModal}>
+            <View style={styles.confirmHeader}>
+              <Ionicons name="warning" size={40} color="#dc2626" />
+            </View>
+
+            <Text style={styles.confirmTitle}>Profile Deletion Pending</Text>
+            <Text style={styles.confirmMessage}>
+              Your profile is scheduled for permanent deletion.
+            </Text>
+
+            <View style={styles.statusBox}>
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Deletion Date:</Text>
+                <Text style={styles.statusValue}>{deletionDate ? new Date(deletionDate).toLocaleDateString() : 'Unknown'}</Text>
+              </View>
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Days Remaining:</Text>
+                <Text style={[styles.statusValue, { color: '#dc2626', fontWeight: '700' }]}>{remainingDays} days</Text>
+              </View>
+            </View>
+
+            <View style={styles.statusWarning}>
+              <Ionicons name="information-circle" size={16} color="#2563eb" />
+              <Text style={styles.statusWarningText}>
+                Log in anytime to restore your profile
+              </Text>
+            </View>
+
+            <View style={styles.confirmActions}>
+              <TouchableOpacity 
+                style={styles.confirmCancel}
+                onPress={() => setShowDeletionStatus(false)}
+              >
+                <Text style={styles.confirmCancelText}>Close</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.confirmRestore}
+                onPress={handleCancelDeletion}
+                disabled={deletionLoading}
+              >
+                {deletionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.confirmRestoreText}>Cancel Deletion</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Reward History Modal */}
+      <Modal
+        visible={showRewardHistory}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowRewardHistory(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setShowRewardHistory(false)}>
+                <Ionicons name="close" size={28} color="#1f2937" />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Rewards History</Text>
+              <View style={{ width: 28 }} />
+            </View>
+
+            {rewardInfo && (
+              <>
+                {/* Stats Summary */}
+                <View style={styles.modalStatsSummary}>
+                  <View style={styles.modalStatItem}>
+                    <Text style={styles.modalStatLabel}>Current Points</Text>
+                    <Text style={styles.modalStatValue}>{rewardInfo.data.rewardPoints}</Text>
+                  </View>
+                  <View style={styles.modalStatItem}>
+                    <Text style={styles.modalStatLabel}>Total Earned</Text>
+                    <Text style={styles.modalStatValue}>{rewardInfo.data.totalPointsEarned}</Text>
+                  </View>
+                  <View style={styles.modalStatItem}>
+                    <Text style={styles.modalStatLabel}>Total Redeemed</Text>
+                    <Text style={styles.modalStatValue}>{rewardInfo.data.totalPointsRedeemed}</Text>
+                  </View>
+                </View>
+
+                {/* Ban Status Warning */}
+                {rewardInfo.data.isBanned && (
+                  <View style={styles.banWarningBox}>
+                    <Ionicons name="warning" size={20} color="#ef4444" />
+                    <View style={styles.banWarningText}>
+                      <Text style={styles.banWarningTitle}>Temporarily Banned</Text>
+                      <Text style={styles.banWarningSubtitle}>
+                        You are banned from cancelling bookings for {rewardInfo.data.minutesRemainingInBan} more minutes due to {rewardInfo.data.consecutiveCancellations} consecutive cancellations.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Cancellation Streak Warning */}
+                {!rewardInfo.data.isBanned && rewardInfo.data.consecutiveCancellations > 0 && (
+                  <View style={styles.streakWarningBox}>
+                    <Ionicons name="alert-circle" size={20} color="#f59e0b" />
+                    <View style={styles.streakWarningText}>
+                      <Text style={styles.streakWarningTitle}>Cancellation Streak: {rewardInfo.data.consecutiveCancellations}/5</Text>
+                      <Text style={styles.streakWarningSubtitle}>
+                        {5 - rewardInfo.data.consecutiveCancellations} more cancellations will get you banned for 30 minutes
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* History List */}
+                <FlatList
+                  data={rewardInfo.data.pointsHistory}
+                  keyExtractor={(item, idx) => idx.toString()}
+                  renderItem={({ item }) => (
+                    <View style={styles.historyItem}>
+                      <View style={[styles.historyIcon, { backgroundColor: item.action === 'earned' ? '#d1fae5' : item.action === 'redeemed' ? '#dbeafe' : '#fee2e2' }]}>
+                        <Ionicons
+                          name={item.action === 'earned' ? 'add-circle' : item.action === 'redeemed' ? 'gift' : 'remove-circle'}
+                          size={20}
+                          color={item.action === 'earned' ? '#10b981' : item.action === 'redeemed' ? '#3b82f6' : '#ef4444'}
+                        />
+                      </View>
+                      <View style={styles.historyContent}>
+                        <Text style={styles.historyDescription}>{item.description}</Text>
+                        <Text style={styles.historyTimestamp}>{new Date(item.timestamp).toLocaleDateString()} {new Date(item.timestamp).toLocaleTimeString()}</Text>
+                      </View>
+                      <Text style={[styles.historyPoints, { color: item.action === 'earned' ? '#10b981' : item.action === 'redeemed' ? '#3b82f6' : '#ef4444' }]}>
+                        {item.action === 'earned' ? '+' : item.action === 'redeemed' ? '-' : '-'}{item.points}
+                      </Text>
+                    </View>
+                  )}
+                  ListEmptyComponent={
+                    <View style={styles.emptyState}>
+                      <Ionicons name="document-outline" size={48} color="#d1d5db" />
+                      <Text style={styles.emptyStateText}>No reward history yet</Text>
+                    </View>
+                  }
+                  scrollEnabled={false}
+                />
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -563,6 +841,475 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#9ca3af',
     marginTop: 4,
+  },
+  // Reward Card Styles
+  rewardCard: {
+    backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    marginHorizontal: 12,
+    marginVertical: 16,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.3)',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  rewardCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  rewardCardTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rewardCardTitleText: {
+    marginLeft: 12,
+  },
+  rewardCardLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  rewardCardSubLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 2,
+  },
+  rewardBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rewardCardContent: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 12,
+    padding: 16,
+  },
+  rewardPointsSection: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  rewardPointsValue: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: '#667eea',
+  },
+  rewardPointsLabel: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  rewardDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 12,
+  },
+  rewardInfoGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 12,
+  },
+  rewardInfoItem: {
+    alignItems: 'center',
+  },
+  rewardInfoLabel: {
+    fontSize: 12,
+    color: '#9ca3af',
+  },
+  rewardInfoValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginTop: 4,
+  },
+  rewardReadyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#d1fae5',
+    borderRadius: 8,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  rewardReadyText: {
+    color: '#10b981',
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  rewardCardFooter: {
+    fontSize: 11,
+    color: '#9ca3af',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  modalStatsSummary: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  modalStatItem: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  modalStatLabel: {
+    fontSize: 11,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  modalStatValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#667eea',
+    marginTop: 6,
+  },
+  banWarningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fee2e2',
+    borderRadius: 12,
+    marginHorizontal: 12,
+    marginVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ef4444',
+  },
+  banWarningText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  banWarningTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#dc2626',
+  },
+  banWarningSubtitle: {
+    fontSize: 12,
+    color: '#b91c1c',
+    marginTop: 4,
+  },
+  streakWarningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+    marginHorizontal: 12,
+    marginVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f59e0b',
+  },
+  streakWarningText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  streakWarningTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#d97706',
+  },
+  streakWarningSubtitle: {
+    fontSize: 12,
+    color: '#b45309',
+    marginTop: 4,
+  },
+  historyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  historyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  historyContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  historyDescription: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  historyTimestamp: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  historyPoints: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  emptyState: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 48,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    marginTop: 12,
+  },
+  // Reviews Section Styles
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  reviewsQuickView: {
+    flexDirection: 'row',
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  reviewQuickStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  reviewQuickStatValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#3b82f6',
+  },
+  reviewQuickStatLabel: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  reviewQuickDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#d1d5db',
+  },
+  reviewRatingDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  reviewsEmptyText: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontStyle: 'italic',
+  },
+  // Delete Button Styles
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 12,
+    marginTop: 16,
+    marginBottom: 12,
+    paddingVertical: 12,
+    backgroundColor: '#fef2f2',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#fecaca',
+  },
+  deleteButtonWarning: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#dc2626',
+  },
+  deleteButtonText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  deleteButtonWarningText: {
+    color: '#dc2626',
+    fontWeight: '700',
+  },
+  // Confirmation Modal Styles
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  confirmModal: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    maxWidth: '100%',
+    width: '100%',
+  },
+  confirmHeader: {
+    marginBottom: 16,
+  },
+  confirmTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1f2937',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  confirmMessage: {
+    fontSize: 13,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  confirmDetails: {
+    width: '100%',
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    gap: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  detailText: {
+    fontSize: 12,
+    color: '#4b5563',
+    flex: 1,
+  },
+  statusBox: {
+    width: '100%',
+    backgroundColor: '#f0f9ff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  statusLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  statusValue: {
+    fontSize: 14,
+    color: '#1f2937',
+    fontWeight: '600',
+  },
+  statusWarning: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2563eb',
+  },
+  statusWarningText: {
+    fontSize: 12,
+    color: '#1e40af',
+    fontWeight: '500',
+    marginLeft: 8,
+    flex: 1,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  confirmCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmCancelText: {
+    color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  confirmDelete: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#dc2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmDeleteText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  confirmRestore: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#10b981',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmRestoreText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

@@ -3,6 +3,7 @@ import { Route, Stop, TripSession, StopArrival } from '../services/driverService
 import driverService from '../services/driverService';
 import socketService from '../services/socketService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../../context/AuthContext';
 
 type DriverContextType = {
   // Online Status
@@ -274,4 +275,12 @@ export function useAppContext() {
   const context = useContext(AppContext);
   if (!context) throw new Error('useAppContext must be used within AppProvider');
   return context;
+}
+
+export function useDriver() {
+  const { user, driver } = useAuth();
+  if (!user) {
+    throw new Error('useDriver must be used within AuthProvider');
+  }
+  return { user, driver };
 }

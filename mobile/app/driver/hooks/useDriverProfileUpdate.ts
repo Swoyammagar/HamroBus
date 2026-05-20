@@ -6,32 +6,134 @@ export interface ProfileUpdateError {
   message: string;
 }
 
+// Payload accepted by the hook — image fields accept either
+// a local file URI (file:// or content://) or an already-uploaded https:// URL.
+export interface ProfileUpdateInput {
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  licenseNo?: string;
+  address?: string;
+  profileImageUri?: string;
+  licenseImageUri?: string;
+}
+
+const isLocalUri = (uri?: string) =>
+  !!uri && (uri.startsWith('file://') || uri.startsWith('content://') || uri.startsWith('/'));
+
 export const useDriverProfileUpdate = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ProfileUpdateError | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+
   const [phoneCheckLoading, setPhoneCheckLoading] = useState(false);
   const [licenseCheckLoading, setLicenseCheckLoading] = useState(false);
   const [phoneCheckError, setPhoneCheckError] = useState<string | null>(null);
   const [licenseCheckError, setLicenseCheckError] = useState<string | null>(null);
 
-  const updateProfile = useCallback(
-    async (payload: DriverProfileUpdatePayload) => {
+  /**
+   * Core update — accepts already-resolved URLs only.
+   * Use `updateProfileWithImages` from outside when you have local URIs.
+   */
+  const updateProfile = useCallback(async (payload: DriverProfileUpdatePayload) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await driverProfileService.updateProfile(payload);
+      return response;
+    } catch (err: any) {
+      const profileError: ProfileUpdateError = {
+        message: err?.message || 'Failed to update profile',
+        field: err?.field,
+      };
+      setError(profileError);
+      throw profileError;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * Full update flow that handles image uploads before saving.
+   *
+   * Pass `uploadFn` from `useAuth().uploadImageToCloudinary` at the call site.
+   * Any image field that is a local URI (file://, content://, or bare path)
+   * will be uploaded to Cloudinary first; https:// URLs are passed through as-is.
+   *
+   * Example usage in a screen:
+   *
+   *   const { uploadImageToCloudinary } = useAuth();
+   *   const { updateProfileWithImages } = useDriverProfileUpdate();
+   *
+   *   await updateProfileWithImages(
+   *     {
+   *       firstName: 'Ram',
+   *       profileImageUri: pickedLocalUri,   // local file — will be uploaded
+   *       licenseImageUri: existingHttpsUrl, // already uploaded — passed through
+   *     },
+   *     uploadImageToCloudinary,
+   *   );
+   */
+  const updateProfileWithImages = useCallback(
+    async (
+      input: ProfileUpdateInput,
+      uploadFn: (uri: string, type: 'profile' | 'license') => Promise<string | null>,
+    ) => {
+      setLoading(true);
+      setError(null);
+      setUploadProgress(null);
+
       try {
-        setLoading(true);
-        setError(null);
+        const payload: DriverProfileUpdatePayload = {};
+
+        // Copy plain text fields
+        if (input.firstName !== undefined) payload.firstName = input.firstName;
+        if (input.lastName !== undefined) payload.lastName = input.lastName;
+        if (input.phoneNumber !== undefined) payload.phoneNumber = input.phoneNumber;
+        if (input.licenseNo !== undefined) payload.licenseNo = input.licenseNo;
+        if (input.address !== undefined) payload.address = input.address;
+
+        // ── Profile image ──────────────────────────────────────────────────
+        if (input.profileImageUri) {
+          if (isLocalUri(input.profileImageUri)) {
+            setUploadProgress('Uploading profile photo…');
+            const url = await uploadFn(input.profileImageUri, 'profile');
+            if (!url) throw { message: 'Profile image upload failed. Please try again.' };
+            payload.profileImgUrl = url;
+          } else {
+            // Already an https:// Cloudinary URL — no re-upload needed
+            payload.profileImgUrl = input.profileImageUri;
+          }
+        }
+
+        // ── License image ──────────────────────────────────────────────────
+        if (input.licenseImageUri) {
+          if (isLocalUri(input.licenseImageUri)) {
+            setUploadProgress('Uploading license image…');
+            const url = await uploadFn(input.licenseImageUri, 'license');
+            if (!url) throw { message: 'License image upload failed. Please try again.' };
+            payload.licenseImgUrl = url;
+          } else {
+            payload.licenseImgUrl = input.licenseImageUri;
+          }
+        }
+
+        setUploadProgress('Saving profile…');
         const response = await driverProfileService.updateProfile(payload);
         return response;
       } catch (err: any) {
-        const errorMessage = err?.message || 'Failed to update profile';
-        const field = err?.field || undefined;
-        const profileError: ProfileUpdateError = { message: errorMessage, field };
+        const profileError: ProfileUpdateError = {
+          message: err?.message || 'Failed to update profile',
+          field: err?.field,
+        };
         setError(profileError);
         throw profileError;
       } finally {
         setLoading(false);
+        setUploadProgress(null);
       }
     },
-    []
+    [],
   );
 
   const checkPhoneAvailability = useCallback(
@@ -46,14 +148,13 @@ export const useDriverProfileUpdate = () => {
         }
         return true;
       } catch (err: any) {
-        const errorMessage = err?.message || 'Failed to check phone availability';
-        setPhoneCheckError(errorMessage);
+        setPhoneCheckError(err?.message || 'Failed to check phone availability');
         return false;
       } finally {
         setPhoneCheckLoading(false);
       }
     },
-    []
+    [],
   );
 
   const checkLicenseAvailability = useCallback(
@@ -68,37 +169,28 @@ export const useDriverProfileUpdate = () => {
         }
         return true;
       } catch (err: any) {
-        const errorMessage = err?.message || 'Failed to check license availability';
-        setLicenseCheckError(errorMessage);
+        setLicenseCheckError(err?.message || 'Failed to check license availability');
         return false;
       } finally {
         setLicenseCheckLoading(false);
       }
     },
-    []
+    [],
   );
 
   const validatePhoneNumber = useCallback(async (phoneNumber: string, driverId?: string) => {
     try {
-      const result = await driverProfileService.validatePhoneNumber(phoneNumber, driverId);
-      return result;
+      return await driverProfileService.validatePhoneNumber(phoneNumber, driverId);
     } catch (err: any) {
-      return {
-        isValid: false,
-        error: err?.message || 'Unable to validate phone number',
-      };
+      return { isValid: false, error: err?.message || 'Unable to validate phone number' };
     }
   }, []);
 
   const validateLicenseNumber = useCallback(async (licenseNo: string, driverId?: string) => {
     try {
-      const result = await driverProfileService.validateLicenseNumber(licenseNo, driverId);
-      return result;
+      return await driverProfileService.validateLicenseNumber(licenseNo, driverId);
     } catch (err: any) {
-      return {
-        isValid: false,
-        error: err?.message || 'Unable to validate license number',
-      };
+      return { isValid: false, error: err?.message || 'Unable to validate license number' };
     }
   }, []);
 
@@ -109,17 +201,27 @@ export const useDriverProfileUpdate = () => {
   }, []);
 
   return {
+    // Core
     updateProfile,
+    updateProfileWithImages,
     loading,
     error,
+    uploadProgress, // e.g. "Uploading profile photo…" — show this in your UI
+
+    // Phone validation
     checkPhoneAvailability,
     phoneCheckLoading,
     phoneCheckError,
+
+    // License validation
     checkLicenseAvailability,
     licenseCheckLoading,
     licenseCheckError,
+
+    // Standalone validators
     validatePhoneNumber,
     validateLicenseNumber,
+
     clearErrors,
   };
 };

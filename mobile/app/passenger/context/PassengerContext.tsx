@@ -45,6 +45,7 @@ export interface Booking {
   bookingId: string;
   passengerId: string;
   busId: string;
+  busNumber: string;
   routeId: string;
   token: string;
   seatNumber: string;
@@ -420,6 +421,14 @@ export const usePassenger = () => {
   }
   return context;
 };
+
+export function usePassengerProfile() {
+  const { user, passenger } = useAuth();
+  if (!user) {
+    throw new Error('usePassengerProfile must be used within AuthProvider');
+  }
+  return { user, passenger };
+}
 
 // Export types
 export type { Route, Bus };

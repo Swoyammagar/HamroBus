@@ -1,23 +1,43 @@
 import 'react-native-gesture-handler';
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, StyleSheet, Text, Pressable } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Text,
+  Pressable,
+  Image,
+} from 'react-native';
+
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+} from 'react-native-safe-area-context';
+
 import { StatusBar } from 'expo-status-bar';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import RootNavigator from './navigation/RootNavigator';
 import Header from './component/DriverHeader';
 import SideMenu from './component/SideMenu';
 import EmergencySOSModal from './component/EmergencySOSModal';
+
 import { palette } from './theme';
 import { useAuth } from '../context/AuthContext';
 import { AppProvider } from './context/AppContext';
-import { startDriverTrackingNow, forceStopDriverTracking } from '../services/driverTrackingControl';
+
+import {
+  startDriverTrackingNow,
+  forceStopDriverTracking,
+} from '../services/driverTrackingControl';
+
 import {
   notifyIncomingNotification,
   subscribeIncomingNotification,
   type DriverIncomingNotificationPayload,
 } from './services/notificationEvents';
+
 import driverNotificationSocket from './services/driverNotificationSocket';
 
 export interface DriverToast {
@@ -31,86 +51,196 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
+
   const sosOpenRef = React.useRef(false);
-  const { getCurrentUser, isLoading, token, user, driver } = useAuth();
-  const [toast, setToast] = useState<DriverToast | null>(null);
+
+  const { getCurrentUser, isLoading, token, user, driver } =
+    useAuth();
+
+  const [toast, setToast] = useState<DriverToast | null>(
+    null
+  );
+
   const currentDriverId = useMemo(
-    () => String(driver?.id || (user as any)?.id || user?._id || '').trim(),
+    () =>
+      String(
+        driver?.id || (user as any)?.id || user?._id || ''
+      ).trim(),
     [driver?.id, user?._id, (user as any)?.id]
   );
 
-  const severityColorMap: Record<'low' | 'medium' | 'high' | 'critical', string> = {
-    low: '#059669',
-    medium: '#2563eb',
-    high: '#d97706',
-    critical: '#dc2626',
+  const severityConfig = {
+    critical: {
+      color: '#dc2626',
+      bg: '#fef2f2',
+      icon: 'warning',
+    },
+    high: {
+      color: '#d97706',
+      bg: '#fffbeb',
+      icon: 'alert-circle',
+    },
+    medium: {
+      color: '#2563eb',
+      bg: '#eff6ff',
+      icon: 'information-circle',
+    },
+    low: {
+      color: '#059669',
+      bg: '#ecfdf5',
+      icon: 'checkmark-circle',
+    },
   };
 
-
-  // ✅ FETCH CURRENT USER DATA ONLY AFTER AUTH IS LOADED
+  /**
+   * AUTH GUARD
+   */
   useEffect(() => {
-    if (!isLoading && token) {
-      const loadUserData = async () => {
-        await getCurrentUser();
-      };
-      loadUserData();
-    }
-  }, [isLoading, token]);
+    if (isLoading) return;
 
+    if (!token) {
+      console.warn(
+        '⚠️ No auth token found - redirecting to login'
+      );
+
+      router.replace('/pages/mobilelogin');
+      return;
+    }
+
+    if (!driver?.id) {
+      console.warn(
+        '⚠️ No driver data found - redirecting to login'
+      );
+
+      router.replace('/pages/mobilelogin');
+      return;
+    }
+
+    const loadUserData = async () => {
+      try {
+        await getCurrentUser();
+      } catch (err) {
+        console.error('Failed to load current user:', err);
+      }
+    };
+
+    loadUserData();
+  }, [isLoading, token, driver?.id]);
+
+  /**
+   * TOAST LISTENER
+   */
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
 
-    const unsubscribe = subscribeIncomingNotification((payload: DriverIncomingNotificationPayload) => {
-      const id = String(payload?._id || payload?.id || Date.now());
-      const title = String(payload?.title || 'Notification');
-      const message = String(payload?.message || '');
-      const severity = (payload?.severity || 'medium') as 'low' | 'medium' | 'high' | 'critical';
-      setToast({ id, title, message, severity });
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => setToast(null), 3500);
-    });
+    const unsubscribe = subscribeIncomingNotification(
+      (payload: DriverIncomingNotificationPayload) => {
+        const id = String(
+          payload?._id || payload?.id || Date.now()
+        );
+
+        const title = String(
+          payload?.title || 'Notification'
+        );
+
+        const message = String(payload?.message || '');
+
+        const severity = (
+          payload?.severity || 'medium'
+        ) as 'low' | 'medium' | 'high' | 'critical';
+
+        setToast({
+          id,
+          title,
+          message,
+          severity,
+        });
+
+        if (timer) clearTimeout(timer);
+
+        timer = setTimeout(() => {
+          setToast(null);
+        }, 3500);
+      }
+    );
 
     return () => {
       unsubscribe();
+
       if (timer) clearTimeout(timer);
     };
   }, []);
 
+  /**
+   * SOCKET SETUP
+   */
   useEffect(() => {
     if (!currentDriverId) return;
 
     let mounted = true;
 
     const setupSocket = async () => {
-      await driverNotificationSocket.connect(currentDriverId);
+      await driverNotificationSocket.connect(
+        currentDriverId
+      );
 
-      const onIncoming = (payload: DriverIncomingNotificationPayload) => {
+      const onIncoming = (
+        payload: DriverIncomingNotificationPayload
+      ) => {
         if (!mounted) return;
+
         notifyIncomingNotification(payload);
       };
 
       const onSosAlert = (payload: any) => {
         if (!mounted) return;
-        console.log('🆘 [DRIVER APP] SOS alert received:', payload);
-        // Avoid double-opening modal if already visible
+
+        console.log(
+          '🆘 [DRIVER APP] SOS alert received:',
+          payload
+        );
+
         if (!sosOpenRef.current) {
           sosOpenRef.current = true;
           setShowSOS(true);
         }
-        // Also show a toast notification
-        const id = String(payload?._id || payload?.notificationId || Date.now());
-        const title = String(payload?.category || 'SOS Alert');
-        const message = `Emergency reported: ${payload?.details || 'Unknown emergency'}`;
-        const severity: 'low' | 'medium' | 'high' | 'critical' = 'critical';
-        setToast({ id, title, message, severity });
+
+        const id = String(
+          payload?._id ||
+            payload?.notificationId ||
+            Date.now()
+        );
+
+        const title = String(
+          payload?.category || 'SOS Alert'
+        );
+
+        const message = `Emergency reported: ${
+          payload?.details || 'Unknown emergency'
+        }`;
+
+        setToast({
+          id,
+          title,
+          message,
+          severity: 'critical',
+        });
       };
 
-      driverNotificationSocket.onNotification(onIncoming);
+      driverNotificationSocket.onNotification(
+        onIncoming
+      );
+
       driverNotificationSocket.onSosAlert(onSosAlert);
 
       return () => {
-        driverNotificationSocket.offNotification(onIncoming);
-        driverNotificationSocket.offSosAlert(onSosAlert);
+        driverNotificationSocket.offNotification(
+          onIncoming
+        );
+
+        driverNotificationSocket.offSosAlert(
+          onSosAlert
+        );
       };
     };
 
@@ -118,47 +248,66 @@ export default function App() {
 
     return () => {
       mounted = false;
-      teardownPromise.then((teardown) => teardown && teardown());
+
+      teardownPromise.then(
+        (teardown) => teardown && teardown()
+      );
+
       driverNotificationSocket.disconnect();
     };
   }, [currentDriverId]);
 
-  // keep ref in sync with state so socket handler can avoid duplicates
+  /**
+   * KEEP REF IN SYNC
+   */
   useEffect(() => {
     sosOpenRef.current = !!showSOS;
   }, [showSOS]);
 
+  const toastConfig = toast
+    ? severityConfig[toast.severity]
+    : severityConfig.medium;
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-          <AppProvider>
-            {/* EVERYTHING inside SafeAreaView */}
-            <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-
-            {/* Header (always safe-area aware) */}
+        <AppProvider>
+          <SafeAreaView
+            style={styles.container}
+            edges={['top', 'left', 'right']}
+          >
+            {/* HEADER */}
             <Header
               isOnline={isOnline}
               onToggleOnline={async () => {
                 const next = !isOnline;
+
                 setIsOnline(next);
+
                 if (next) {
                   try {
                     await startDriverTrackingNow();
                   } catch (err) {
-                    console.error('Failed to start tracking on toggle:', err);
+                    console.error(
+                      'Failed to start tracking:',
+                      err
+                    );
                   }
                 } else {
                   try {
                     forceStopDriverTracking();
                   } catch (err) {
-                    console.error('Failed to stop tracking on toggle:', err);
+                    console.error(
+                      'Failed to stop tracking:',
+                      err
+                    );
                   }
                 }
               }}
               onMenuPress={() => setMenuOpen(true)}
             />
 
-            {/* Main App Navigation */}
+            {/* MAIN CONTENT */}
             <View style={styles.content}>
               <RootNavigator
                 isOnline={isOnline}
@@ -166,34 +315,85 @@ export default function App() {
               />
             </View>
 
-            {/* SOS Modal */}
+            {/* SOS MODAL */}
             <EmergencySOSModal
               visible={showSOS}
               onClose={() => setShowSOS(false)}
             />
 
-            {/* Side Menu (overlay) */}
+            {/* SIDE MENU */}
             <SideMenu
               isOpen={menuOpen}
               onClose={() => setMenuOpen(false)}
               isOnline={isOnline}
             />
-            {/* Toast Notification */}
+
+            {/* PREMIUM TOAST */}
             {toast ? (
-              <View style={styles.toastWrap} pointerEvents='box-none'>
-                <Pressable
-                  onPress={() => setToast(null)}
-                  style={[styles.toastCard, { borderLeftColor: severityColorMap[toast.severity] }]}
+              <View
+                style={styles.toastWrap}
+                pointerEvents="box-none"
+              >
+                <View
+                  style={[
+                    styles.toastCard,
+                    {
+                      backgroundColor: toastConfig.bg,
+                      borderLeftColor: toastConfig.color,
+                    },
+                  ]}
                 >
-                  <Text style={styles.toastTitle} numberOfLines={1}>{toast.title}</Text>
-                  <Text style={styles.toastMessage} numberOfLines={2}>{toast.message}</Text>  
-                </Pressable>
+                  {/* LOGO */}
+                  <View style={styles.leftSection}>
+                    <Image
+                      source={require('../utils/MainLogo.png')}
+                      style={styles.logo}
+                      resizeMode="contain"
+                    />
+                  </View>
+
+                  {/* CONTENT */}
+                  <View style={styles.contentSection}>
+                    <View style={styles.headerRow}>
+                      <View style={styles.titleWrap}>
+                        <Ionicons
+                          name={toastConfig.icon as any}
+                          size={18}
+                          color={toastConfig.color}
+                        />
+
+                        <Text
+                          style={styles.toastTitle}
+                          numberOfLines={1}
+                        >
+                          {toast.title}
+                        </Text>
+                      </View>
+
+                      <Pressable
+                        onPress={() => setToast(null)}
+                        style={styles.closeButton}
+                      >
+                        <Ionicons
+                          name="close"
+                          size={18}
+                          color="#6b7280"
+                        />
+                      </Pressable>
+                    </View>
+
+                    <Text
+                      style={styles.toastMessage}
+                      numberOfLines={2}
+                    >
+                      {toast.message}
+                    </Text>
+                  </View>
+                </View>
               </View>
             ) : null}
 
-
             <StatusBar style="dark" />
-
           </SafeAreaView>
         </AppProvider>
       </SafeAreaProvider>
@@ -206,41 +406,86 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: palette.background,
   },
+
   content: {
     flex: 1,
   },
+
   toastWrap: {
     position: 'absolute',
-    top: 74,
-    left: 12,
-    right: 12,
-    zIndex: 999,
-    },
-  toastCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    shadowColor: '#000000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
+    top: 78,
+    left: 16,
+    right: 16,
+    zIndex: 9999,
   },
+
+  toastCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+
+    borderRadius: 18,
+    borderLeftWidth: 5,
+
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+
+    elevation: 8,
+  },
+
+  leftSection: {
+    marginRight: 12,
+  },
+
+  logo: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+  },
+
+  contentSection: {
+    flex: 1,
+  },
+
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+
+  titleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    paddingRight: 10,
+  },
+
   toastTitle: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 2,
+    marginLeft: 6,
+    flexShrink: 1,
   },
+
   toastMessage: {
-    fontSize: 12,
-    color: '#374151',
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#4b5563',
+    marginTop: 2,
+    paddingRight: 8,
   },
-  toastHint: {
-    marginTop: 6,
-    fontSize: 11,
-    color: '#6b7280',
+
+  closeButton: {
+    padding: 2,
   },
 });

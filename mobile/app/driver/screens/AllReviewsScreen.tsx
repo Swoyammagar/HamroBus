@@ -4,6 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { palette, spacing, radius, shadow } from '../theme';
 import reviewService, { type DriverReviewItem } from '../services/reviewService';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const PAGE_SIZE = 20;
 
@@ -135,7 +136,7 @@ export default function AllReviewsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={[ 'top' ]}>
       <View style={styles.topBar}>
         <Pressable style={styles.backButton} onPress={() => router.back()}>
           <Feather name="arrow-left" size={18} color={palette.text} />
@@ -176,7 +177,7 @@ export default function AllReviewsScreen() {
           ) : null
         }
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

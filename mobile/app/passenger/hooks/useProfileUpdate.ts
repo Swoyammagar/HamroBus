@@ -6,30 +6,101 @@ export interface ProfileUpdateError {
   message: string;
 }
 
+export interface PassengerProfileUpdateInput {
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  address?: string;
+  // Accepts local file:// URI or existing https:// URL
+  profileImageUri?: string;
+}
+
+const isLocalUri = (uri?: string) =>
+  !!uri && (uri.startsWith('file://') || uri.startsWith('content://') || uri.startsWith('/'));
+
 export const useProfileUpdate = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ProfileUpdateError | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [phoneCheckLoading, setPhoneCheckLoading] = useState(false);
   const [phoneCheckError, setPhoneCheckError] = useState<string | null>(null);
 
-  const updateProfile = useCallback(
-    async (payload: PassengerProfileUpdatePayload) => {
+  /**
+   * Core update — accepts already-resolved URLs only.
+   */
+  const updateProfile = useCallback(async (payload: PassengerProfileUpdatePayload) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await passengerProfileService.updateProfile(payload);
+      return response;
+    } catch (err: any) {
+      const profileError: ProfileUpdateError = {
+        message: err?.message || 'Failed to update profile',
+        field: err?.field,
+      };
+      setError(profileError);
+      throw profileError;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * Full update flow — uploads image to Cloudinary if URI is local, then saves.
+   *
+   * Pass `uploadFn` from `useAuth().uploadImageToCloudinary` at the call site.
+   *
+   * Example:
+   *   const { uploadImageToCloudinary } = useAuth();
+   *   await updateProfileWithImages({ firstName, profileImageUri }, uploadImageToCloudinary);
+   */
+  const updateProfileWithImages = useCallback(
+    async (
+      input: PassengerProfileUpdateInput,
+      uploadFn: (uri: string, type: 'profile' | 'license') => Promise<string | null>,
+    ) => {
+      setLoading(true);
+      setError(null);
+      setUploadProgress(null);
+
       try {
-        setLoading(true);
-        setError(null);
+        const payload: PassengerProfileUpdatePayload = {};
+
+        if (input.firstName !== undefined) payload.firstName = input.firstName;
+        if (input.lastName !== undefined) payload.lastName = input.lastName;
+        if (input.phoneNumber !== undefined) payload.phoneNumber = input.phoneNumber;
+        if (input.address !== undefined) payload.address = input.address;
+
+        // ── Profile image ──────────────────────────────────────────────────
+        if (input.profileImageUri) {
+          if (isLocalUri(input.profileImageUri)) {
+            setUploadProgress('Uploading profile photo…');
+            const url = await uploadFn(input.profileImageUri, 'profile');
+            if (!url) throw { message: 'Profile image upload failed. Please try again.' };
+            payload.profileImgUrl = url;
+          } else {
+            // Already an https:// Cloudinary URL — no re-upload needed
+            payload.profileImgUrl = input.profileImageUri;
+          }
+        }
+
+        setUploadProgress('Saving profile…');
         const response = await passengerProfileService.updateProfile(payload);
         return response;
       } catch (err: any) {
-        const errorMessage = err?.message || 'Failed to update profile';
-        const field = err?.field || undefined;
-        const profileError: ProfileUpdateError = { message: errorMessage, field };
+        const profileError: ProfileUpdateError = {
+          message: err?.message || 'Failed to update profile',
+          field: err?.field,
+        };
         setError(profileError);
         throw profileError;
       } finally {
         setLoading(false);
+        setUploadProgress(null);
       }
     },
-    []
+    [],
   );
 
   const checkPhoneAvailability = useCallback(
@@ -44,25 +115,20 @@ export const useProfileUpdate = () => {
         }
         return true;
       } catch (err: any) {
-        const errorMessage = err?.message || 'Failed to check phone availability';
-        setPhoneCheckError(errorMessage);
+        setPhoneCheckError(err?.message || 'Failed to check phone availability');
         return false;
       } finally {
         setPhoneCheckLoading(false);
       }
     },
-    []
+    [],
   );
 
   const validatePhoneNumber = useCallback(async (phoneNumber: string, userId?: string) => {
     try {
-      const result = await passengerProfileService.validatePhoneNumber(phoneNumber, userId);
-      return result;
+      return await passengerProfileService.validatePhoneNumber(phoneNumber, userId);
     } catch (err: any) {
-      return {
-        isValid: false,
-        error: err?.message || 'Unable to validate phone number',
-      };
+      return { isValid: false, error: err?.message || 'Unable to validate phone number' };
     }
   }, []);
 
@@ -73,8 +139,10 @@ export const useProfileUpdate = () => {
 
   return {
     updateProfile,
+    updateProfileWithImages,
     loading,
     error,
+    uploadProgress,
     checkPhoneAvailability,
     phoneCheckLoading,
     phoneCheckError,

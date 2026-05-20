@@ -11,6 +11,7 @@ import {
   Share,
   Modal,
   TextInput,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
@@ -20,6 +21,7 @@ import {
   type BookingResponse,
   type ReviewableBookingResponse,
 } from '../services/bookingService';
+import { RewardService } from '../services/rewardService';
 import { formatDate } from '../utils/helpers';
 import BookingDetailModal from '@/app/passenger/components/BookingDetailModal';
 
@@ -38,6 +40,7 @@ const MyBookings = () => {
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewableBookingIds, setReviewableBookingIds] = useState<Set<string>>(new Set());
+  const [rewardNotification, setRewardNotification] = useState<{ visible: boolean; type: 'banned' | 'cancelled' | 'completed'; message: string; details?: any } | null>(null);
 
   const previousBookingStatusRef = useRef<Record<string, Booking['status']>>({});
 
@@ -52,35 +55,53 @@ const MyBookings = () => {
   };
 
   const getBusLabel = (busRef: unknown): string => {
-    if (busRef == null) return 'Bus';
-    if (typeof busRef === 'object') {
-      const busRecord = busRef as { _id?: string; id?: string; busNumber?: string };
-      if (busRecord.busNumber) return `Bus ${busRecord.busNumber}`;
-      const objectId = String(busRecord._id || busRecord.id || '');
-      return objectId ? `Bus #${objectId.substring(0, 8)}` : 'Bus';
-    }
-    const id = String(busRef);
+  if (busRef == null) return 'Bus';
+  // It's already been resolved to a busNumber string by mapApiBookingToContext
+  if (typeof busRef === 'string') {
+    // Could be a bus number like "BA KHA 0512" or a raw ID fallback
+    return busRef.length > 0 ? `Bus ${busRef}` : 'Bus';
+  }
+  // Fallback for raw API objects (e.g. in mapContextBookingToResponse path)
+  if (typeof busRef === 'object') {
+    const rec = busRef as { busNumber?: string; _id?: string; id?: string };
+    if (rec.busNumber) return `Bus ${rec.busNumber}`;
+    const id = String(rec._id || rec.id || '');
     return id ? `Bus #${id.substring(0, 8)}` : 'Bus';
-  };
+  }
+  return 'Bus';
+};
 
-  const mapApiBookingToContext = (b: BookingResponse): Booking => ({
+ const mapApiBookingToContext = (b: BookingResponse): Booking => {
+  // Extract busNumber before normalizing busId to a string
+  const busNumberResolved =
+    b.busNumber ||
+    (typeof b.busId === 'object' && b.busId !== null
+      ? (b.busId as any).busNumber
+      : undefined);
+
+  return {
     id: String(b.id),
     bookingId: b.bookingCode,
     passengerId: b.passengerId,
     busId: normalizeEntityId(b.busId),
     routeId: normalizeEntityId(b.routeId),
+    busNumber: busNumberResolved || '',   // ← now correctly set
     token: b.bookingCode,
     seatNumber: (b.seatNumbers || []).join(', '),
-    price: b.totalFare,
+    price: b.finalFare || b.totalFare,
     paymentStatus: Boolean(b.paymentStatus || b.payment?.status === 'paid'),
     bookingDate: b.createdAt,
     travelDate: b.serviceDate,
-    status: b.status === 'in-progress' ? 'ongoing' : (b.status as 'confirmed' | 'ongoing' | 'completed' | 'cancelled'),
+    status:
+      b.status === 'in-progress'
+        ? 'ongoing'
+        : (b.status as 'confirmed' | 'ongoing' | 'completed' | 'cancelled'),
     boardingStop: b.boardingStop?.stopName || '',
     alightingStop: b.destinationStop?.stopName || '',
     tripStarted: b.status === 'in-progress' || b.status === 'completed',
     tripEnded: b.status === 'completed',
-  });
+  };
+};
 
   const mapContextBookingToResponse = (booking: Booking): BookingResponse => ({
     id: booking.id,
@@ -105,6 +126,7 @@ const MyBookings = () => {
     status: booking.status === 'ongoing' ? 'in-progress' : (booking.status as 'confirmed' | 'completed' | 'cancelled'),
     createdAt: booking.bookingDate,
     updatedAt: booking.bookingDate,
+    busNumber: booking.busNumber,
   });
 
   // Fetch bookings on tab focus
@@ -253,17 +275,44 @@ const MyBookings = () => {
   const handleCancelBooking = (booking: Booking) => {
     Alert.alert(
       'Cancel Booking',
-      `Are you sure you want to cancel booking ${booking.bookingId}?\n\nYou will receive a refund shortly.`,
+      `Are you sure you want to cancel booking ${booking.bookingId}?\n\nYou will receive a refund shortly, and reward points will be deducted.`,
       [
         {
           text: 'Cancel Booking',
           onPress: async () => {
             setCancelling(true);
             try {
-              await bookingService.cancelBooking(booking.id, 'Cancelled by passenger');
+              const response = await bookingService.cancelBooking(booking.id, 'Cancelled by passenger');
+              
+              // Check for ban status from response
+              if (response.isBanned && response.banUntil) {
+                setRewardNotification({
+                  visible: true,
+                  type: 'banned',
+                  message: `You are temporarily banned from cancelling bookings for ${Math.ceil((new Date(response.banUntil).getTime() - Date.now()) / 60000)} minutes due to consecutive cancellations.`,
+                  details: response,
+                });
+              } else if (response.rewardPoints !== undefined) {
+                // Show reward deduction message
+                setRewardNotification({
+                  visible: true,
+                  type: 'cancelled',
+                  message: `Booking cancelled. ${response.pointsDeducted || '25 points deducted'}. Remaining points: ${response.rewardPoints}`,
+                  details: response,
+                });
+              }
+
               updateBooking(booking.id, { status: 'cancelled' });
               setBookingDetailModal(false);
-              Alert.alert('Success', 'Your booking has been cancelled. Refund will be processed soon.');
+              
+              // Show success alert
+              Alert.alert(
+                'Success',
+                response.warning 
+                  ? `Your booking has been cancelled.\n\n⚠️ ${response.warning}`
+                  : 'Your booking has been cancelled. Refund will be processed soon.'
+              );
+              
               await fetchBookings(); // Refresh the list
             } catch (err: any) {
               const message = err?.response?.data?.message || 'Failed to cancel booking';
@@ -313,7 +362,7 @@ const MyBookings = () => {
       >
         <View style={styles.cardHeader}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.bookingBusNumber}>{getBusLabel(booking.busId)}</Text>
+            <Text style={styles.bookingBusNumber}>{getBusLabel(booking.busNumber)}</Text>
             <Text style={styles.bookingRoute} numberOfLines={1}>
               {booking.boardingStop} → {booking.alightingStop}
             </Text>
@@ -603,6 +652,56 @@ const MyBookings = () => {
         onShare={handleShareBookingAPI}
         onCancel={handleCancelBookingAPI}
       />
+
+      {/* Reward Notification Modal */}
+      <Modal
+        visible={rewardNotification?.visible || false}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setRewardNotification(null)}
+      >
+        <TouchableOpacity
+          style={styles.rewardNotificationOverlay}
+          activeOpacity={1}
+          onPress={() => setRewardNotification(null)}
+        >
+          <View style={[
+            styles.rewardNotificationCard,
+            {
+              borderTopColor: rewardNotification?.type === 'banned' ? '#ef4444' : rewardNotification?.type === 'cancelled' ? '#f59e0b' : '#10b981'
+            }
+          ]}>
+            <View style={styles.rewardNotificationHeader}>
+              <Ionicons
+                name={rewardNotification?.type === 'banned' ? 'alert-circle' : rewardNotification?.type === 'cancelled' ? 'alert' : 'checkmark-circle'}
+                size={32}
+                color={rewardNotification?.type === 'banned' ? '#ef4444' : rewardNotification?.type === 'cancelled' ? '#f59e0b' : '#10b981'}
+              />
+              <Text style={[
+                styles.rewardNotificationTitle,
+                {
+                  color: rewardNotification?.type === 'banned' ? '#dc2626' : rewardNotification?.type === 'cancelled' ? '#d97706' : '#059669'
+                }
+              ]}>
+                {rewardNotification?.type === 'banned' ? 'Booking Banned' : rewardNotification?.type === 'cancelled' ? 'Reward Points Deducted' : 'Reward Earned'}
+              </Text>
+            </View>
+            <Text style={styles.rewardNotificationMessage}>{rewardNotification?.message}</Text>
+            {rewardNotification?.details?.rewardPoints !== undefined && (
+              <View style={styles.rewardNotificationDetails}>
+                <Text style={styles.rewardNotificationDetailLabel}>Remaining Points:</Text>
+                <Text style={styles.rewardNotificationDetailValue}>{rewardNotification.details.rewardPoints}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.rewardNotificationButton}
+              onPress={() => setRewardNotification(null)}
+            >
+              <Text style={styles.rewardNotificationButtonText}>Got It</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -1088,6 +1187,74 @@ qrHint: {
     color: '#ffffff',
     fontWeight: '700',
     fontSize: 13,
+  },
+  // Reward Notification Styles
+  rewardNotificationOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  rewardNotificationCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderTopWidth: 4,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  rewardNotificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  rewardNotificationTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginLeft: 12,
+  },
+  rewardNotificationMessage: {
+    fontSize: 14,
+    color: '#4b5563',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  rewardNotificationDetails: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  rewardNotificationDetailLabel: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  rewardNotificationDetailValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#667eea',
+  },
+  rewardNotificationButton: {
+    backgroundColor: '#3b82f6',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rewardNotificationButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
 

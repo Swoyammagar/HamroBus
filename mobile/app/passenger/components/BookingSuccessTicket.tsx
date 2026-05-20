@@ -128,10 +128,29 @@ const BookingSuccessTicket = ({
 
               <View style={styles.ticketDivider} />
 
-              <View style={styles.ticketRow}>
-                <Text style={styles.ticketLabelBold}>Total Price</Text>
-                <Text style={[styles.ticketValue, styles.priceText]}>Rs. {booking.price}</Text>
-              </View>
+              {(booking as any)?.rewardPointsRedeemed && (booking as any)?.discountAmount > 0 ? (
+                <>
+                  <View style={styles.ticketRow}>
+                    <Text style={styles.ticketLabel}>Original Total</Text>
+                    <Text style={styles.ticketValue}>Rs. {(booking as any)?.totalFare || booking.price}</Text>
+                  </View>
+
+                  <View style={styles.ticketRow}>
+                    <Text style={styles.ticketLabel}>Reward Discount ({(booking as any)?.discountPercentage || 10}%)</Text>
+                    <Text style={[styles.ticketValue, { color: '#10b981' }]}>-Rs. {(booking as any)?.discountAmount}</Text>
+                  </View>
+
+                  <View style={styles.ticketRow}>
+                    <Text style={styles.ticketLabelBold}>Final Price</Text>
+                    <Text style={[styles.ticketValue, styles.priceText]}>Rs. {(booking as any)?.finalFare || booking.price}</Text>
+                  </View>
+                </>
+              ) : (
+                <View style={styles.ticketRow}>
+                  <Text style={styles.ticketLabelBold}>Total Price</Text>
+                  <Text style={[styles.ticketValue, styles.priceText]}>Rs. {booking.price}</Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.tokenBox}>

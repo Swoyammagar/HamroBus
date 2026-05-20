@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { usePasswordChange } from '../hooks/usePasswordChange';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const PasswordReset = () => {
   const router = useRouter();
@@ -88,11 +89,12 @@ const PasswordReset = () => {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <View style={styles.header}>
+    <SafeAreaView style={styles.container} edges={[ 'top' ]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+      >
+        <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color="#1f2937" />
         </TouchableOpacity>
@@ -362,6 +364,7 @@ const PasswordReset = () => {
         <View style={styles.spacer} />
       </ScrollView>
     </KeyboardAvoidingView>
+  </SafeAreaView>
   );
 };
 

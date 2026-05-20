@@ -9,6 +9,7 @@ export interface CreateBookingPayload {
   destinationStopName: string;
   seatCount: number;
   preferredSeatNumbers?: string[];
+  redeemRewardPoints?: boolean;
 }
 
 export interface BookingResponse {
@@ -17,6 +18,7 @@ export interface BookingResponse {
   passengerId: string;
   routeId: string;
   busId: string;
+  busNumber: string;
   scheduleId: string;
   tripSessionId?: string;
   serviceDate: string;
@@ -29,6 +31,11 @@ export interface BookingResponse {
   seatCount: number;
   farePerSeat: number;
   totalFare: number;
+  rewardPointsRedeemed?: boolean;
+  discountCode?: string;
+  discountPercentage?: number;
+  discountAmount?: number;
+  finalFare?: number;
   paymentStatus?: boolean;
   payment?: {
     status?: 'pending' | 'paid' | 'failed';
@@ -98,6 +105,16 @@ export interface SubmitBookingReviewResponse {
   };
 }
 
+export interface CancelBookingResponse {
+  message: string;
+  booking?: BookingResponse;
+  rewardPoints?: number;
+  pointsDeducted?: string;
+  isBanned?: boolean;
+  banUntil?: string;
+  warning?: string;
+}
+
 export const bookingService = {
   createBooking: async (payload: CreateBookingPayload): Promise<BookingResponse> => {
     const response = await apiClient.post('/passenger/bookings', payload);
@@ -124,7 +141,7 @@ export const bookingService = {
     return response.data?.bookings || response.data || [];
   },
 
-  cancelBooking: async (bookingId: string, reason?: string): Promise<{ message: string }> => {
+  cancelBooking: async (bookingId: string, reason?: string): Promise<CancelBookingResponse> => {
     const response = await apiClient.post(`/passenger/bookings/${bookingId}/cancel`, { reason });
     return response.data;
   },

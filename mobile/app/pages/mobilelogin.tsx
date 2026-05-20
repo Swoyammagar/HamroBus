@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { Text, View, Image, TouchableOpacity, TextInput, ScrollView, Dimensions } from "react-native";
+import { Text, View, Image, TouchableOpacity, TextInput, ScrollView, Dimensions, Alert } from "react-native";
 import MainLogo from "../utils/MainLogo.png";
 import { router, Stack } from "expo-router";
 import { useAuth } from "../context/AuthContext";
 import { Feather } from '@expo/vector-icons';
+import { accountDeletionService as passengerDeletionService } from "../passenger/services/accountDeletionService";
+import { accountDeletionService as driverDeletionService } from "../driver/services/accountDeletionService";
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 
@@ -47,6 +49,33 @@ const Login = () => {
           return;
         }
         await getCurrentUser();
+
+        // Check deletion status for both passenger and driver
+        try {
+          if (role === 'driver') {
+            const deletionStatus = await driverDeletionService.checkDeletionStatus();
+            if (deletionStatus.success && deletionStatus.data.isDeletionPending) {
+              Alert.alert(
+                'Profile Deletion Pending',
+                `Your profile is scheduled for deletion in ${deletionStatus.data.remainingDays} days. You can restore it from the profile settings.`,
+                [{ text: 'OK' }]
+              );
+            }
+          } else {
+            const deletionStatus = await passengerDeletionService.checkDeletionStatus();
+            if (deletionStatus.success && deletionStatus.data.isDeletionPending) {
+              Alert.alert(
+                'Profile Deletion Pending',
+                `Your profile is scheduled for deletion in ${deletionStatus.data.remainingDays} days. You can restore it from the profile settings.`,
+                [{ text: 'OK' }]
+              );
+            }
+          }
+        } catch (deletionError) {
+          // Silently fail - deletion check shouldn't block login
+          console.warn('Deletion status check failed:', deletionError);
+        }
+
         if (role === 'driver') {
           router.replace("/driver/app");
         } else if (role === 'passenger') {

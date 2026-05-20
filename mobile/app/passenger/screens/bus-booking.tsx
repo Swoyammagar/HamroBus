@@ -16,6 +16,7 @@ import { usePassenger, type Bus, type Route, type Stop, type Booking } from '../
 import { routeService, type Schedule } from '../services/routeService';
 import { bookingService, type BookingResponse, type SeatAvailabilityResponse } from '../services/bookingService';
 import { paymentService } from '../services/paymentService';
+import { RewardService } from '../services/rewardService';
 import passengerNotificationSocket from '../services/passengerNotificationSocket';
 import StopSelectionModal from '@/app/passenger/components/StopSelectionModal';
 import BookingSuccessTicket from '@/app/passenger/components/BookingSuccessTicket';
@@ -48,6 +49,11 @@ const BusBooking = () => {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
   const [serviceDate, setServiceDate] = useState<string>('');
+  // ========== NEW: Reward Points State ==========
+  const [rewardPoints, setRewardPoints] = useState<number>(0);
+  const [useRewardPoints, setUseRewardPoints] = useState<boolean>(false);
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  // ========== END NEW ==========
   const [availabilityData, setAvailabilityData] = useState<SeatAvailabilityResponse | null>(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [schedulesLoading, setSchedulesLoading] = useState(false);
@@ -91,6 +97,23 @@ const BusBooking = () => {
     }
     setResolutionAttempted(true);
   }, [busId, routeId, selectedBus, buses, selectedRoute, routes]);
+
+  // ========== NEW: Fetch Reward Points ==========
+  useEffect(() => {
+    const fetchRewardPoints = async () => {
+      try {
+        const rewardInfo = await RewardService.getRewardPoints();
+        if (rewardInfo.success) {
+          setRewardPoints(rewardInfo.data.rewardPoints);
+        }
+      } catch (error) {
+        console.error('Error fetching reward points:', error);
+      }
+    };
+
+    fetchRewardPoints();
+  }, []);
+  // ========== END NEW ==========
 
   // Helper: get next occurrence of a weekday as "YYYY-MM-DD"
   // If today matches the weekday and schedule end time hasn't passed, show today
@@ -405,6 +428,7 @@ const BusBooking = () => {
       destinationStopName: selectedAlightingStop!.name,
       seatCount: selectedSeats.length,
       preferredSeatNumbers: selectedSeats,
+      redeemRewardPoints: useRewardPoints,
     });
 
     const newBooking = mapToPassengerBooking(result);
@@ -836,10 +860,64 @@ const BusBooking = () => {
                 <Text style={styles.priceValue}>{selectedSeats.join(', ')}</Text>
               </View>
             )}
+
+            {/* ========== NEW: Reward Points Section ========== */}
+            {rewardPoints >= 500 && (
+              <View>
+                <View style={styles.priceDivider} />
+                <View style={styles.rewardPointsCard}>
+                  <View style={styles.rewardPointsHeader}>
+                    <Ionicons name="star" size={18} color="#f59e0b" />
+                    <Text style={styles.rewardPointsTitle}>You have {rewardPoints} points</Text>
+                  </View>
+                  <Text style={styles.rewardPointsDesc}>Redeem 500 points for 10% discount</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.redeemToggle,
+                      useRewardPoints && styles.redeemToggleActive,
+                    ]}
+                    onPress={() => {
+                      if (useRewardPoints) {
+                        setUseRewardPoints(false);
+                        setDiscountAmount(0);
+                      } else {
+                        const calculatedDiscount = Math.round(
+                          ((bookingPrice * selectedSeats.length) * 10) / 100 * 100
+                        ) / 100;
+                        setUseRewardPoints(true);
+                        setDiscountAmount(calculatedDiscount);
+                      }
+                    }}
+                  >
+                    <Ionicons
+                      name={useRewardPoints ? 'checkbox' : 'square-outline'}
+                      size={20}
+                      color={useRewardPoints ? '#10b981' : '#d1d5db'}
+                    />
+                    <Text style={styles.redeemToggleText}>
+                      {useRewardPoints ? 'Redeem for 10% discount' : 'Tap to redeem points'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            {/* ========== END NEW ========== */}
+
             <View style={styles.priceDivider} />
+            {useRewardPoints && discountAmount > 0 && (
+              <View>
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>Discount (10%)</Text>
+                  <Text style={[styles.priceValue, { color: '#10b981' }]}>-Rs. {discountAmount}</Text>
+                </View>
+                <View style={styles.priceDivider} />
+              </View>
+            )}
             <View style={styles.priceRow}>
               <Text style={styles.priceLabelBold}>Total</Text>
-              <Text style={styles.priceValueBold}>Rs. {bookingPrice * selectedSeats.length}</Text>
+              <Text style={styles.priceValueBold}>
+                Rs. {useRewardPoints ? Math.round(((bookingPrice * selectedSeats.length) - discountAmount) * 100) / 100 : bookingPrice * selectedSeats.length}
+              </Text>
             </View>
           </View>
         </View>
@@ -1139,6 +1217,52 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#3b82f6',
   },
+  // ========== NEW: Reward Points Styles ==========
+  rewardPointsCard: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f59e0b',
+  },
+  rewardPointsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  rewardPointsTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#92400e',
+    marginLeft: 6,
+  },
+  rewardPointsDesc: {
+    fontSize: 12,
+    color: '#b45309',
+    marginBottom: 10,
+  },
+  redeemToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  redeemToggleActive: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#10b981',
+  },
+  redeemToggleText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    marginLeft: 8,
+  },
+  // ========== END NEW ==========
   priceDivider: {
     height: 1,
     backgroundColor: '#d1d5db',

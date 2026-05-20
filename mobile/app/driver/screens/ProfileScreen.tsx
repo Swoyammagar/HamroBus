@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -15,12 +16,51 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import ReviewsSection from '../component/ReviewsSection';
 import { palette, spacing, radius, shadow } from '../theme';
+import { useFocusEffect } from '@react-navigation/native';
+import { driverProfileService } from '../services/driverProfileService';
+import { useAccountDeletion } from '../hooks/useAccountDeletion';
+
+// Add above ProfileScreen component:
+const ProfileAvatar: React.FC<{ uri?: string | null; initials: string }> = ({ uri, initials }) => {
+  const [failed, setFailed] = useState(false);
+  if (uri && !failed) {
+    return (
+      <Image
+        source={{ uri }}
+        style={styles.profileImage}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <View style={[styles.profileAvatar, { backgroundColor: palette.primary }]}>
+      <Text style={styles.avatarText}>{initials}</Text>
+    </View>
+  );
+};
 
 const ProfileScreen = () => {
   const router = useRouter();
-  const { user, driver, logout } = useAuth();
+  const { user, driver, logout, getCurrentUser } = useAuth(); // add getCurrentUser
   const [isLoading, setIsLoading] = useState(true);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [licenseNo, setLicenseNo] = useState<string | null>(null); // local driver info
+
+  // Account Deletion
+  const { isDeletionPending, remainingDays, deletionDate, loading: deletionLoading, requestDeletion, cancelDeletion } = useAccountDeletion();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeletionStatus, setShowDeletionStatus] = useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      getCurrentUser().then(() => setIsLoading(false));
+
+      // Also fetch driver-specific fields (licenseNo) which aren't in the User object
+      driverProfileService.getProfile().then((data) => {
+        setLicenseNo(data?.driver?.licenseNo || null);
+      }).catch(() => {});
+    }, [])
+  );
 
   useEffect(() => {
     if (user) {
@@ -68,11 +108,34 @@ const ProfileScreen = () => {
     ]);
   };
 
+  const handleDeleteProfile = async () => {
+    setShowDeleteConfirm(false);
+    const result = await requestDeletion();
+    if (result.success) {
+      Alert.alert(
+        'Deletion Requested',
+        `Your profile will be permanently deleted on ${result.deleteScheduledFor}. You can cancel anytime before then.`,
+        [{ text: 'OK' }]
+      );
+    } else {
+      Alert.alert('Error', result.error || 'Failed to request deletion');
+    }
+  };
+
+  const handleCancelDeletion = async () => {
+    const result = await cancelDeletion();
+    if (result.success) {
+      Alert.alert('Success', result.message);
+      setShowDeletionStatus(false);
+    } else {
+      Alert.alert('Error', result.error || 'Failed to cancel deletion');
+    }
+  };
+
   const initials = user ? getInitials(user.firstName, user.lastName) : '?';
   const fullName = user ? `${user.firstName} ${user.lastName}` : 'Unknown Driver';
   const driverId = driver?.id || 'Not assigned';
   const profileImage = user?.profileImgUrl;
-  const licenseImage = driver?.licenseImgUrl;
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -85,13 +148,7 @@ const ProfileScreen = () => {
         {/* Profile Card */}
         <View style={styles.profileCard}>
           <View style={styles.avatarWrapper}>
-            {profileImage ? (
-              <Image source={{ uri: profileImage }} style={styles.profileImage} />
-            ) : (
-              <View style={[styles.profileAvatar, { backgroundColor: palette.primary }]}>
-                <Text style={styles.avatarText}>{initials}</Text>
-              </View>
-            )}
+            <ProfileAvatar uri={profileImage} initials={initials} />
           </View>
 
           <View style={styles.profileInfo}>
@@ -175,11 +232,139 @@ const ProfileScreen = () => {
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
 
+        {/* Delete Profile Button */}
+        <TouchableOpacity 
+          style={[styles.deleteButton, isDeletionPending && styles.deleteButtonWarning]} 
+          onPress={() => isDeletionPending ? setShowDeletionStatus(true) : setShowDeleteConfirm(true)}
+        >
+          <Feather name="trash-2" size={20} color={isDeletionPending ? '#dc2626' : '#ef4444'} />
+          <Text style={[styles.deleteButtonText, isDeletionPending && styles.deleteButtonWarningText]}>
+            {isDeletionPending ? `Delete Profile (${remainingDays} days)` : 'Delete Profile'}
+          </Text>
+        </TouchableOpacity>
+
         <View style={styles.footer}>
           <Text style={styles.footerText}>Hamro Bus v1.0.0</Text>
           <Text style={styles.footerSubtext}>© 2024 All rights reserved</Text>
         </View>
       </ScrollView>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={showDeleteConfirm}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowDeleteConfirm(false)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmModal}>
+            <View style={styles.confirmHeader}>
+              <Feather name="alert-circle" size={40} color="#dc2626" />
+            </View>
+
+            <Text style={styles.confirmTitle}>Delete Profile?</Text>
+            <Text style={styles.confirmMessage}>
+              Your profile will be permanently deleted in 7 days. You can cancel anytime before then by logging back in.
+            </Text>
+
+            <View style={styles.confirmDetails}>
+              <View style={styles.detailRow}>
+                <Feather name="clock" size={16} color="#f59e0b" />
+                <Text style={styles.detailText}>7-day grace period</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Feather name="check" size={16} color="#10b981" />
+                <Text style={styles.detailText}>Can restore by logging in</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Feather name="alert-circle" size={16} color="#ef4444" />
+                <Text style={styles.detailText}>All data will be anonymized</Text>
+              </View>
+            </View>
+
+            <View style={styles.confirmActions}>
+              <TouchableOpacity 
+                style={styles.confirmCancel}
+                onPress={() => setShowDeleteConfirm(false)}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.confirmDelete}
+                onPress={handleDeleteProfile}
+                disabled={deletionLoading}
+              >
+                {deletionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.confirmDeleteText}>Delete Profile</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Deletion Status Modal */}
+      <Modal
+        visible={showDeletionStatus}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowDeletionStatus(false)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmModal}>
+            <View style={styles.confirmHeader}>
+              <Feather name="alert-triangle" size={40} color="#dc2626" />
+            </View>
+
+            <Text style={styles.confirmTitle}>Profile Deletion Pending</Text>
+            <Text style={styles.confirmMessage}>
+              Your profile is scheduled for permanent deletion.
+            </Text>
+
+            <View style={styles.statusBox}>
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Deletion Date:</Text>
+                <Text style={styles.statusValue}>{deletionDate ? new Date(deletionDate).toLocaleDateString() : 'Unknown'}</Text>
+              </View>
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Days Remaining:</Text>
+                <Text style={[styles.statusValue, { color: '#dc2626', fontWeight: '700' }]}>{remainingDays} days</Text>
+              </View>
+            </View>
+
+            <View style={styles.statusWarning}>
+              <Feather name="info" size={16} color="#2563eb" />
+              <Text style={styles.statusWarningText}>
+                Log in anytime to restore your profile
+              </Text>
+            </View>
+
+            <View style={styles.confirmActions}>
+              <TouchableOpacity 
+                style={styles.confirmCancel}
+                onPress={() => setShowDeletionStatus(false)}
+              >
+                <Text style={styles.confirmCancelText}>Close</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.confirmRestore}
+                onPress={handleCancelDeletion}
+                disabled={deletionLoading}
+              >
+                {deletionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.confirmRestoreText}>Cancel Deletion</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Expanded Image Modal */}
       {expandedImage && (
@@ -472,6 +657,172 @@ const styles = StyleSheet.create({
   expandedImage: {
     width: '100%',
     height: 400,
+  },
+  // Delete Button Styles
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 12,
+    paddingVertical: 12,
+    backgroundColor: '#fef2f2',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#fecaca',
+  },
+  deleteButtonWarning: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#dc2626',
+  },
+  deleteButtonText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  deleteButtonWarningText: {
+    color: '#dc2626',
+    fontWeight: '700',
+  },
+  // Confirmation Modal Styles
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  confirmModal: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    maxWidth: '100%',
+    width: '100%',
+  },
+  confirmHeader: {
+    marginBottom: 16,
+  },
+  confirmTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1f2937',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  confirmMessage: {
+    fontSize: 13,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  confirmDetails: {
+    width: '100%',
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    gap: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  detailText: {
+    fontSize: 12,
+    color: '#4b5563',
+    flex: 1,
+  },
+  statusBox: {
+    width: '100%',
+    backgroundColor: '#f0f9ff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  statusLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  statusValue: {
+    fontSize: 14,
+    color: '#1f2937',
+    fontWeight: '600',
+  },
+  statusWarning: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2563eb',
+  },
+  statusWarningText: {
+    fontSize: 12,
+    color: '#1e40af',
+    fontWeight: '500',
+    marginLeft: 8,
+    flex: 1,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  confirmCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmCancelText: {
+    color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  confirmDelete: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#dc2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmDeleteText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  confirmRestore: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#10b981',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmRestoreText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

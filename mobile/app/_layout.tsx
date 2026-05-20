@@ -10,18 +10,20 @@ export default function RootLayout() {
       <DriverSignupProvider>
         <PassengerSignupProvider>
           <Stack screenOptions={{ headerShown: false }}>
+            {/* Splash screen - shown first while auth state loads */}
+            <Stack.Screen name="pages/splash" options={{ headerShown: false }} />
+            
             {/* Onboarding/Login pages */}
-            {/* <Stack.Screen name="pages/mobilelogin" />
+            <Stack.Screen name="pages/mobilelogin" />
             <Stack.Screen name="pages/newPassword" />
             <Stack.Screen name="pages/otpPassword" />
             <Stack.Screen name="pages/preference" />
-            <Stack.Screen name="pages/resetPassword" /> */}
+            <Stack.Screen name="pages/resetPassword" />
 
-            <Stack.Screen name="index" />
-            <Stack.Screen name="pages" />
-            <Stack.Screen name="driver" />
             <Stack.Screen name="khalti-return" />
 
+            {/* Driver screens */}
+            <Stack.Screen name="driver" />
 
             {/* Passenger screens */}
             <Stack.Screen name="passenger/password" />
