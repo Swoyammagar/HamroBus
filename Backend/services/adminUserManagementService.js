@@ -70,7 +70,7 @@ const getAllPassengers = async (page = 1, limit = 10, search = '') => {
       : {};
 
     const passengers = await Passenger.find(query)
-      .select('_id firstName lastName email phoneNumber profileImgUrl totalTrips averageRating rewardPoints createdAt deleteRequestedAt')
+      .select('_id firstName lastName email phoneNumber profileImgUrl totalTrips averageRating totalPointsEarned createdAt deleteRequestedAt')
       .skip(skip)
       .limit(limit)
       .lean()
@@ -119,7 +119,7 @@ const getAllPassengers = async (page = 1, limit = 10, search = '') => {
 const getPassengerDetails = async (passengerId) => {
   try {
     const passenger = await Passenger.findById(passengerId)
-      .select('firstName lastName email phoneNumber profileImgUrl totalTrips averageRating rewardPoints consecutiveCancellations isBanned banUntil createdAt deleteRequestedAt')
+      .select('firstName lastName email phoneNumber profileImgUrl totalTrips averageRating totalPointsEarned consecutiveCancellations isBanned banUntil createdAt deleteRequestedAt')
       .lean()
       .exec();
 

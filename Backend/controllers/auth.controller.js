@@ -5,34 +5,54 @@ const { generateToken, generateRefreshToken, verifyRefreshToken } = require('../
 
 // Accepts a refresh token and issues a new access token
 const refreshAccessToken = async (req, res) => {
-  const refreshToken = req.cookies.refresh_token;
-  if (!refreshToken) return res.status(400).json({ message: 'Refresh token required' });
+  try {
+    const refreshToken = req.cookies.refresh_token;
+    if (!refreshToken) {
+      console.warn('[Auth] Refresh token missing from cookies');
+      return res.status(401).json({ message: 'Refresh token required' });
+    }
 
-  const payload = verifyRefreshToken(refreshToken);
-  if (!payload) return res.status(403).json({ message: 'Invalid refresh token' });
+    const payload = verifyRefreshToken(refreshToken);
+    if (!payload) {
+      console.warn('[Auth] Invalid refresh token');
+      return res.status(401).json({ message: 'Invalid refresh token' });
+    }
 
-  // Check admins, drivers, and passengers for the token
-  const userId = payload.id;
-  let user = await Admin.findById(userId);
-  if (!user) user = await Driver.findById(userId);
-  if (!user) user = await Passenger.findById(userId);
-  
-  if (!user || user.refreshToken !== refreshToken) {
-    return res.status(403).json({ message: 'Refresh token not recognized' });
+    // Check admins, drivers, and passengers for the token
+    const userId = payload.id;
+    let user = await Admin.findById(userId);
+    if (!user) user = await Driver.findById(userId);
+    if (!user) user = await Passenger.findById(userId);
+    
+    if (!user) {
+      console.warn(`[Auth] User not found for ID: ${userId}`);
+      return res.status(401).json({ message: 'User not found' });
+    }
+
+    // Allow refresh if:
+    // 1. Token in DB matches OR
+    // 2. No token in DB (for backward compatibility with users who logged in before this fix)
+    if (user.refreshToken && user.refreshToken !== refreshToken) {
+      console.warn(`[Auth] Refresh token mismatch for user ${userId}`);
+      return res.status(401).json({ message: 'Refresh token mismatch' });
+    }
+
+    // Issue new access token
+    const accessToken = generateToken(user);
+    
+    // Set new access token in httpOnly cookie
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 15 * 60 * 1000 // 15 minutes
+    });
+    
+    res.status(200).json({ success: true, message: 'Token refreshed' });
+  } catch (error) {
+    console.error('[Auth] Refresh token error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
-
-  // Issue new access token
-  const accessToken = generateToken(user);
-  
-  // Set new access token in httpOnly cookie
-  res.cookie('access_token', accessToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 15 * 60 * 1000 // 15 minutes
-  });
-  
-  res.status(200).json({ success: true, message: 'Token refreshed' });
 };
 
 // Logout: clear stored refresh token and cookies

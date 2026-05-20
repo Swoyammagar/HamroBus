@@ -1094,7 +1094,7 @@ const getAllTripsWithBookings = async (req, res) => {
       })
       .populate({
         path: 'routeId',
-        select: 'startingStop endingStop',
+        select: 'routeName startingStop endingStop',
       })
       .populate({
         path: 'driverId',
@@ -1110,9 +1110,12 @@ const getAllTripsWithBookings = async (req, res) => {
           .populate('passengerId', 'firstName lastName phoneNumber profileImgUrl')
           .lean();
         
+        // Calculate actual passenger count by summing seatCount of all bookings
+        const totalPassengers = bookings.reduce((sum, b) => sum + (b.seatCount || 0), 0);
+        
         return {
           tripId: trip._id,
-          routeName: (trip.routeId?.startingStop || '') + ' to ' + (trip.routeId?.endingStop || ''),
+          routeName: trip.routeId?.routeName || ((trip.routeId?.startingStop || '') + ' to ' + (trip.routeId?.endingStop || '')),
           busNumber: trip.busId?.busNumber || 'N/A',
           driverName: [trip.driverId?.firstName, trip.driverId?.lastName].filter(Boolean).join(' '),
           driverProfileImgUrl: trip.driverId?.profileImgUrl || null,
@@ -1121,9 +1124,9 @@ const getAllTripsWithBookings = async (req, res) => {
           delayMinutes: trip.startDelayMinutes || 0,
           currentOccupancy: trip.passengerCount || 0,
           occupancyHistory: trip.occupancyHistory || [],
-          passengerCount: bookings.length,
+          passengerCount: totalPassengers,
           bookingCount: bookings.length,
-          totalSeats: bookings.reduce((sum, b) => sum + (b.seatCount || 0), 0),
+          totalSeats: totalPassengers,
           bookings: bookings.map(b => ({
             bookingCode: b.bookingCode,
             passengerName: [b.passengerId?.firstName, b.passengerId?.lastName].filter(Boolean).join(' '),
@@ -1158,7 +1161,7 @@ const getTripDetailsById = async (req, res) => {
     
     const trip = await TripSession.findById(tripId)
       .populate('busId')
-      .populate('routeId')
+      .populate('routeId', 'routeName startingStop endingStop schedules')
       .populate('driverId', 'firstName lastName phoneNumber profileImgUrl licenseImgUrl')
       .lean();
     
@@ -1206,9 +1209,9 @@ const getTripDetailsById = async (req, res) => {
         restTimeMinutes: trip.totalBreakTime || 0
       },
       metrics: {
-        passengerCount: bookings.length,
+        passengerCount: bookings.reduce((sum, b) => sum + (b.seatCount || 0), 0),
         currentOccupancy: trip.passengerCount || 0,
-        totalSeats: bookings.reduce((sum, b) => sum + (b.seatCount || 0), 0),
+        totalSeats: trip.busId?.capacity || bookings.reduce((sum, b) => sum + (b.seatCount || 0), 0),
         totalFare: bookings.reduce((sum, b) => sum + (b.totalFare || 0), 0),
         paidBookings: bookings.filter(b => b.payment?.status === 'paid').length,
         pendingPayments: bookings.filter(b => b.payment?.status !== 'paid').length,

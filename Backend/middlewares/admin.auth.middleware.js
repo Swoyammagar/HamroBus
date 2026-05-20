@@ -43,11 +43,21 @@ async function authenticateAdmin(req, res, next) {
           });
         }
 
-        // Fetch admin and verify refresh token matches
+        // Fetch admin and verify refresh token matches (or allow if not set for backward compat)
         const admin = await Admin.findById(refreshPayload.id);
-        if (!admin || admin.refreshToken !== refreshToken) {
+        if (!admin) {
           return res.status(401).json({ 
-            error: "Refresh token not found",
+            error: "Admin not found",
+            message: "Please login again" 
+          });
+        }
+
+        // Allow refresh if:
+        // 1. Token in DB matches OR
+        // 2. No token in DB (for backward compatibility)
+        if (admin.refreshToken && admin.refreshToken !== refreshToken) {
+          return res.status(401).json({ 
+            error: "Refresh token mismatch",
             message: "Please login again" 
           });
         }
