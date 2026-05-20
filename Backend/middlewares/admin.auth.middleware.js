@@ -1,80 +1,54 @@
 const jwt = require("jsonwebtoken");
 const Admin = require("../models/admin.model");
-const { generateToken, verifyRefreshToken } = require("../utils/authutils");
+const {
+  generateToken,
+  verifyRefreshToken,
+} = require("../utils/authutils");
 
 /**
  * Middleware to authenticate admin users via cookies
- * Validates JWT and automatically refreshes if expired
+ * Automatically refreshes expired/missing access tokens
  */
 async function authenticateAdmin(req, res, next) {
-  console.log('🍪 Cookies received:', req.cookies);
-  console.log('🔑 access_token:', req.cookies.access_token ? 'PRESENT' : 'MISSING');
-  console.log('🔄 refresh_token:', req.cookies.refresh_token ? 'PRESENT' : 'MISSING');
   try {
-    // 1️⃣ Read token from cookies
     const token = req.cookies.access_token;
+    const refreshToken = req.cookies.refresh_token;
 
-    if (!token) {
-      return res.status(401).json({ 
-        error: "Access token missing",
-        message: "Please login to continue" 
+    /**
+     * No authentication at all
+     */
+    if (!token && !refreshToken) {
+      return res.status(401).json({
+        error: "Authentication required",
+        message: "Please login to continue",
       });
     }
 
-    // 2️⃣ Verify token
-    try {
-      const data = jwt.verify(token, process.env.JWT_SECRET);
-      req.userId = data.id;
-    } catch (err) {
-      // If token expired, try to refresh it
-      if (err.name === 'TokenExpiredError') {
-        const refreshToken = req.cookies.refresh_token;
-        
-        if (!refreshToken) {
-          return res.status(401).json({ 
-            error: "Access token expired",
-            message: "Please login again" 
-          });
-        }
+    let admin = null;
 
-        // Verify refresh token
-        const refreshPayload = verifyRefreshToken(refreshToken);
-        if (!refreshPayload) {
-          return res.status(401).json({ 
-            error: "Refresh token invalid or expired",
-            message: "Please login again" 
-          });
-        }
+    /**
+     * =========================================================
+     * CASE 1:
+     * ACCESS TOKEN EXISTS → VERIFY IT
+     * =========================================================
+     */
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Fetch admin and verify refresh token matches (or allow if not set for backward compat)
-        const admin = await Admin.findById(refreshPayload.id);
+        admin = await Admin.findById(decoded.id);
+
         if (!admin) {
-          return res.status(401).json({ 
+          return res.status(401).json({
             error: "Admin not found",
-            message: "Please login again" 
           });
         }
 
-        // Allow refresh if:
-        // 1. Token in DB matches OR
-        // 2. No token in DB (for backward compatibility)
-        if (admin.refreshToken && admin.refreshToken !== refreshToken) {
-          return res.status(401).json({ 
-            error: "Refresh token mismatch",
-            message: "Please login again" 
-          });
-        }
-
-        // ✅ Generate new access token
-        const newAccessToken = generateToken(admin);
-        res.cookie('access_token', newAccessToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-          maxAge: 15 * 60 * 1000 // 15 minutes
-        });
-
+        /**
+         * Valid access token
+         */
         req.userId = admin._id;
+
         req.user = {
           id: admin._id,
           role: admin.role,
@@ -83,31 +57,95 @@ async function authenticateAdmin(req, res, next) {
         };
 
         return next();
+      } catch (err) {
+        /**
+         * If token invalid for reasons OTHER than expiration
+         */
+        if (err.name !== "TokenExpiredError") {
+          return res.status(403).json({
+            error: "Invalid token",
+            message: "Token verification failed",
+          });
+        }
+
+        console.log("⚠️ Access token expired. Attempting refresh...");
       }
-      
-      // Other JWT errors
-      return res.status(403).json({ 
-        error: "Invalid token",
-        message: "Token verification failed" 
+    }
+
+    /**
+     * =========================================================
+     * CASE 2:
+     * TOKEN EXPIRED OR MISSING
+     * TRY REFRESH TOKEN
+     * =========================================================
+     */
+
+    if (!refreshToken) {
+      return res.status(401).json({
+        error: "Refresh token missing",
+        message: "Please login again",
       });
     }
 
-    // 3️⃣ Fetch admin from database
-    const admin = await Admin.findById(req.userId);
-    
+    /**
+     * Verify refresh token
+     */
+    const refreshPayload = verifyRefreshToken(refreshToken);
+
+    if (!refreshPayload) {
+      return res.status(401).json({
+        error: "Refresh token invalid or expired",
+        message: "Please login again",
+      });
+    }
+
+    /**
+     * Fetch admin
+     */
+    admin = await Admin.findById(refreshPayload.id);
+
     if (!admin) {
-      return res.status(401).json({ error: "Admin not found" });
-    }
-
-    // 4️⃣ Verify user has admin role
-    if (admin.role !== 'admin') {
-      return res.status(403).json({ 
-        error: "Access denied",
-        message: "Admin privileges required" 
+      return res.status(401).json({
+        error: "Admin not found",
+        message: "Please login again",
       });
     }
 
-    // 5️⃣ Attach admin info to request
+    /**
+     * Verify stored refresh token matches
+     */
+    if (
+      admin.refreshToken &&
+      admin.refreshToken !== refreshToken
+    ) {
+      return res.status(401).json({
+        error: "Refresh token mismatch",
+        message: "Please login again",
+      });
+    }
+
+    /**
+     * Generate new access token
+     */
+    const newAccessToken = generateToken(admin);
+
+    res.cookie("access_token", newAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite:
+        process.env.NODE_ENV === "production"
+          ? "none"
+          : "lax",
+      maxAge: 15 * 60 * 1000, // 15 mins
+    });
+
+    console.log("✅ Access token refreshed");
+
+    /**
+     * Attach user
+     */
+    req.userId = admin._id;
+
     req.user = {
       id: admin._id,
       role: admin.role,
@@ -115,24 +153,31 @@ async function authenticateAdmin(req, res, next) {
       email: admin.email,
     };
 
-    next();
+    return next();
   } catch (err) {
-    console.error("Auth error:", err);
-    return res.status(403).json({ error: "Authentication failed" });
+    console.error("❌ Auth middleware error:", err);
+
+    return res.status(500).json({
+      error: "Authentication failed",
+    });
   }
 }
 
 /**
- * Optional: Super admin check for critical operations
+ * Optional super admin middleware
  */
 function isSuperAdmin(req, res, next) {
-  if (req.user.role !== 'superadmin') {
-    return res.status(403).json({ 
+  if (req.user.role !== "superadmin") {
+    return res.status(403).json({
       error: "Access denied",
-      message: "Super admin privileges required" 
+      message: "Super admin privileges required",
     });
   }
+
   next();
 }
 
-module.exports = { authenticateAdmin, isSuperAdmin };
+module.exports = {
+  authenticateAdmin,
+  isSuperAdmin,
+};
