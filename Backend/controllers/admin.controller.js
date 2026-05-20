@@ -1,4 +1,7 @@
 const Admin = require('../models/admin.model');
+const Bus = require('../models/bus.model');
+const Driver = require('../models/driver.model');
+const Route = require('../models/route.model');
 const bcrypt = require('bcrypt');
 const { generateToken, generateRefreshToken } = require('../utils/authutils');
 const { generateOTP } = require('../utils/OTPutils');
@@ -48,7 +51,7 @@ const Login = async (req, res) =>{
     
     res.status(200).json({ 
       success: true,
-      admin: { email: existing.email, id: existing._id, fullname: existing.fullname },
+      admin: { email: existing.email, id: existing._id, fullname: existing.fullname, phone: existing.phone },
       accessToken: token,
       message: "Login successful"});
     }   
@@ -237,6 +240,134 @@ const changeAdminPassword = async (req, res) => {
   }
 };
 
+/**
+ * Update authenticated admin profile
+ * Allows updating fullname, email, and phone
+ */
+const updateAdminProfile = async (req, res) => {
+  const adminId = req.user.id;
+  const { fullname, fullName, email, phone } = req.body;
+
+  try {
+    const normalizedFullname = (fullname ?? fullName)?.trim();
+    const normalizedEmail = email?.trim().toLowerCase();
+    const normalizedPhone = phone === null ? null : phone?.trim();
+
+    if (
+      normalizedFullname === undefined &&
+      normalizedEmail === undefined &&
+      normalizedPhone === undefined
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Provide at least one field to update: fullname, email, or phone",
+      });
+    }
+
+    if (normalizedFullname !== undefined && normalizedFullname.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Full name cannot be empty",
+      });
+    }
+
+    if (normalizedEmail !== undefined) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(normalizedEmail)) {
+        return res.status(400).json({
+          success: false,
+          message: "Please provide a valid email address",
+        });
+      }
+
+      const existingAdmin = await Admin.findOne({
+        email: normalizedEmail,
+        _id: { $ne: adminId },
+      });
+
+      if (existingAdmin) {
+        return res.status(409).json({
+          success: false,
+          message: "Email is already in use",
+        });
+      }
+    }
+
+    const admin = await Admin.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin not found",
+      });
+    }
+
+    if (normalizedFullname !== undefined) admin.fullname = normalizedFullname;
+    if (normalizedEmail !== undefined) admin.email = normalizedEmail;
+    if (normalizedPhone !== undefined) admin.phone = normalizedPhone;
+
+    await admin.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Admin profile updated successfully",
+      admin: {
+        id: admin._id,
+        fullname: admin.fullname,
+        email: admin.email,
+        phone: admin.phone,
+        role: admin.role,
+        isVerified: admin.isVerified,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating admin profile:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+/**
+ * Get admin dashboard summary counts
+ */
+const getDashboardData = async (req, res) => {
+  try {
+    const [totalBuses, totalDrivers, totalRoutes, scheduleCounts] = await Promise.all([
+      Bus.countDocuments(),
+      Driver.countDocuments(),
+      Route.countDocuments(),
+      Route.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalSchedules: { $sum: { $size: { $ifNull: ["$schedules", []] } } },
+          },
+        },
+      ]),
+    ]);
+
+    const totalSchedules = scheduleCounts[0]?.totalSchedules || 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalBuses,
+        totalDrivers,
+        totalRoutes,
+        totalSchedules,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching dashboard data:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching dashboard data",
+      error: error.message,
+    });
+  }
+};
+
 // ==================== USER MANAGEMENT FUNCTIONS ====================
 
 /**
@@ -409,6 +540,8 @@ module.exports = {
   resetPassword, 
   verifyOTPUser, 
   changeAdminPassword,
+  updateAdminProfile,
+  getDashboardData,
   // User Management
   getPassengersList,
   getPassengerInfo,

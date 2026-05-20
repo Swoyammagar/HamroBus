@@ -24,6 +24,7 @@ const currentUser = async (req, res) => {
         id: admin._id,
         fullname: admin.fullname,
         email: admin.email,
+        phone: admin.phone,
         role: admin.role, // ✅ Include role in response
         isVerified: admin.isVerified
       }

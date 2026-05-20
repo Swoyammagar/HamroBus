@@ -6,6 +6,8 @@ const {
   resetPassword, 
   verifyOTPUser, 
   changeAdminPassword,
+  updateAdminProfile,
+  getDashboardData,
   getPassengersList,
   getPassengerInfo,
   deletePassengerByAdmin,
@@ -30,6 +32,8 @@ router.post("/verify-otp", verifyOTPUser);
 // Protected admin routes
 router.get("/current", authenticateAdmin, currentUser);
 router.post("/change-password", authenticateAdmin, changeAdminPassword);
+router.patch("/profile", authenticateAdmin, updateAdminProfile);
+router.get("/dashboard", authenticateAdmin, getDashboardData);
 
 // ==================== USER MANAGEMENT ROUTES ====================
 
