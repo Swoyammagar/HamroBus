@@ -4,6 +4,7 @@ const {
   generateToken,
   verifyRefreshToken,
 } = require("../utils/authutils");
+const { authCookieOptions } = require("../utils/cookieOptions");
 
 /**
  * Middleware to authenticate admin users via cookies
@@ -129,15 +130,8 @@ async function authenticateAdmin(req, res, next) {
      */
     const newAccessToken = generateToken(admin);
 
-    res.cookie("access_token", newAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite:
-        process.env.NODE_ENV === "production"
-          ? "none"
-          : "lax",
-      maxAge: 15 * 60 * 1000, // 15 mins
-    });
+    res.cookie("access_token", newAccessToken, authCookieOptions(15 * 60 * 1000));
+    res.cookie("refresh_token", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
     console.log("✅ Access token refreshed");
 

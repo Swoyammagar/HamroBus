@@ -2,10 +2,17 @@ const Driver = require('../models/driver.model');
 const Location = require('../models/location.model');
 const Notification = require('../models/notification.model');
 const bcrypt = require('bcrypt');
+const { v4: uuidv4 } = require('uuid');
 const { generateToken, generateRefreshToken, isPhoneNumberUnique, isLicenseNumberUnique, hashPassword, comparePassword } = require('../utils/authutils');
 const { sendEmail } = require('../utils/sendEmail');
 const { generateOTP } = require('../utils/OTPutils');
 const { sendVerificationEmail } = require('../utils/OTPutils');
+const {
+    adminDriverRegistrationEmail,
+    driverApprovalEmail,
+    driverRejectionEmail
+} = require('../utils/emailTemplates');
+const { getAdminEmailRecipients } = require('../utils/adminEmailRecipients');
 const { requestDriverProfileDeletion, cancelDriverProfileDeletion, checkDriverDeletionStatusOnLogin } = require('../services/deleteAccountService');
 
 // Driver Registration
@@ -77,36 +84,18 @@ const registerDriver = async (req, res) => {
         await newDriver.save();
 
         // 📧 Send email notification to admin
-        const adminEmail = process.env.ADMIN_EMAIL;
-        if (adminEmail) {
-            const adminEmailContent = `
-                <div style="font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px;">
-                    <div style="background-color: #fff; border-radius: 8px; padding: 20px; max-width: 600px; margin: 0 auto;">
-                        <h2 style="color: #0f172a; margin-bottom: 16px;">🚨 New Driver Registration Request</h2>
-                        <p style="color: #374151; line-height: 1.6;">A new user has applied to register as a driver and requires your approval.</p>
-                        
-                        <div style="background-color: #f9fafb; border-left: 4px solid #3b82f6; padding: 16px; margin: 16px 0; border-radius: 4px;">
-                            <p style="margin: 8px 0;"><strong>Driver Name:</strong> ${newDriver.firstName} ${newDriver.lastName}</p>
-                            <p style="margin: 8px 0;"><strong>Email:</strong> ${newDriver.email}</p>
-                            <p style="margin: 8px 0;"><strong>Phone:</strong> ${newDriver.phoneNumber}</p>
-                            <p style="margin: 8px 0;"><strong>License No:</strong> ${newDriver.licenseNo}</p>
-                            <p style="margin: 8px 0;"><strong>Registration Date:</strong> ${new Date().toLocaleString()}</p>
-                        </div>
-                        
-                        <p style="color: #374151; line-height: 1.6;">Please visit the admin dashboard to review and approve/reject this driver request.</p>
-                        
-                        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px;">
-                            <p style="margin: 0;">HamroBus Admin System</p>
-                            <p style="margin: 0;">This is an automated notification. Do not reply to this email.</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
+        const adminEmails = await getAdminEmailRecipients();
+        if (adminEmails.length > 0) {
             await sendEmail(
-                adminEmail,
-                adminEmailContent,
-                `🚨 New Driver Registration: ${newDriver.firstName} ${newDriver.lastName}`
+                adminEmails,
+                adminDriverRegistrationEmail({
+                    driverName: `${newDriver.firstName} ${newDriver.lastName}`,
+                    email: newDriver.email,
+                    phoneNumber: newDriver.phoneNumber,
+                    licenseNo: newDriver.licenseNo,
+                    submittedAt: new Date().toLocaleString()
+                }),
+                `New driver registration: ${newDriver.firstName} ${newDriver.lastName}`
             );
         }
 
@@ -372,19 +361,22 @@ const approveDriver = async (req, res) => {
         driver.isEmailVerified = true;
         await driver.save();
 
-        // Send approval email
         if (driver.email) {
-            await sendEmail(
+            sendEmail(
                 driver.email,
-                `<p>Hello ${driver.firstName},</p><p>Your driver signup request has been approved. You can now log in to the app.</p>`,
-                'Driver Verification Approved'
-            );
+                driverApprovalEmail({
+                    firstName: driver.firstName,
+                    licenseNo: driver.licenseNo
+                }),
+                'Your HamroBus driver account has been approved'
+            ).catch((emailError) => {
+                console.error('Approval email failed:', emailError);
+            });
         }
 
         const io = req.app.get('io');
         if (io) {
-            // Create notification for approval
-            const approvalNotification = await Notification.create({
+            Notification.create({
                 notificationId: `notif_${uuidv4()}`,
                 title: `Driver Approved: ${driver.firstName} ${driver.lastName}`,
                 message: `Driver ${driver.firstName} ${driver.lastName} (${driver.licenseNo}) has been approved and can now log in.`,
@@ -399,19 +391,21 @@ const approveDriver = async (req, res) => {
                     licenseNo: driver.licenseNo,
                     actionType: 'driver_approved'
                 }
-            });
-
-            io.to('admin-room').emit('notification:new', {
-                _id: approvalNotification._id.toString(),
-                notificationId: approvalNotification.notificationId,
-                title: approvalNotification.title,
-                message: approvalNotification.message,
-                type: approvalNotification.type,
-                severity: approvalNotification.severity,
-                sentBy: approvalNotification.sentBy,
-                targetAudience: approvalNotification.targetAudience,
-                createdAt: approvalNotification.createdAt,
-                metadata: approvalNotification.metadata
+            }).then((approvalNotification) => {
+                io.to('admin-room').emit('notification:new', {
+                    _id: approvalNotification._id.toString(),
+                    notificationId: approvalNotification.notificationId,
+                    title: approvalNotification.title,
+                    message: approvalNotification.message,
+                    type: approvalNotification.type,
+                    severity: approvalNotification.severity,
+                    sentBy: approvalNotification.sentBy,
+                    targetAudience: approvalNotification.targetAudience,
+                    createdAt: approvalNotification.createdAt,
+                    metadata: approvalNotification.metadata
+                });
+            }).catch((notificationError) => {
+                console.error('Approval notification failed:', notificationError);
             });
         }
 
@@ -435,19 +429,22 @@ const rejectDriver = async (req, res) => {
         driver.validationStatus = 'rejected';
         await driver.save();
 
-        // Send rejection email
         if (driver.email) {
-            await sendEmail(
+            sendEmail(
                 driver.email,
-                `<p>Hello ${driver.firstName},</p><p>Your driver signup request was not approved. Please contact support for details.</p>`,
-                'Driver Verification Update'
-            );
+                driverRejectionEmail({
+                    firstName: driver.firstName,
+                    licenseNo: driver.licenseNo
+                }),
+                'Update on your HamroBus driver registration'
+            ).catch((emailError) => {
+                console.error('Rejection email failed:', emailError);
+            });
         }
 
         const io = req.app.get('io');
         if (io) {
-            // Create notification for rejection
-            const rejectionNotification = await Notification.create({
+            Notification.create({
                 notificationId: `notif_${uuidv4()}`,
                 title: `Driver Rejected: ${driver.firstName} ${driver.lastName}`,
                 message: `Driver ${driver.firstName} ${driver.lastName} (${driver.licenseNo}) has been rejected and cannot log in.`,
@@ -462,19 +459,21 @@ const rejectDriver = async (req, res) => {
                     licenseNo: driver.licenseNo,
                     actionType: 'driver_rejected'
                 }
-            });
-
-            io.to('admin-room').emit('notification:new', {
-                _id: rejectionNotification._id.toString(),
-                notificationId: rejectionNotification.notificationId,
-                title: rejectionNotification.title,
-                message: rejectionNotification.message,
-                type: rejectionNotification.type,
-                severity: rejectionNotification.severity,
-                sentBy: rejectionNotification.sentBy,
-                targetAudience: rejectionNotification.targetAudience,
-                createdAt: rejectionNotification.createdAt,
-                metadata: rejectionNotification.metadata
+            }).then((rejectionNotification) => {
+                io.to('admin-room').emit('notification:new', {
+                    _id: rejectionNotification._id.toString(),
+                    notificationId: rejectionNotification.notificationId,
+                    title: rejectionNotification.title,
+                    message: rejectionNotification.message,
+                    type: rejectionNotification.type,
+                    severity: rejectionNotification.severity,
+                    sentBy: rejectionNotification.sentBy,
+                    targetAudience: rejectionNotification.targetAudience,
+                    createdAt: rejectionNotification.createdAt,
+                    metadata: rejectionNotification.metadata
+                });
+            }).catch((notificationError) => {
+                console.error('Rejection notification failed:', notificationError);
             });
         }
 
@@ -805,3 +804,5 @@ module.exports = {
     cancelDeleteProfile,
     checkDeletionStatus
 };
+
+

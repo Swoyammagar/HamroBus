@@ -1,6 +1,8 @@
     const FAQ = require('../models/faq.model');
     const Notification = require('../models/notification.model');
     const { sendEmail } = require('../utils/sendEmail');
+    const { faqSubmissionEmail } = require('../utils/emailTemplates');
+    const { getAdminEmailRecipients } = require('../utils/adminEmailRecipients');
     const { v4: uuidv4 } = require('uuid');
 
     /**
@@ -61,19 +63,22 @@
 
             // Notify admin via email
             try {
-                await sendEmail(
-                    process.env.ADMIN_EMAIL || 'admin@hamrobus.com',
-                    `
-                        <h2>New FAQ Submission</h2>
-                        <p><strong>From:</strong> ${role.toUpperCase()} - ${name}</p>
-                        <p><strong>Phone:</strong> ${phoneNumber}</p>
-                        <p><strong>Email:</strong> ${email || 'Not provided'}</p>
-                        <p><strong>Title:</strong> ${title}</p>
-                        <p><strong>Message:</strong> ${message}</p>
-                        <p><strong>FAQ ID:</strong> ${savedFAQ.faqId}</p>
-                    `,
-                    `New FAQ from ${role}: ${title}`
-                );
+                const adminEmails = await getAdminEmailRecipients();
+                if (adminEmails.length > 0) {
+                    await sendEmail(
+                        adminEmails,
+                        faqSubmissionEmail({
+                            name,
+                            role,
+                            phoneNumber,
+                            email,
+                            title,
+                            message,
+                            faqId: savedFAQ.faqId
+                        }),
+                        `New FAQ from ${role}: ${title}`
+                    );
+                }
             } catch (emailError) {
                 console.error('Error sending FAQ email:', emailError.message);
             }

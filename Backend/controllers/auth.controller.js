@@ -2,6 +2,7 @@ const Admin = require('../models/admin.model');
 const Driver = require('../models/driver.model');
 const Passenger = require('../models/passenger.model');
 const { generateToken, generateRefreshToken, verifyRefreshToken } = require('../utils/authutils');
+const { authCookieOptions, clearAuthCookieOptions } = require('../utils/cookieOptions');
 
 // Accepts a refresh token and issues a new access token
 const refreshAccessToken = async (req, res) => {
@@ -41,12 +42,8 @@ const refreshAccessToken = async (req, res) => {
     const accessToken = generateToken(user);
     
     // Set new access token in httpOnly cookie
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 15 * 60 * 1000 // 15 minutes
-    });
+    res.cookie('access_token', accessToken, authCookieOptions(15 * 60 * 1000));
+    res.cookie('refresh_token', refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
     
     res.status(200).json({ success: true, message: 'Token refreshed' });
   } catch (error) {
@@ -73,16 +70,8 @@ const logout = async (req, res) => {
   }
   
   // Clear cookies
-  res.clearCookie('access_token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
-  });
-  res.clearCookie('refresh_token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
-  });
+  res.clearCookie('access_token', clearAuthCookieOptions());
+  res.clearCookie('refresh_token', clearAuthCookieOptions());
   
   res.status(200).json({ message: 'Logged out' });
 };

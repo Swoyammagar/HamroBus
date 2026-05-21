@@ -4,6 +4,8 @@ const Booking = require('../models/booking.model');
 const Review = require('../models/review.model');
 const TripSession = require('../models/tripSession.model');
 const nodemailer = require('nodemailer');
+const path = require('path');
+const { accountDeletedEmail } = require('../utils/emailTemplates');
 
 // Configure email transporter (update with your email config)
 const emailTransporter = nodemailer.createTransport({
@@ -20,28 +22,20 @@ const emailTransporter = nodemailer.createTransport({
 const sendDeletionNotificationEmail = async (email, name, userType) => {
   try {
     const subject = 'Your Hamro Bus Account Has Been Deleted';
-    const message = `
-      <h2>Account Deletion Notice</h2>
-      <p>Dear ${name},</p>
-      <p>We are writing to inform you that your ${userType} account on Hamro Bus has been permanently deleted by the administration team.</p>
-      <p>This action was taken according to our terms of service and platform policies.</p>
-      <p><strong>What this means:</strong></p>
-      <ul>
-        <li>Your profile and personal data have been anonymized</li>
-        <li>Your booking/trip history will show your account as "Deleted User"</li>
-        <li>You will no longer be able to access any Hamro Bus services with this account</li>
-        <li>If you believe this is a mistake, please contact our support team immediately</li>
-      </ul>
-      <p>If you have any questions or concerns, please contact our support team at support@hamrobus.com</p>
-      <p>Thank you for using Hamro Bus.</p>
-      <p>Best regards,<br/>Hamro Bus Admin Team</p>
-    `;
+    const message = accountDeletedEmail({ name, userType });
 
     await emailTransporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
       subject,
       html: message,
+      attachments: [
+        {
+          filename: 'hamrobuslogo.png',
+          path: path.join(__dirname, '../utils/hamrobuslogo.png'),
+          cid: 'hamrobuslogo',
+        },
+      ],
     });
 
     return { success: true, message: 'Deletion notification email sent' };

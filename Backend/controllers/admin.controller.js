@@ -7,6 +7,7 @@ const { generateToken, generateRefreshToken } = require('../utils/authutils');
 const { generateOTP } = require('../utils/OTPutils');
 const { sendPasswordResetEmail } = require('../utils/OTPutils');
 const { hashPassword, comparePassword } = require('../utils/authutils');
+const { authCookieOptions } = require('../utils/cookieOptions');
 const {
   getAllPassengers,
   getPassengerDetails,
@@ -34,20 +35,10 @@ const Login = async (req, res) =>{
     await existing.save();
     
     // Set access token in httpOnly cookie
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 15 * 60 * 1000 // 15 minutes
-    });
+    res.cookie('access_token', token, authCookieOptions(15 * 60 * 1000));
     
     // Set refresh token in httpOnly cookie
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
+    res.cookie('refresh_token', refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
     
     res.status(200).json({ 
       success: true,
