@@ -185,10 +185,9 @@ export const useAdminDrivers = () => {
       return { success: true, message: data?.message || 'Driver approved' };
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Unable to approve driver';
-      setError(message);
       return { success: false, message };
     }
-  }, []);
+  }, [normalizeDriverRecord]);
 
   const rejectDriver = useCallback(async (driverId: string): Promise<ActionResult> => {
     try {
@@ -217,10 +216,9 @@ export const useAdminDrivers = () => {
       return { success: true, message: data?.message || 'Driver rejected' };
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Unable to reject driver';
-      setError(message);
       return { success: false, message };
     }
-  }, []);
+  }, [normalizeDriverRecord]);
 
   const getDriverReviewSummary = useCallback(async (driverId: string) => {
     const { data } = await axios.get<AdminReviewSummary>(`${API_BASE}/admin/reviews/summary`, {

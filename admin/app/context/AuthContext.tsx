@@ -19,6 +19,8 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
 axios.defaults.withCredentials = true;
 
+let refreshPromise: Promise<boolean> | null = null;
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AdminUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -72,12 +74,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (error) => {
         const status: number | undefined = error?.response?.status;
         const originalRequest = error?.config;
+        const url = originalRequest?.url || '';
 
         // Skip auth endpoints to prevent loops
         const isAuthEndpoint =
-          originalRequest?.url?.includes('/auth/') ||
-          originalRequest?.url?.includes('/admin/login') ||
-          originalRequest?.url?.includes('/admin/current');
+          url.includes('/auth/') ||
+          url.includes('/admin/login') ||
+          url.includes('/admin/request-password-reset') ||
+          url.includes('/admin/reset-password') ||
+          url.includes('/admin/verify-otp');
 
         if (isAuthEndpoint) return Promise.reject(error);
 
@@ -89,8 +94,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           originalRequest._retry = true;
 
           try {
-            // Retry request once after backend refresh middleware
-            return axios(originalRequest);
+            if (!refreshPromise) {
+              refreshPromise = axios
+                .post(`${API_BASE}/auth/refresh`)
+                .then(() => true)
+                .catch(() => false)
+                .finally(() => {
+                  refreshPromise = null;
+                });
+            }
+
+            const refreshed = await refreshPromise;
+            if (refreshed) {
+              await validateToken(true);
+              return axios(originalRequest);
+            }
+
+            clearSession();
           } catch (retryErr) {
             console.warn('[Auth] Session expired');
             clearSession();

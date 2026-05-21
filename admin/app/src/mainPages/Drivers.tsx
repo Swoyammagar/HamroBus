@@ -437,6 +437,7 @@ const Drivers: React.FC = () => {
           result.success ? ToastAndroid.SHORT : ToastAndroid.LONG
         );
       }
+      await Promise.all([fetchAllDrivers(), fetchPendingDrivers()]);
     } catch {
       if (Platform.OS === "android")
         ToastAndroid.show("Something went wrong", ToastAndroid.LONG);
@@ -456,6 +457,7 @@ const Drivers: React.FC = () => {
           result.success ? ToastAndroid.SHORT : ToastAndroid.LONG
         );
       }
+      await Promise.all([fetchAllDrivers(), fetchPendingDrivers()]);
     } catch {
       if (Platform.OS === "android")
         ToastAndroid.show("Something went wrong", ToastAndroid.LONG);
