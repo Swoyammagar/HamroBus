@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { Feather } from '@expo/vector-icons';
@@ -79,7 +79,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelect, selectedKey: externa
         </Pressable>
       </View>
 
-      <View style={styles.menu}>
+      <ScrollView
+        style={styles.menuScroll}
+        contentContainerStyle={styles.menu}
+        showsVerticalScrollIndicator={false}
+      >
         {items.map((it) => {
           const isSelected = selectedKey === it.key;
           const isHovered = hoverKey === it.key;
@@ -113,7 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelect, selectedKey: externa
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
 
       <View style={styles.footer}>
         <Pressable
@@ -174,8 +178,13 @@ const styles = StyleSheet.create({
     color: '#333',
   },
 
+  menuScroll: {
+    flex: 1,
+    marginTop: 6,
+  },
   menu: {
     paddingTop: 6,
+    paddingBottom: 12,
   },
   item: {
     paddingVertical: 12,
