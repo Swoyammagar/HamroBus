@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Route = require('../../models/route.model');
 const Bus = require('../../models/bus.model');
 const Booking = require('../../models/booking.model');
+const SeatLock = require('../../models/seatLock.model');
 const TripSession = require('../../models/tripSession.model');
 const Driver = require('../../models/driver.model');
 const Passenger = require('../../models/passenger.model');
@@ -111,6 +112,45 @@ const getTakenSeats = async ({ routeId, busId, scheduleId, serviceDate }) => {
   );
 };
 
+const buildSeatLockKey = ({ routeId, busId, scheduleId, serviceDate, seatNumber }) => {
+  const dateKey = normalizeDateOnly(serviceDate).toISOString().slice(0, 10);
+  return [routeId, busId, scheduleId, dateKey, String(seatNumber).trim().toUpperCase()].join(':');
+};
+
+const releaseSeatLocksForBooking = async (bookingId) => {
+  if (!bookingId) return;
+  await SeatLock.deleteMany({ bookingId });
+};
+
+const acquireSeatLocks = async ({ bookingId, routeId, busId, scheduleId, serviceDate, seatNumbers }) => {
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  const lockDocs = seatNumbers.map((seatNumber) => ({
+    seatKey: buildSeatLockKey({ routeId, busId, scheduleId, serviceDate, seatNumber }),
+    bookingId,
+    routeId,
+    busId,
+    scheduleId,
+    serviceDate,
+    seatNumber,
+    expiresAt,
+  }));
+
+  try {
+    await SeatLock.insertMany(lockDocs, { ordered: true });
+  } catch (error) {
+    await releaseSeatLocksForBooking(bookingId);
+    if (error?.code === 11000 || error?.writeErrors?.some((row) => row?.code === 11000)) {
+      return {
+        success: false,
+        message: 'One or more selected seats were just booked by another passenger. Please choose again.',
+      };
+    }
+    throw error;
+  }
+
+  return { success: true };
+};
+
 const mapBookingResponse = (booking) => ({
   id: booking._id,
   bookingCode: booking.bookingCode,
@@ -150,6 +190,7 @@ const mapBookingResponse = (booking) => ({
 
 const createBooking = async (req, res) => {
   const passengerId = req.user.id;
+  let lockedBookingId = null;
   const {
     routeId,
     busId,
@@ -328,6 +369,20 @@ const createBooking = async (req, res) => {
     const bookingId = new mongoose.Types.ObjectId();
     const bookingCode = makeBookingCode();
     // ========== END NEW ==========
+
+    const lockResult = await acquireSeatLocks({
+      bookingId,
+      routeId: route._id,
+      busId: bus._id,
+      scheduleId: schedule._id,
+      serviceDate: normalizedServiceDate,
+      seatNumbers: selectedSeats,
+    });
+
+    if (!lockResult.success) {
+      return res.status(409).json({ message: lockResult.message });
+    }
+    lockedBookingId = bookingId;
     
     // ========== NEW: Handle Reward Points Redemption ==========
     let discountCode = null;
@@ -423,6 +478,7 @@ const createBooking = async (req, res) => {
       qrPayload,
       qrGeneratedAt: new Date(),
     });
+    lockedBookingId = null;
 
     const qrCodeDataUrl = await generateQrDataUrlFromPayload(qrPayload);
 
@@ -609,6 +665,12 @@ const createBooking = async (req, res) => {
   } catch (error) {
     console.error('Create booking error:', error);
 
+    if (lockedBookingId) {
+      await releaseSeatLocksForBooking(lockedBookingId).catch((cleanupError) => {
+        console.error('Seat lock cleanup failed after booking error:', cleanupError);
+      });
+    }
+
     if (error && error.code === 11000) {
       return res.status(409).json({ message: 'Could not reserve seats. Please try again.' });
     }
@@ -656,6 +718,7 @@ const cancelBooking = async (req, res) => {
     booking.cancelledAt = new Date();
     booking.cancellationReason = String(reason || '').trim();
     await booking.save();
+    await releaseSeatLocksForBooking(booking._id);
 
     try {
       const io = getIoInstance();

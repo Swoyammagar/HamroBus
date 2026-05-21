@@ -1,4 +1,5 @@
 const Booking = require('../models/booking.model');
+const SeatLock = require('../models/seatLock.model');
 const Route = require('../models/route.model');
 const Driver = require('../models/driver.model');
 const Passenger = require('../models/passenger.model');
@@ -20,6 +21,12 @@ const normalizeDateOnly = (value) => {
     return null;
   }
   return new Date(Date.UTC(input.getUTCFullYear(), input.getUTCMonth(), input.getUTCDate()));
+};
+
+const releaseSeatLocksForBookings = async (bookingIds = []) => {
+  const ids = bookingIds.filter(Boolean);
+  if (!ids.length) return;
+  await SeatLock.deleteMany({ bookingId: { $in: ids } });
 };
 
 const notifyMissedTrip = async ({ io, route, schedule, busId, changedBookings }) => {
@@ -295,6 +302,7 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {})
       },
     }
   );
+  await releaseSeatLocksForBookings(bookingsToComplete.map((booking) => booking._id));
 
   // Decrement trip passenger count and persist Bus occupancy
   try {
@@ -425,6 +433,7 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
       },
     }
   );
+  await releaseSeatLocksForBookings(candidates.map((booking) => booking._id));
 
   const changedBookings = candidates.map((row) => ({
     bookingId: String(row._id),
@@ -536,6 +545,7 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
         },
       }
     );
+    await releaseSeatLocksForBookings(noShowCandidates.map((booking) => booking._id));
 
     const noShowBookings = noShowCandidates.map((row) => ({
       bookingId: String(row._id),
@@ -767,6 +777,7 @@ const cancelMissedTripBookings = async ({ routeId, busId, scheduleId, serviceDat
       }
     }
   );
+  await releaseSeatLocksForBookings(candidates.map((booking) => booking._id));
 
   const changedBookings = candidates.map((b) => ({
     bookingCode: b.bookingCode,
