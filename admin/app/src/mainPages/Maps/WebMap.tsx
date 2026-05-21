@@ -83,56 +83,6 @@ const WebMap: React.FC<WebMapProps> = ({
   const mapRef = useRef<any>(null);
   const socketRef = useRef<Socket | null>(null);
 
-  const playSosSound = () => {
-    try {
-      const AudioContextCtor = (window.AudioContext || (window as any).webkitAudioContext);
-      if (!AudioContextCtor) return;
-
-      const ctx = new AudioContextCtor();
-      if (ctx.state === 'suspended') ctx.resume();
-
-      const osc1 = ctx.createOscillator();
-      const gain1 = ctx.createGain();
-      osc1.type = 'sine';
-      osc1.frequency.value = 880;
-      gain1.gain.value = 0.3;
-      osc1.connect(gain1);
-      gain1.connect(ctx.destination);
-
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = 'sine';
-      osc2.frequency.value = 1200;
-      gain2.gain.value = 0.2;
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-
-      const oscillators = [osc1, osc2];
-      const gains = [gain1, gain2];
-
-      oscillators.forEach(osc => osc.start());
-
-      let isOn = true;
-      const pulseTimer = setInterval(() => {
-        if (isOn) {
-          gains.forEach(g => g.gain.value = 0);
-          isOn = false;
-        } else {
-          gains.forEach((g, i) => g.gain.value = i === 0 ? 0.3 : 0.2);
-          isOn = true;
-        }
-      }, 200);
-
-      setTimeout(() => {
-        clearInterval(pulseTimer);
-        oscillators.forEach(osc => { try { osc.stop(); } catch (e) {} });
-        ctx.close().catch(() => undefined);
-      }, 3000);
-    } catch (error) {
-      console.warn('Could not play SOS sound', error);
-    }
-  };
-
   /* ---------------- Load Leaflet ---------------- */
   useEffect(() => {
     let mounted = true;
@@ -251,7 +201,6 @@ const WebMap: React.FC<WebMapProps> = ({
 
     socket.on('sos:alert', (data: any) => {
       if (!data?.busId) return;
-      playSosSound();
       setActiveSosBusIds((prev) => {
         const next = new Set(prev);
         next.add(String(data.busId));

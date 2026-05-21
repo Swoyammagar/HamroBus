@@ -15,6 +15,7 @@ import Dashboard from '../src/mainPages/Dashboard';
 import Trips from '../src/mainPages/Trips';
 import FAQsPage from '../src/mainPages/FAQ';
 import Passengers from '../src/mainPages/Passengers';
+import LegalPages from '../src/mainPages/LegalPages';
 
 export default function DashboardPage() {
   const [selected, setSelected] = useState<MenuKey>('dashboard');
@@ -42,9 +43,11 @@ export default function DashboardPage() {
       case 'sos':
         return <SosList />;
       case 'settings':
-        return <Settings />;
+        return <Settings onOpenLegal={() => setSelected('legal')} />;
       case 'faq':
         return <FAQsPage />;
+      case 'legal':
+        return <LegalPages />;
       default:
         return <Dashboard />;
     }

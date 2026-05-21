@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { Feather } from '@expo/vector-icons';
 
-export type MenuKey = 'dashboard' | 'buses' | 'drivers' | 'routes' | 'schedules' | 'trips' | 'notifications' | 'sos' | 'settings' | 'analytics' | 'faq' | 'passengers';
+export type MenuKey = 'dashboard' | 'buses' | 'drivers' | 'routes' | 'schedules' | 'trips' | 'notifications' | 'sos' | 'settings' | 'analytics' | 'faq' | 'passengers' | 'legal';
 
 type FeatherIconName = keyof typeof Feather.glyphMap;
 
@@ -20,7 +20,8 @@ const ICON_MAP: Record<MenuKey, FeatherIconName> = {
   analytics: 'bar-chart-2',
   notifications: 'bell',
   sos: 'alert-triangle',
-  faq: 'help-circle'
+  faq: 'help-circle',
+  legal: 'file-text'
 };
 
 interface SidebarProps {
@@ -51,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelect, selectedKey: externa
     { key: 'notifications', label: 'Notifications' },
     { key: 'faq', label: 'FAQ' },
     { key: 'passengers', label: 'Passengers' },
+    { key: 'legal', label: 'Legal' },
     { key: 'settings', label: 'Settings' }
   ];
 

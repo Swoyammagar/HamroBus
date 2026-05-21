@@ -38,6 +38,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     sos: 'SOS',
     notifications: 'Notifications',
     faq: 'FAQ',
+    legal: 'Legal',
   };
 
   return (

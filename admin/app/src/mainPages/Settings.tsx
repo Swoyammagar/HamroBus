@@ -5,7 +5,11 @@ import { useChangePassword } from '../hooks/useChangePassword';
 import { useAdminProfile } from '../hooks/useAdminProfile';
 import { useAuth } from '../../context/AuthContext';
 
-const Settings = () => {
+type SettingsProps = {
+  onOpenLegal?: () => void;
+};
+
+const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
   const { user, validateToken } = useAuth();
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -349,7 +353,21 @@ const Settings = () => {
         )}
       </View>
 
-      {/* Additional Settings Sections can be added here */}
+      {/* Frontend-only static legal documents for admin review and support use. */}
+      <View style={styles.section}>
+        <Pressable style={styles.sectionButton} onPress={onOpenLegal}>
+          <View style={styles.sectionButtonContent}>
+            <Feather name="file-text" size={24} color="#6366f1" />
+            <View style={styles.sectionButtonText}>
+              <Text style={styles.sectionButtonTitle}>Legal Pages</Text>
+              <Text style={styles.sectionButtonSubtitle}>
+                View Terms & Conditions, Privacy Policy, and About Hamro Bus
+              </Text>
+            </View>
+          </View>
+          <Feather name="chevron-right" size={24} color="#999" />
+        </Pressable>
+      </View>
     </ScrollView>
   );
 };

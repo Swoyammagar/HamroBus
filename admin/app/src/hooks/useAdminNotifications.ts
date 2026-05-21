@@ -6,6 +6,7 @@ import {
   onNotificationReceived,
 } from '../services/notificationSocket';
 import { onSosAlertReceived, onSosClearedReceived } from '../services/notificationSocket';
+import { initSosSoundUnlock, playSosSound } from '../services/sosSound';
 
 export type NotificationAudience =
   | 'all'
@@ -240,6 +241,7 @@ export const useAdminNotifications = (auth: { token: string | null; loading: boo
   useEffect(() => {
     if (authLoading || !token) return;
     // Ensure socket connection is active (preferred real-time channel)
+    initSosSoundUnlock();
     connectAdminSocket();
     const unsubscribe = onNotificationReceived((incoming: NotificationRecord) => {
       console.log('🔔 onNotificationReceived callback fired with:', incoming);
@@ -264,6 +266,7 @@ export const useAdminNotifications = (auth: { token: string | null; loading: boo
 
     const unsubscribeSos = onSosAlertReceived((sosPayload: any) => {
       console.log('🔔 onSosAlertReceived callback fired with:', sosPayload);
+      playSosSound();
       // Create a synthetic notification record for SOS to display in the same UI
       const id = String(sosPayload?.sosRecordId || sosPayload?.notificationId || `sos_${Date.now()}`);
       const toastRecord: NotificationRecord = {
