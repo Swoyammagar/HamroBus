@@ -23,10 +23,10 @@ const server = http.createServer(app);
 // Setup Socket.io with CORS
 const io = new Server(server, {
   cors: {
-    origin: ['https://hamrobus-auos.onrender.com', 'http://localhost:8081', 'http://localhost:8082', 'http://localhost:3000', 'http://192.168.1.72:8081', 'http://10.0.2.2:8081'],
+    origin: ['https://hamrobus-auos.onrender.com','https://hamro-bus.vercel.app', 'http://localhost:8081', 'http://localhost:8082', 'http://localhost:3000', 'http://192.168.1.72:8081', 'http://10.0.2.2:8081'],
       // include Expo web dev server (default port 19006)
       // and local dev host variants
-      origin: ['https://hamrobus-auos.onrender.com', 'http://localhost:8081', 'http://localhost:8082', 'http://localhost:3000', 'http://localhost:19006', 'http://127.0.0.1:19006', 'http://192.168.1.72:8081', 'http://10.0.2.2:8081'],
+      origin: ['https://hamrobus-auos.onrender.com','https://hamro-bus.vercel.app', 'http://localhost:8081', 'http://localhost:8082', 'http://localhost:3000', 'http://localhost:19006', 'http://127.0.0.1:19006', 'http://192.168.1.72:8081', 'http://10.0.2.2:8081'],
     credentials: true,
   },
 });
@@ -368,7 +368,7 @@ app.set('io', io);
 
 app.use(
   cors({
-    origin: ['https://hamrobus-auos.onrender.com', 'http://localhost:3000', 'http://localhost:8081','http://localhost:8082', 'http://localhost:19006', 'http://127.0.0.1:19006', 'http://192.168.1.73:8081', 'http://10.0.2.2:8081'] ,
+    origin: ['https://hamrobus-auos.onrender.com','https://hamro-bus.vercel.app','http://localhost:3000', 'http://localhost:8081','http://localhost:8082', 'http://localhost:19006', 'http://127.0.0.1:19006', 'http://192.168.1.73:8081', 'http://10.0.2.2:8081'] ,
     credentials: true,
   })
 );
