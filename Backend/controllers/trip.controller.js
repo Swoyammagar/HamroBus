@@ -11,6 +11,7 @@ const {
 } = require('../services/bookingLifecycle.service');
 const Notification = require('../models/notification.model');
 const { v4: uuidv4 } = require('uuid');
+const { sendPushToUsers } = require('../services/pushNotificationService');
 
 const normalize = (v) => String(v || '').trim().toLowerCase();
 
@@ -112,6 +113,23 @@ const notifyPassengersTripStarted = async ({ io, trip, routeDoc, scheduleDoc, de
       sentBy: doc.sentBy,
       targetAudience: doc.targetAudience,
       createdAt: doc.createdAt,
+    });
+
+    sendPushToUsers({
+      userType: 'passenger',
+      userIds: [passengerId],
+      title,
+      body: message,
+      data: {
+        notificationId: doc.notificationId,
+        bookingCode: b.bookingCode,
+        tripId: String(trip._id),
+        type: 'trip_started',
+        url: '/passenger/notifications',
+      },
+      priority: 'high',
+    }).catch((pushError) => {
+      console.error('Passenger trip started push failed:', pushError);
     });
   }
 };
@@ -683,11 +701,27 @@ const updatePassengerCount = async (req, res) => {
 
                     // Also emit current stop update if available
                     if (trip.currentStop) {
+                        let nextStopName = null;
+                        try {
+                            const routeDoc = await Route.findById(trip.routeId).select('stops').lean();
+                            const currentStop = (routeDoc?.stops || []).find(
+                                (stop) => normalize(stop.stopName) === normalize(trip.currentStop)
+                            );
+                            const currentSequence = Number(currentStop?.sequence || -1);
+                            const nextStop = (routeDoc?.stops || [])
+                                .filter((stop) => Number(stop.sequence || -1) > currentSequence)
+                                .sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0))[0];
+                            nextStopName = nextStop?.stopName || null;
+                        } catch (nextStopError) {
+                            console.error('Error resolving next stop:', nextStopError);
+                        }
+
                         const stopData = {
                             tripId: String(trip._id),
                             busId: String(trip.busId),
                             currentStop: trip.currentStop,
                             previousStop: trip.completedStops?.[trip.completedStops.length - 2]?.stopId || null,
+                            nextStop: nextStopName,
                             timestamp: new Date().toISOString()
                         };
                         io.to(`bus:${trip.busId}`).emit('driver:current-stop', stopData);

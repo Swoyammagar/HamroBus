@@ -146,8 +146,7 @@ io.on('connection', (socket) => {
             driverId,
             status: 'in-progress',
           })
-            .sort({ updatedAt: -1 })
-            .lean();
+            .sort({ updatedAt: -1 });
 
           if (activeTrip) {
             // Fetch route and schedule for stop detection
@@ -159,7 +158,9 @@ io.on('connection', (socket) => {
                     .lean()
                     .then((r) => {
                       if (!r) return null;
-                      const sched = r.schedules?.id(activeTrip.scheduleId);
+                      const sched = (r.schedules || []).find(
+                        (schedule) => String(schedule?._id) === String(activeTrip.scheduleId)
+                      );
                       return sched;
                     })
                 : Promise.resolve(null),
@@ -181,6 +182,7 @@ io.on('connection', (socket) => {
                   busId,
                   currentStop: stopDetection.currentStop,
                   previousStop: stopDetection.previousStop,
+                  nextStop: stopDetection.nextStop,
                   stopSequence: stopDetection.stopSequence,
                   eta: stopDetection.eta,
                   tripId: String(activeTrip._id),

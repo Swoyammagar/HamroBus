@@ -6,7 +6,9 @@ const {
   getUserNotifications,
   markAsRead,
   deleteNotification,
-  getNotificationStats
+  getNotificationStats,
+  registerPushToken,
+  unregisterPushToken,
 } = require('../controllers/notification.controller');
 const { authenticateAdmin } = require('../middlewares/admin.auth.middleware');
 const {
@@ -51,10 +53,6 @@ router.get('/', authenticateAdmin, getAllNotifications);
 // GET /api/notifications/stats
 router.get('/stats', authenticateAdmin, getNotificationStats);
 
-// Delete a notification
-// DELETE /api/notifications/:notificationId
-router.delete('/:notificationId', authenticateAdmin, deleteNotification);
-
 /**
  * User routes (authenticated drivers/passengers)
  */
@@ -67,5 +65,19 @@ router.get('/user/my-notifications', authenticateMobileUser, getUserNotification
 // PUT /api/notifications/:notificationId/read
 // Body: { userType: 'Driver|Passenger' }
 router.put('/:notificationId/read', authenticateMobileUser, markAsRead);
+
+// Register Expo push token for authenticated mobile user
+// POST /api/notifications/push-token
+// Body: { userType: 'driver|passenger', pushToken: 'ExpoPushToken[...]' }
+router.post('/push-token', authenticateMobileUser, registerPushToken);
+
+// Remove Expo push token for authenticated mobile user
+// DELETE /api/notifications/push-token
+// Body: { userType: 'driver|passenger', pushToken?: 'ExpoPushToken[...]' }
+router.delete('/push-token', authenticateMobileUser, unregisterPushToken);
+
+// Delete a notification
+// DELETE /api/notifications/:notificationId
+router.delete('/:notificationId', authenticateAdmin, deleteNotification);
 
 module.exports = router;

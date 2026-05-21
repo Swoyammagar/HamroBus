@@ -3,6 +3,8 @@ const Notification = require('../models/notification.model');
 const Bus = require('../models/bus.model');
 const TripSession = require('../models/tripSession.model');
 const Sos = require('../models/sos.model');
+const Booking = require('../models/booking.model');
+const { sendPushToUsers } = require('../services/pushNotificationService');
 
 /**
  * Create and dispatch an SOS alert from a driver.
@@ -28,6 +30,19 @@ const sendSosAlert = async (req, res) => {
     // Build notification doc
     const title = `Emergency SOS: ${String(category).toUpperCase()}`;
     const message = details || `${title} reported by driver.`;
+    const payload = {
+      notificationId,
+      title,
+      message,
+      sentBy: 'driver',
+      driverId,
+      busId,
+      tripId: tripId || null,
+      category,
+      details,
+      location: latitude && longitude ? { latitude, longitude } : null,
+      timestamp: new Date().toISOString()
+    };
 
     const notification = new Notification({
       notificationId,
@@ -77,20 +92,6 @@ const sendSosAlert = async (req, res) => {
 
     const io = req.app.get('io');
 
-    const payload = {
-      notificationId,
-      title,
-      message,
-      sentBy: 'driver',
-      driverId,
-      busId,
-      tripId: tripId || null,
-      category,
-      details,
-      location: latitude && longitude ? { latitude, longitude } : null,
-      timestamp: new Date().toISOString()
-    };
-
     // Update Bus state: last known location + sosActive
     try {
       const busUpdate = { sosActive: true, sosCategory: category, sosTimestamp: new Date() };
@@ -128,6 +129,38 @@ const sendSosAlert = async (req, res) => {
       io.to(`bus:${busId}`).emit('driver:sos', payload);
       // Inform the driver that SOS was registered immediately
       io.to('driver:' + driverId).emit('sos:alert', payload);
+    }
+
+    try {
+      const query = {
+        busId,
+        status: { $in: ['confirmed', 'in-progress'] },
+      };
+
+      if (tripId) {
+        query.tripSessionId = tripId;
+      }
+
+      const affectedPassengerIds = await Booking.distinct('passengerId', query);
+
+      if (affectedPassengerIds.length > 0) {
+        await sendPushToUsers({
+          userType: 'passenger',
+          userIds: affectedPassengerIds,
+          title,
+          body: message,
+          data: {
+            notificationId,
+            type: 'sos_alert',
+            busId: String(busId),
+            tripId: tripId ? String(tripId) : '',
+            url: '/passenger/map',
+          },
+          priority: 'high',
+        });
+      }
+    } catch (pushError) {
+      console.error('Passenger SOS push failed:', pushError);
     }
 
     return res.status(200).json({ message: 'SOS alert sent', payload });

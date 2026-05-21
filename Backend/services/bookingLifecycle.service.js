@@ -10,6 +10,7 @@ const { awardPoints } = require('./rewardService');
 const { getIoInstance } = require('./ioManager');
 const { v4: uuidv4 } = require('uuid');
 const { missed_trip_apology_boilerplate } = require('../utils/boilerplate.data');
+const { sendPushToUsers } = require('./pushNotificationService');
 
 const APP_TIMEZONE = process.env.APP_TIMEZONE || 'Asia/Kathmandu';
 
@@ -94,6 +95,21 @@ const notifyMissedTrip = async ({ io, route, schedule, busId, changedBookings })
         createdAt: driverDoc.createdAt,
       });
     }
+
+    sendPushToUsers({
+      userType: 'driver',
+      userIds: [driverId],
+      title: driverTitle,
+      body: driverMessage,
+      data: {
+        notificationId: driverDoc.notificationId,
+        type: 'trip_missed',
+        url: '/driver/screens/NotificationsScreen',
+      },
+      priority: 'high',
+    }).catch((pushError) => {
+      console.error('Driver missed trip push failed:', pushError);
+    });
   }
 
   for (const row of bookings) {
@@ -134,6 +150,24 @@ const notifyMissedTrip = async ({ io, route, schedule, busId, changedBookings })
         status: 'cancelled',
         reason: 'Trip missed by driver',
         timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (passengerDoc && passengerId) {
+      sendPushToUsers({
+        userType: 'passenger',
+        userIds: [passengerId],
+        title: passengerTitle,
+        body: passengerMessage,
+        data: {
+          notificationId: passengerDoc.notificationId,
+          bookingCode: row.bookingCode,
+          type: 'trip_missed',
+          url: '/passenger/notifications',
+        },
+        priority: 'high',
+      }).catch((pushError) => {
+        console.error('Passenger missed trip push failed:', pushError);
       });
     }
 
@@ -570,6 +604,22 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
 
                 console.log(`📲 No-show notification sent to passenger ${noShowBooking.passengerId}: ${noShowBooking.bookingCode}`);
               }
+
+              sendPushToUsers({
+                userType: 'passenger',
+                userIds: [noShowBooking.passengerId],
+                title: noShowNotif.title,
+                body: notifMessage,
+                data: {
+                  notificationId: noShowNotif.notificationId,
+                  bookingCode: noShowBooking.bookingCode,
+                  type: 'trip_missed',
+                  url: '/passenger/notifications',
+                },
+                priority: 'high',
+              }).catch((pushError) => {
+                console.error('Passenger no-show missed trip push failed:', pushError);
+              });
             }
           } catch (notifErr) {
             console.error(`Failed to send no-show notification to passenger ${noShowBooking.passengerId}:`, notifErr);

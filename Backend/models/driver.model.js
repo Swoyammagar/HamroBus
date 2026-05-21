@@ -84,6 +84,11 @@ const driverSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+    pushToken: {
+        type: String,
+        default: null,
+        index: true
+    },
     isEmailVerified: {
         type: Boolean,
         default: false

@@ -57,6 +57,27 @@ const getCurrentStopSequence = (stopName, route) => {
   return stop ? Number(stop.sequence) : -1;
 };
 
+const getLastCompletedStopSequence = (tripSession, route) => {
+  if (!tripSession || !route?.stops?.length) {
+    return -1;
+  }
+
+  return (tripSession.completedStops || []).reduce((maxSequence, completed) => {
+    const sequence = getCurrentStopSequence(completed?.stopId, route);
+    return sequence > maxSequence ? sequence : maxSequence;
+  }, -1);
+};
+
+const getNextStopAfterSequence = (sequence, route) => {
+  if (!route?.stops?.length || sequence < 0) {
+    return null;
+  }
+
+  return route.stops
+    .filter((stop) => Number(stop.sequence || -1) > sequence)
+    .sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0))[0] || null;
+};
+
 /**
  * Get stop arrival time from schedule
  * Returns arrival time string (HH:MM) or null
@@ -93,6 +114,20 @@ const detectAndUpdateCurrentStop = async (tripSession, driverLat, driverLng, rou
 
     const newStopName = String(closestStop.stopName || '').trim();
     const currentStopName = tripSession.currentStop ? String(tripSession.currentStop || '').trim() : '';
+    const closestStopSequence = Number(closestStop.sequence || -1);
+    const currentStopSequence = getCurrentStopSequence(currentStopName, route);
+    const lastCompletedStopSequence = getLastCompletedStopSequence(tripSession, route);
+
+    if (
+      closestStopSequence > -1 &&
+      (closestStopSequence < currentStopSequence || closestStopSequence <= lastCompletedStopSequence)
+    ) {
+      return {
+        currentStop: tripSession.currentStop || null,
+        previousStop: tripSession.previousStop || null,
+        changed: false,
+      };
+    }
 
     // Check if this is a new stop (different from current)
     if (newStopName.toLowerCase() === currentStopName.toLowerCase()) {
@@ -116,7 +151,8 @@ const detectAndUpdateCurrentStop = async (tripSession, driverLat, driverLng, rou
       currentStop: newStopName,
       previousStop: previousStop || null,
       changed: true,
-      stopSequence: closestStop.sequence,
+      stopSequence: closestStopSequence,
+      nextStop: getNextStopAfterSequence(closestStopSequence, route)?.stopName || null,
       eta: getStopArrivalTime(newStopName, schedule),
     };
   } catch (error) {

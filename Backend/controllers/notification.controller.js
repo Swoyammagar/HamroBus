@@ -2,6 +2,11 @@ const Notification = require('../models/notification.model');
 const Driver = require('../models/driver.model');
 const Passenger = require('../models/passenger.model');
 const { v4: uuidv4 } = require('uuid');
+const {
+  savePushTokenForUser,
+  removePushTokenForUser,
+  sendPushToAudience,
+} = require('../services/pushNotificationService');
 
 /**
  * Send notification to specific audience
@@ -100,6 +105,27 @@ const sendNotification = async (req, res, io) => {
     savedNotification.status = 'sent';
     await savedNotification.save();
 
+    sendPushToAudience({
+      audience: targetAudience,
+      title,
+      body: message,
+      data: {
+        notificationId: savedNotification.notificationId,
+        mongoId: String(savedNotification._id),
+        type,
+        severity,
+        targetAudience,
+        url: targetAudience === 'drivers'
+          ? '/driver/screens/NotificationsScreen'
+          : targetAudience === 'passengers'
+            ? '/passenger/notifications'
+            : '',
+      },
+      priority: severity === 'critical' || severity === 'high' ? 'high' : 'default',
+    }).catch((pushError) => {
+      console.error('Admin announcement push failed:', pushError);
+    });
+
     return res.status(201).json({
       success: true,
       message: 'Notification sent successfully',
@@ -123,6 +149,54 @@ const sendNotification = async (req, res, io) => {
       success: false,
       message: 'Failed to send notification',
       error: error.message
+    });
+  }
+};
+
+const registerPushToken = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    const { pushToken, userType } = req.body;
+
+    if (!pushToken || !userType) {
+      return res.status(400).json({
+        success: false,
+        message: 'pushToken and userType are required',
+      });
+    }
+
+    const result = await savePushTokenForUser({ userId, userType, pushToken });
+    return res.status(result.success ? 200 : 400).json(result);
+  } catch (error) {
+    console.error('Error registering push token:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to register push token',
+      error: error.message,
+    });
+  }
+};
+
+const unregisterPushToken = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    const { pushToken, userType } = req.body;
+
+    if (!userType) {
+      return res.status(400).json({
+        success: false,
+        message: 'userType is required',
+      });
+    }
+
+    const result = await removePushTokenForUser({ userId, userType, pushToken });
+    return res.status(result.success ? 200 : 400).json(result);
+  } catch (error) {
+    console.error('Error unregistering push token:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to unregister push token',
+      error: error.message,
     });
   }
 };
@@ -325,5 +399,7 @@ module.exports = {
   getUserNotifications,
   markAsRead,
   deleteNotification,
-  getNotificationStats
+  getNotificationStats,
+  registerPushToken,
+  unregisterPushToken,
 };

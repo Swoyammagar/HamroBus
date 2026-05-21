@@ -12,6 +12,7 @@ const { v4: uuidv4 } = require('uuid');
 const { getCurrentStopSequence } = require('../../services/distanceUtils');
 const { getIoInstance } = require('../../services/ioManager');
 const { deductPoints, checkBanStatus } = require('../../services/rewardService');
+const { sendPushToUsers } = require('../../services/pushNotificationService');
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 // Seats are considered taken only for confirmed or in-progress bookings.
@@ -476,6 +477,22 @@ const createBooking = async (req, res) => {
         });
 
         console.log(`📢 [DRIVER NOTIF] Driver ${driverIdToNotify} notified of ${isMidTripBooking ? 'mid-trip' : 'pre-trip'} booking: ${driverNotifMessage}`);
+        sendPushToUsers({
+          userType: 'driver',
+          userIds: [driverIdToNotify],
+          title: driverNotif.title,
+          body: driverNotifMessage,
+          data: {
+            notificationId: driverNotif.notificationId,
+            bookingId: String(booking._id),
+            bookingCode,
+            type: 'booking_created',
+            url: '/driver/screens/NotificationsScreen',
+          },
+          priority: 'high',
+        }).catch((pushError) => {
+          console.error('Driver new booking push failed:', pushError);
+        });
       }
     } catch (driverNotifErr) {
       console.error('Error sending driver booking notification:', driverNotifErr);
@@ -540,6 +557,22 @@ const createBooking = async (req, res) => {
           });
 
           console.log(`ℹ️ [TRIP REMINDER] Passenger ${passengerId} notified:`, passengerNotifMessage);
+          sendPushToUsers({
+            userType: 'passenger',
+            userIds: [passengerId],
+            title: passengerNotif.title,
+            body: passengerNotifMessage,
+            data: {
+              notificationId: passengerNotif.notificationId,
+              bookingId: String(booking._id),
+              bookingCode,
+              type: 'trip_started',
+              url: '/passenger/notifications',
+            },
+            priority: 'high',
+          }).catch((pushError) => {
+            console.error('Passenger mid-trip started push failed:', pushError);
+          });
         }
       } catch (passengerNotifErr) {
         console.error('Error sending passenger trip reminder:', passengerNotifErr);
@@ -623,6 +656,74 @@ const cancelBooking = async (req, res) => {
     booking.cancelledAt = new Date();
     booking.cancellationReason = String(reason || '').trim();
     await booking.save();
+
+    try {
+      const io = getIoInstance();
+      const [routeDoc, busDoc] = await Promise.all([
+        Route.findById(booking.routeId).select('schedules routeName routeNumber').lean(),
+        Bus.findById(booking.busId).select('assignedDriverId busNumber').lean(),
+      ]);
+
+      const scheduleDoc = routeDoc?.schedules?.find((schedule) => String(schedule._id) === String(booking.scheduleId));
+      const driverIdToNotify = scheduleDoc?.driverId || busDoc?.assignedDriverId || null;
+
+      if (driverIdToNotify) {
+        const passengerDoc = await Passenger.findById(passengerId).select('firstName lastName').lean();
+        const passengerName = [passengerDoc?.firstName, passengerDoc?.lastName].filter(Boolean).join(' ').trim() || 'Passenger';
+        const title = 'Booking Cancelled';
+        const message = `${passengerName} cancelled booking ${booking.bookingCode} for bus ${busDoc?.busNumber || ''}.`;
+
+        const driverNotif = await Notification.create({
+          notificationId: `notif_${uuidv4()}`,
+          title,
+          message,
+          sentBy: 'system',
+          targetAudience: 'specific_user',
+          targetUserIds: [toObjectId(driverIdToNotify)],
+          status: 'sent',
+          type: 'alert',
+          severity: 'medium',
+        });
+
+        const payload = {
+          _id: String(driverNotif._id),
+          notificationId: driverNotif.notificationId,
+          title,
+          message,
+          type: driverNotif.type,
+          severity: driverNotif.severity,
+          sentBy: driverNotif.sentBy,
+          bookingId: String(booking._id),
+          bookingCode: booking.bookingCode,
+          status: booking.status,
+          createdAt: driverNotif.createdAt,
+        };
+
+        if (io) {
+          io.to(`driver:${String(driverIdToNotify)}`).emit('notification:new', payload);
+          io.to(`driver:${String(driverIdToNotify)}`).emit('booking:cancelled', payload);
+        }
+
+        sendPushToUsers({
+          userType: 'driver',
+          userIds: [driverIdToNotify],
+          title,
+          body: message,
+          data: {
+            notificationId: driverNotif.notificationId,
+            bookingId: String(booking._id),
+            bookingCode: booking.bookingCode,
+            type: 'booking_cancelled',
+            url: '/driver/screens/NotificationsScreen',
+          },
+          priority: 'high',
+        }).catch((pushError) => {
+          console.error('Driver booking cancellation push failed:', pushError);
+        });
+      }
+    } catch (notificationError) {
+      console.error('Error notifying driver about booking cancellation:', notificationError);
+    }
 
     // ========== NEW: Deduct reward points and handle cancellation streak ==========
     try {
