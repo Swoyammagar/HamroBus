@@ -22,7 +22,7 @@ const AddMap: React.FC<AddMapProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchMarker, setSearchMarker] = useState<[number, number] | null>(null);
-  const mapRef = useRef<any>(null); // <-- added mapRef
+  const mapRef = useRef<any>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -50,27 +50,27 @@ const AddMap: React.FC<AddMapProps> = ({
   }, []);
 
   useEffect(() => {
-      if (!searchQuery.trim()) {
-        setSearchResults([]);
-        return;
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const debounce = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            searchQuery
+          )}`
+        );
+        const data = await res.json();
+        setSearchResults(data.slice(0, 5));
+      } catch (err) {
+        console.error('Search failed', err);
       }
-  
-      const debounce = setTimeout(async () => {
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-              searchQuery
-            )}`
-          );
-          const data = await res.json();
-          setSearchResults(data.slice(0, 5));
-        } catch (err) {
-          console.error('Search failed', err);
-        }
-      }, 500);
-  
-      return () => clearTimeout(debounce);
-    }, [searchQuery]);
+    }, 500);
+
+    return () => clearTimeout(debounce);
+  }, [searchQuery]);
 
   if (!leaflet) {
     return (
@@ -86,6 +86,7 @@ const AddMap: React.FC<AddMapProps> = ({
     Marker,
     Popup,
     useMapEvents,
+    useMap, // ← added
   } = leaflet;
 
   const center =
@@ -93,7 +94,6 @@ const AddMap: React.FC<AddMapProps> = ({
       ? [stops[0].latitude, stops[0].longitude]
       : [27.7172, 85.324];
 
-  // LEFT CLICK → ADD
   const MapClickHandler = () => {
     useMapEvents({
       click(e: any) {
@@ -101,6 +101,13 @@ const AddMap: React.FC<AddMapProps> = ({
         onMapClick(lat, lng);
       },
     });
+    return null;
+  };
+
+  // ← NEW: captures map instance into mapRef via useMap hook
+  const MapRefCapture = () => {
+    const map = useMap();
+    mapRef.current = map;
     return null;
   };
 
@@ -126,7 +133,7 @@ const AddMap: React.FC<AddMapProps> = ({
                   const lat = parseFloat(result.lat);
                   const lon = parseFloat(result.lon);
 
-                  mapRef.current?.flyTo([lat, lon], 15); // use mapRef
+                  mapRef.current?.flyTo([lat, lon], 15); // ← now works correctly
                   setSearchMarker([lat, lon]);
                   setSearchResults([]);
                   setSearchQuery(result.display_name);
@@ -146,8 +153,8 @@ const AddMap: React.FC<AddMapProps> = ({
           center={center}
           zoom={13}
           style={{ height: "100%", width: "100%", cursor: "crosshair" }}
-          whenCreated={(mapInstance) => (mapRef.current = mapInstance)} // <-- assign mapRef
         >
+          <MapRefCapture /> {/* ← added */}
           <MapClickHandler />
 
           <TileLayer
@@ -161,7 +168,7 @@ const AddMap: React.FC<AddMapProps> = ({
               position={[stop.latitude, stop.longitude]}
               eventHandlers={{
                 contextmenu: (e: any) => {
-                  e.originalEvent.preventDefault(); // prevent browser menu
+                  e.originalEvent.preventDefault();
                   onRemoveStop(index);
                 },
               }}
@@ -177,9 +184,19 @@ const AddMap: React.FC<AddMapProps> = ({
               </Popup>
             </Marker>
           ))}
+
+          {/* ← right-click on search marker now removes it */}
           {searchMarker && (
-            <Marker position={searchMarker}>
-              <Popup>Searched Location</Popup>
+            <Marker
+              position={searchMarker}
+              eventHandlers={{
+                contextmenu: (e: any) => {
+                  e.originalEvent.preventDefault();
+                  setSearchMarker(null);
+                },
+              }}
+            >
+              <Popup>Searched Location<br /><small>(Right click to remove)</small></Popup>
             </Marker>
           )}
         </MapContainer>

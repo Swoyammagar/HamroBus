@@ -87,28 +87,26 @@ const WebDateInput: React.FC<{
   max?: string;
   min?: string;
 }> = ({ value, onChange, placeholder, max, min }) => {
-  const inputRef = useRef<any>(null);
-
-  useEffect(() => {
-    if (Platform.OS !== 'web' || !inputRef.current) return;
-    const node = inputRef.current as HTMLInputElement;
-    node.type = 'date';
-    if (max) node.max = max;
-    if (min) node.min = min;
-    const handler = (e: Event) => onChange((e.target as HTMLInputElement).value);
-    node.addEventListener('change', handler);
-    return () => node.removeEventListener('change', handler);
-  }, [max, min]);
+  if (Platform.OS === 'web') {
+    return React.createElement('input', {
+      type: 'date',
+      value,
+      min,
+      max,
+      placeholder,
+      onChange: (event: React.ChangeEvent<HTMLInputElement>) => onChange(event.target.value),
+      style: styles.webDateInput as any,
+      'aria-label': placeholder,
+    });
+  }
 
   return (
     <TextInput
-      ref={inputRef}
       style={[styles.dateInput, !value && { color: '#9ca3af' }]}
       value={value}
       placeholder={placeholder}
       placeholderTextColor="#9ca3af"
-      // onChange is wired via DOM event listener on web; noop here
-      onChangeText={Platform.OS !== 'web' ? onChange : () => {}}
+      onChangeText={onChange}
     />
   );
 };
@@ -532,6 +530,20 @@ export default function Trips() {
   const handleSearch = (q: string) => { setSearchQuery(q); setCurrentPage(1); };
   const handleFilterChange = (f: string) => { setStatusFilter(f); setSearchQuery(''); setCurrentPage(1); };
   const handleDateClear = () => { setStartDate(''); setEndDate(''); setCurrentPage(1); };
+  const handleStartDateChange = (value: string) => {
+    setStartDate(value);
+    if (endDate && value && endDate < value) {
+      setEndDate('');
+    }
+    setCurrentPage(1);
+  };
+  const handleEndDateChange = (value: string) => {
+    setEndDate(value);
+    if (startDate && value && value < startDate) {
+      setStartDate('');
+    }
+    setCurrentPage(1);
+  };
 
   const handleViewDetails = async (trip: TripListItem) => {
     setSelectedTrip(null);
@@ -576,8 +588,8 @@ export default function Trips() {
         <DateRangeBar
           startDate={startDate}
           endDate={endDate}
-          onStartChange={(v) => { setStartDate(v); setCurrentPage(1); }}
-          onEndChange={(v) => { setEndDate(v); setCurrentPage(1); }}
+          onStartChange={handleStartDateChange}
+          onEndChange={handleEndDateChange}
           onClear={handleDateClear}
         />
 
@@ -698,6 +710,17 @@ const styles = StyleSheet.create({
   dateField: { flex: 1 },
   dateFieldLabel: { fontSize: 10, color: '#9ca3af', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
   dateInput: { fontSize: 13, color: '#111827', paddingVertical: 2 },
+  webDateInput: {
+    width: '100%',
+    minWidth: 132,
+    height: 30,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    color: '#111827',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    outlineWidth: 0,
+  },
   dateSep: { width: 1, height: 30, backgroundColor: '#e5e7eb' },
   dateClear: { padding: 4 },
 

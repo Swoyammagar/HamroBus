@@ -3,13 +3,19 @@ import { io, Socket } from 'socket.io-client';
 
 export interface DriverLocation {
   busId: string;
+  busNumber?: string;
   driverId: string;
+  driverName?: string;
+  driverProfileImgUrl?: string;
+  tripStatus?: string;
+  isOnBreak?: boolean;
   latitude: number;
   longitude: number;
   heading: number;
   speed: number;
   accuracy?: number;
   timestamp: string;
+  isOffline?: boolean;
 }
 
 interface UseDriverLiveLocationReturn {
@@ -68,7 +74,46 @@ export const useDriverLiveLocation = (): UseDriverLiveLocationReturn => {
           console.log('📍 Received driver location:', data);
           setLocations((prev) => {
             const newLocations = new Map(prev);
-            newLocations.set(data.driverId, data);
+            newLocations.set(data.driverId, {
+              ...(newLocations.get(data.driverId) || {}),
+              ...data,
+              isOffline: false,
+              tripStatus: data.tripStatus && data.tripStatus !== 'offline' ? data.tripStatus : 'in-progress',
+            });
+            return newLocations;
+          });
+        });
+
+        socket.on('driver:status-update', (data: Partial<DriverLocation> & { driverId: string }) => {
+          if (!data?.driverId) return;
+
+          setLocations((prev) => {
+            const newLocations = new Map(prev);
+            const existing = newLocations.get(data.driverId);
+            if (!existing) return newLocations;
+
+            newLocations.set(data.driverId, {
+              ...existing,
+              ...data,
+              isOffline: data.tripStatus === 'offline',
+            });
+            return newLocations;
+          });
+        });
+
+        socket.on('driver:location-offline', (data: { driverId: string }) => {
+          if (!data?.driverId) return;
+
+          setLocations((prev) => {
+            const newLocations = new Map(prev);
+            const existing = newLocations.get(data.driverId);
+            if (!existing) return newLocations;
+
+            newLocations.set(data.driverId, {
+              ...existing,
+              isOffline: true,
+              tripStatus: 'offline',
+            });
             return newLocations;
           });
         });

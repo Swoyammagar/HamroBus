@@ -92,11 +92,6 @@ const WebMap: React.FC<WebMapProps> = ({
         const rl = await import('react-leaflet');
         const L = await import('leaflet');
 
-        // ✅ FIX: Do NOT use L.Icon.Default.mergeOptions with CDN URLs.
-        // Instead we create custom divIcons for all markers to avoid
-        // the broken "Mark" placeholder text caused by failed image loads.
-
-        // Stop marker icon (blue circle with white dot)
         const stopIcon = L.divIcon({
           className: '',
           html: `
@@ -123,7 +118,6 @@ const WebMap: React.FC<WebMapProps> = ({
           popupAnchor: [0, -16],
         });
 
-        // Search result marker icon (red pin)
         const searchIcon = L.divIcon({
           className: '',
           html: `
@@ -397,7 +391,7 @@ const WebMap: React.FC<WebMapProps> = ({
       </View>
     );
 
-  const { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip } = leaflet;
+  const { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap } = leaflet; // ← added useMap
 
   const center = route?.stops?.length > 0
     ? [parseFloat(route.stops[0].latitude), parseFloat(route.stops[0].longitude)]
@@ -408,6 +402,13 @@ const WebMap: React.FC<WebMapProps> = ({
     if (selectedRouteBusIds.size === 0) return false;
     return selectedRouteBusIds.has(String(driver.busId));
   });
+
+  // ← NEW: captures map instance into mapRef via useMap hook
+  const MapRefCapture = () => {
+    const map = useMap();
+    mapRef.current = map;
+    return null;
+  };
 
   return (
     <View style={s.container}>
@@ -445,7 +446,7 @@ const WebMap: React.FC<WebMapProps> = ({
                 onClick={() => {
                   const lat = parseFloat(result.lat);
                   const lon = parseFloat(result.lon);
-                  mapRef.current?.flyTo([lat, lon], 15);
+                  mapRef.current?.flyTo([lat, lon], 15); // ← now works correctly
                   setSearchMarker([lat, lon]);
                   setSearchResults([]);
                   setSearchQuery(result.display_name);
@@ -464,11 +465,10 @@ const WebMap: React.FC<WebMapProps> = ({
           center={center}
           zoom={12}
           style={{ height: '100%', width: '100%' }}
-          whenCreated={(mapInstance: any) => {
-            mapRef.current = mapInstance;
-            setTimeout(() => mapInstance.invalidateSize(), 200);
-          }}
+          // ← removed whenCreated; MapRefCapture handles this now
         >
+          <MapRefCapture /> {/* ← added */}
+
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             eventHandlers={{
@@ -477,7 +477,6 @@ const WebMap: React.FC<WebMapProps> = ({
             }}
           />
 
-          {/* ✅ Route Stop Markers — using custom stopIcon, no CDN images */}
           {positions.map((pos: any, idx: number) => (
             <Marker key={`stop-${idx}`} position={pos} icon={leaflet.stopIcon}>
               <Tooltip>{route?.stops[idx]?.stopName || `Stop ${idx + 1}`}</Tooltip>
@@ -485,7 +484,6 @@ const WebMap: React.FC<WebMapProps> = ({
             </Marker>
           ))}
 
-          {/* Driver Location Markers */}
           {visibleDriverLocations.map((driver) => {
             if (!leaflet?.L) return null;
             const isSos = Boolean(driver.sosActive || activeSosBusIds.has(String(driver.busId)));
@@ -563,10 +561,19 @@ const WebMap: React.FC<WebMapProps> = ({
             );
           })}
 
-          {/* ✅ Search Marker — using custom searchIcon, no CDN images */}
+          {/* ← right-click on search marker now removes it */}
           {searchMarker && (
-            <Marker position={searchMarker} icon={leaflet.searchIcon}>
-              <Popup>Searched Location</Popup>
+            <Marker
+              position={searchMarker}
+              icon={leaflet.searchIcon}
+              eventHandlers={{
+                contextmenu: (e: any) => {
+                  e.originalEvent.preventDefault();
+                  setSearchMarker(null);
+                },
+              }}
+            >
+              <Popup>Searched Location<br /><small>(Right click to remove)</small></Popup>
             </Marker>
           )}
 
@@ -581,7 +588,6 @@ const WebMap: React.FC<WebMapProps> = ({
           </View>
         )}
 
-        {/* Live Driver Status Panel */}
         {visibleDriverLocations.length > 0 && (
           <View style={s.driverStatusPanel}>
             <View style={s.panelHeader}>

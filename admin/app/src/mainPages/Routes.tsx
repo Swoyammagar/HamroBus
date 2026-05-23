@@ -17,6 +17,9 @@ const RoutesPage: React.FC = () => {
   const [editingRoute, setEditingRoute] = useState<RouteRecord | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
 
+  // ← NEW: confirmation modal state
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   const [newName, setNewName] = useState('');
   const [newNumber, setNewNumber] = useState('');
   const [source, setSource] = useState('');
@@ -386,8 +389,47 @@ const RoutesPage: React.FC = () => {
           fetchAllRoutes();
         }}
         onUpdate={updateRoute}
-        onDelete={deleteRoute}
+        // ← NEW: trigger confirmation instead of deleting directly
+        onDelete={(id) => {
+          setShowDetailModal(false);
+          setConfirmDeleteId(id);
+        }}
       />
+
+      {/* ← NEW: Delete Confirmation Overlay */}
+      {confirmDeleteId && (
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmCard}>
+            <View style={styles.confirmIconWrap}>
+              <Text style={{ fontSize: 24 }}>🗑️</Text>
+            </View>
+            <Text style={styles.confirmTitle}>Delete Route?</Text>
+            <Text style={styles.confirmSub}>
+              This action cannot be undone. The route will be permanently removed.
+            </Text>
+            <View style={styles.confirmActions}>
+              <Pressable
+                onPress={() => setConfirmDeleteId(null)}
+                style={styles.confirmCancel}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => {
+                  const id = confirmDeleteId;
+                  setConfirmDeleteId(null);
+                  await deleteRoute(id);
+                  setEditingRoute(null);
+                  fetchAllRoutes();
+                }}
+                style={styles.confirmDelete}
+              >
+                <Text style={styles.confirmDeleteText}>Delete</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
@@ -397,22 +439,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    // Fill whatever height the parent gives (sidebar layout)
-    // overflow hidden so inner ScrollViews handle scroll, not the page
     overflow: 'hidden',
   },
 
   // ── Two-column layout ─────────────────────────────────────────────────────
   splitRow: {
-    flex: 1,           // fills remaining height after Tabs
+    flex: 1,
     flexDirection: 'row',
     gap: 12,
     marginTop: 12,
-    // No fixed height — grows to fill container
-    minHeight: 0,      // critical: allows flex children to shrink/scroll
+    minHeight: 0,
   },
 
-  // ── Left pane (route list OR add-form) ───────────────────────────────────
+  // ── Left pane ─────────────────────────────────────────────────────────────
   leftPane: {
     width: 340,
     backgroundColor: '#fff',
@@ -420,9 +459,8 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
     borderRadius: 8,
     padding: 12,
-    // Fill height of splitRow, content scrolls inside
     flexShrink: 0,
-    overflow: 'hidden',  // clip so inner ScrollView handles overflow
+    overflow: 'hidden',
   },
 
   routeScroll: {
@@ -430,7 +468,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 
-  // ── Right pane (map) ─────────────────────────────────────────────────────
+  // ── Right pane ────────────────────────────────────────────────────────────
   rightPane: {
     flex: 1,
     backgroundColor: '#fff',
@@ -529,6 +567,81 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 24,
+  },
+
+  // ── Delete confirmation overlay ───────────────────────────────────────────
+  confirmOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15,23,42,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  confirmCard: {
+    width: '82%',
+    maxWidth: 400,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
+  confirmIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  confirmSub: {
+    fontSize: 13,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+    width: '100%',
+  },
+  confirmCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  confirmCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  confirmDelete: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+  },
+  confirmDeleteText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
   },
 });
 

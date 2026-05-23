@@ -445,7 +445,7 @@ const Schedules: React.FC = () => {
 
               {!!selectedRouteStops.length && (
                 <View style={styles.stopArrivalsContainer}>
-                  <Text style={styles.stopArrivalsTitle}>Stop Arrival Times (Optional)</Text>
+                  <Text style={styles.stopArrivalsTitle}>Stop Arrival Times</Text>
                   <Text style={styles.stopArrivalsHint}>Set arrival time per stop for this schedule.</Text>
                   {selectedRouteStops.map((stop) => (
                     <Input
@@ -520,7 +520,7 @@ const Schedules: React.FC = () => {
 
             {!!selectedRouteStops.length && (
               <View style={styles.stopArrivalsContainer}>
-                <Text style={styles.stopArrivalsTitle}>Stop Arrival Times (Optional)</Text>
+                <Text style={styles.stopArrivalsTitle}>Stop Arrival Times</Text>
                 <Text style={styles.stopArrivalsHint}>Set arrival time per stop for this schedule.</Text>
                 {selectedRouteStops.map((stop) => (
                   <Input
