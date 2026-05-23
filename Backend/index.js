@@ -123,6 +123,11 @@ io.on('connection', (socket) => {
     try {
       // Get driver metadata for location payload
       const meta = await getDriverRealtimeMeta({ driverId, busId });
+      if (meta.isOnBreak) {
+        console.log(`Ignoring live location from driver ${driverId} during break`);
+        return;
+      }
+
       locationPayload = {
         busId,
         busNumber: meta.busNumber,
@@ -380,7 +385,7 @@ app.use(cookieParser());
 app.use('/api', mainRoute); // Handles /api/users
 
 const startMissedTripScheduler = () => {
-  const intervalMinutes = Math.max(Number(process.env.MISSED_TRIP_CHECK_INTERVAL_MINUTES) || 1, 1);
+  const intervalMinutes = 1;
   const intervalMs = intervalMinutes * 60 * 1000;
   let isRunning = false;
 

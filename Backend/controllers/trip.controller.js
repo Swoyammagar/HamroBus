@@ -63,7 +63,7 @@ const buildDriverStatusPayload = async ({ trip, driverId }) => {
 };
 
 const notifyPassengersTripStarted = async ({ io, trip, routeDoc, scheduleDoc, delayMinutes = 0 }) => {
-  if (!io || !trip || !scheduleDoc) return;
+  if (!trip || !scheduleDoc) return;
 
   const bookingRows = await Booking.find({
     tripSessionId: trip._id,
@@ -103,17 +103,19 @@ const notifyPassengersTripStarted = async ({ io, trip, routeDoc, scheduleDoc, de
       severity: 'medium',
     });
 
-    io.to('passenger:' + passengerId).emit('notification:new', {
-      _id: String(doc._id),
-      notificationId: doc.notificationId,
-      title: doc.title,
-      message: doc.message,
-      type: doc.type,
-      severity: doc.severity,
-      sentBy: doc.sentBy,
-      targetAudience: doc.targetAudience,
-      createdAt: doc.createdAt,
-    });
+    if (io) {
+      io.to('passenger:' + passengerId).emit('notification:new', {
+        _id: String(doc._id),
+        notificationId: doc.notificationId,
+        title: doc.title,
+        message: doc.message,
+        type: doc.type,
+        severity: doc.severity,
+        sentBy: doc.sentBy,
+        targetAudience: doc.targetAudience,
+        createdAt: doc.createdAt,
+      });
+    }
 
     sendPushToUsers({
       userType: 'passenger',
@@ -412,19 +414,18 @@ const startTrip = async (req, res) => {
                 trip: newTrip,
                 changedBookings: bookingSyncStats.changedBookings || [],
             });
-
-            if (scheduleDoc) {
-                try {
-                    await notifyPassengersTripStarted({
-                        io,
-                        trip: newTrip,
-                        routeDoc,
-                        scheduleDoc,
-                        delayMinutes: startDelayMinutes,
-                    });
-                } catch (notifyError) {
-                    console.error('Failed to notify passengers on trip start:', notifyError);
-                }
+        }
+        if (scheduleDoc) {
+            try {
+                await notifyPassengersTripStarted({
+                    io,
+                    trip: newTrip,
+                    routeDoc,
+                    scheduleDoc,
+                    delayMinutes: startDelayMinutes,
+                });
+            } catch (notifyError) {
+                console.error('Failed to notify passengers on trip start:', notifyError);
             }
         }
 
@@ -574,7 +575,7 @@ const endBreak = async (req, res) => {
             
             // Calculate duration in minutes
             const durationMs = breakEndTime - lastBreak.breakStartTime;
-            const durationMinutes = Math.floor(durationMs / (1000 * 60));
+            const durationMinutes = Number((durationMs / (1000 * 60)).toFixed(2));
             lastBreak.duration = durationMinutes;
 
             // Update total break time
@@ -1111,14 +1112,21 @@ const getAllTripsWithBookings = async (req, res) => {
     // Build filter for TripSession
     const tripFilter = {};
     if (status) tripFilter.status = status; // 'in-progress', 'completed', 'missed'
+    if (routeId) tripFilter.routeId = routeId;
     if (startDate || endDate) {
-      tripFilter.createdAt = {};
-      if (startDate) tripFilter.createdAt.$gte = new Date(startDate);
+      const dateRange = {};
+      if (startDate) dateRange.$gte = new Date(startDate);
       if (endDate) {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
-        tripFilter.createdAt.$lte = end;
+        dateRange.$lte = end;
       }
+
+      tripFilter.$or = [
+        { startTime: dateRange },
+        { startTime: { $exists: false }, createdAt: dateRange },
+        { startTime: null, createdAt: dateRange },
+      ];
     }
     
     const trips = await TripSession.find(tripFilter)

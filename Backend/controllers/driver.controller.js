@@ -1,5 +1,6 @@
 const Driver = require('../models/driver.model');
 const Location = require('../models/location.model');
+const TripSession = require('../models/tripSession.model');
 const Notification = require('../models/notification.model');
 const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
@@ -236,6 +237,17 @@ const updateDriverLocation = async (req, res) => {
         const driver = await Driver.findById(driverId);
         if (!driver) {
             return res.status(404).json({ message: "Driver not found" });
+        }
+
+        const breakTrip = tripId
+            ? await TripSession.findOne({ _id: tripId, driverId: driver._id, status: 'on-break' }).select('_id')
+            : await TripSession.findOne({ driverId: driver._id, status: 'on-break' }).sort({ updatedAt: -1 }).select('_id');
+
+        if (breakTrip) {
+            return res.status(200).json({
+                message: "Location update skipped during break",
+                paused: true
+            });
         }
 
         // Create location entry

@@ -711,7 +711,7 @@ const isPastScheduleEndTime = (endTimeStr) => {
   const currentMinutes = getCurrentTimeInMinutes();
   
   if (scheduleEndMinutes === null) return false;
-  return currentMinutes > scheduleEndMinutes;
+  return currentMinutes >= scheduleEndMinutes;
 };
 
 /**

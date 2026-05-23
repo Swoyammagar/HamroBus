@@ -113,7 +113,8 @@ const notificationSchema = new mongoose.Schema({
 notificationSchema.index({ targetAudience: 1, createdAt: -1 });
 notificationSchema.index({ 'readBy.userId': 1 });
 notificationSchema.index({ status: 1 });
-notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 2592000 }); // 30 days
+notificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 2592000 }); // Auto-delete notifications after 30 days.
+notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 2592000 }); // Legacy optional expiry index.
 notificationSchema.index({ sentBy: 1, createdAt: -1 });
 
 module.exports = mongoose.models.Notification || mongoose.model("Notification", notificationSchema);
