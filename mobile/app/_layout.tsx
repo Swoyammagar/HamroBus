@@ -1,10 +1,19 @@
 import { Stack } from "expo-router";
+import { useEffect } from "react";
 import "./global.css";
 import { AuthProvider } from "./context/AuthContext";
 import { DriverSignupProvider } from "./context/DriverSignupContext";
 import { PassengerSignupProvider } from "./context/PassengerSignupContext";
+import { observePushNotificationTaps } from "./services/pushNotificationService";
 
 export default function RootLayout() {
+  useEffect(() => {
+    const subscription = observePushNotificationTaps();
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   return (
     <AuthProvider>
       <DriverSignupProvider>
@@ -21,6 +30,11 @@ export default function RootLayout() {
             <Stack.Screen name="pages/resetPassword" />
 
             <Stack.Screen name="khalti-return" />
+
+            {/* Shared static legal pages used by passenger and driver flows */}
+            <Stack.Screen name="legal/terms" />
+            <Stack.Screen name="legal/privacy" />
+            <Stack.Screen name="legal/about" />
 
             {/* Driver screens */}
             <Stack.Screen name="driver" />

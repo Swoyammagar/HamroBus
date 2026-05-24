@@ -2,7 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Location from 'expo-location';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { registerDriverTrackingStopper, unregisterDriverTrackingStopper, registerDriverTrackingStarter, unregisterDriverTrackingStarter } from '../../services/driverTrackingControl';
+import {
+  registerDriverTrackingPauser,
+  registerDriverTrackingStopper,
+  unregisterDriverTrackingPauser,
+  unregisterDriverTrackingStopper,
+  registerDriverTrackingStarter,
+  unregisterDriverTrackingStarter
+} from '../../services/driverTrackingControl';
 
 const SOCKET_URL = (process.env.EXPO_PUBLIC_API_BASE?.trim().replace('/api', '') || 'https://hamrobus-auos.onrender.com').trim();
 
@@ -22,6 +29,7 @@ interface UseLocationReturn {
   requestPermission: () => Promise<boolean>;
   startTracking: () => Promise<void>;
   stopTracking: () => void;
+  pauseTrackingForBreak: () => void;
   hasPermission: boolean;
   isSocketConnected: boolean;
 }
@@ -211,6 +219,11 @@ export const useLocation = (): UseLocationReturn => {
       return;
     }
 
+    if (trackingActiveRef.current && watchRef.current) {
+      console.log('[startTracking] Tracking already active, skipping duplicate watch');
+      return;
+    }
+
     trackingStartedRef.current = true;
 
     try {
@@ -239,6 +252,8 @@ export const useLocation = (): UseLocationReturn => {
       const currentLocation = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+
+      trackingActiveRef.current = true;
 
       const initialCoords: LocationCoords = {
         latitude: currentLocation.coords.latitude,
@@ -279,7 +294,6 @@ export const useLocation = (): UseLocationReturn => {
 
       watchRef.current = subscription;
       setWatchId(subscription);
-      trackingActiveRef.current = true;
       console.log('✅ [startTracking] Watch setup complete');
       setLoading(false);
       trackingStartedRef.current = false;
@@ -288,9 +302,25 @@ export const useLocation = (): UseLocationReturn => {
       console.error('❌ [startTracking] Error:', message, err);
       setError(message);
       setLoading(false);
+      trackingActiveRef.current = false;
       trackingStartedRef.current = false;
     }
   }, [hasPermission, requestPermission, emitLocationToServer, ensureSocketConnection]);
+
+  // Pause live GPS sharing during a trip break without marking the driver offline.
+  const pauseTrackingForBreak = useCallback(() => {
+    trackingActiveRef.current = false;
+
+    if (watchRef.current) {
+      watchRef.current.remove();
+      watchRef.current = null;
+      setWatchId(null);
+    }
+
+    trackingStartedRef.current = false;
+    setLoading(false);
+    console.log('[break] Location tracking paused; socket remains connected');
+  }, []);
 
   // Stop tracking location
   const stopTracking = useCallback(() => {
@@ -323,12 +353,14 @@ export const useLocation = (): UseLocationReturn => {
   useEffect(() => {
     registerDriverTrackingStopper(stopTracking);
     registerDriverTrackingStarter(startTracking);
+    registerDriverTrackingPauser(pauseTrackingForBreak);
 
     return () => {
       unregisterDriverTrackingStopper(stopTracking);
       unregisterDriverTrackingStarter(startTracking);
+      unregisterDriverTrackingPauser(pauseTrackingForBreak);
     };
-  }, [stopTracking]);
+  }, [stopTracking, startTracking, pauseTrackingForBreak]);
 
   return {
     location,
@@ -337,6 +369,7 @@ export const useLocation = (): UseLocationReturn => {
     requestPermission,
     startTracking,
     stopTracking,
+    pauseTrackingForBreak,
     hasPermission,
     isSocketConnected,
   };

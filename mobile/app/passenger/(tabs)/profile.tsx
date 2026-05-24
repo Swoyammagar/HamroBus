@@ -29,7 +29,15 @@ const Profile = () => {
   const { stats: reviewStats, fetchStats: fetchReviewStats } = useReviews();
 
   // Account Deletion
-  const { isDeletionPending, remainingDays, deletionDate, loading: deletionLoading, requestDeletion, cancelDeletion } = useAccountDeletion();
+  const {
+    isDeletionPending,
+    remainingDays,
+    deletionDate,
+    loading: deletionLoading,
+    checkDeletionStatus,
+    requestDeletion,
+    cancelDeletion,
+  } = useAccountDeletion();
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const [showDeletionStatus, setShowDeletionStatus] = React.useState(false);
 
@@ -38,7 +46,8 @@ const Profile = () => {
     React.useCallback(() => {
       fetchRewardPoints();
       fetchReviewStats();
-    }, [fetchRewardPoints, fetchReviewStats])
+      checkDeletionStatus();
+    }, [fetchRewardPoints, fetchReviewStats, checkDeletionStatus])
   );
 
   // Map hook data into the PassengerProfile shape your UI expects
@@ -77,6 +86,9 @@ const Profile = () => {
   const handleTravelHistory  = () => router.push('../(tabs)/bookings');
   const handleHelpSupport    = () => router.push('../screens/faq');
   const handleMyReviews      = () => router.push('../screens/myReviews');
+  const handleTerms          = () => router.push('/legal/terms' as any);
+  const handlePrivacy        = () => router.push('/legal/privacy' as any);
+  const handleAbout          = () => router.push('/legal/about' as any);
 
   const handleDeleteProfile = async () => {
     setShowDeleteConfirm(false);
@@ -123,6 +135,8 @@ const Profile = () => {
       </View>
     );
   }
+
+  const deletionDaysLabel = remainingDays ?? 'calculating';
 
   return (
     <View style={styles.container}>
@@ -253,7 +267,7 @@ const Profile = () => {
             <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
           </Pressable>
 
-          <View style={styles.menuItem}>
+          <Pressable onPress={handleTerms} style={styles.menuItem}>
             <View style={styles.menuItemLeft}>
               <Ionicons name="document-text-outline" size={20} color="#3b82f6" />
               <View style={styles.menuItemContent}>
@@ -262,9 +276,9 @@ const Profile = () => {
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
-          </View>
+          </Pressable>
 
-          <View style={styles.menuItem}>
+          <Pressable onPress={handlePrivacy} style={styles.menuItem}>
             <View style={styles.menuItemLeft}>
               <Ionicons name="shield-checkmark-outline" size={20} color="#3b82f6" />
               <View style={styles.menuItemContent}>
@@ -273,9 +287,9 @@ const Profile = () => {
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
-          </View>
+          </Pressable>
 
-          <View style={styles.menuItem}>
+          <Pressable onPress={handleAbout} style={styles.menuItem}>
             <View style={styles.menuItemLeft}>
               <Ionicons name="information-circle-outline" size={20} color="#3b82f6" />
               <View style={styles.menuItemContent}>
@@ -284,7 +298,7 @@ const Profile = () => {
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
-          </View>
+          </Pressable>
         </View>
 
         {/* Your Reviews Section */}
@@ -340,6 +354,32 @@ const Profile = () => {
           </View>
         </View>
 
+        {isDeletionPending && (
+          <View style={styles.deletionPendingCard}>
+            <View style={styles.deletionPendingHeader}>
+              <Ionicons name="warning-outline" size={18} color="#dc2626" />
+              <Text style={styles.deletionPendingTitle}>Profile deletion pending</Text>
+            </View>
+            <Text style={styles.deletionPendingText}>
+              Your profile is scheduled for deletion{deletionDate ? ` on ${new Date(deletionDate).toLocaleDateString()}` : ''}.
+            </Text>
+            <Text style={styles.deletionPendingText}>
+              {remainingDays != null ? `${remainingDays} day${remainingDays === 1 ? '' : 's'} remaining in the grace period.` : 'Grace period remaining is being calculated.'}
+            </Text>
+            <TouchableOpacity
+              style={styles.cancelDeletionInlineButton}
+              onPress={handleCancelDeletion}
+              disabled={deletionLoading}
+            >
+              {deletionLoading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.cancelDeletionInlineText}>Cancel Profile Deletion</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color="#ef4444" />
@@ -349,11 +389,12 @@ const Profile = () => {
         {/* Delete Profile Button */}
         <TouchableOpacity 
           style={[styles.deleteButton, isDeletionPending && styles.deleteButtonWarning]} 
-          onPress={() => isDeletionPending ? setShowDeletionStatus(true) : setShowDeleteConfirm(true)}
+          onPress={() => isDeletionPending ? handleCancelDeletion() : setShowDeleteConfirm(true)}
+          disabled={deletionLoading}
         >
-          <Ionicons name="trash-outline" size={20} color={isDeletionPending ? '#dc2626' : '#ef4444'} />
+          <Ionicons name={isDeletionPending ? 'refresh-outline' : 'trash-outline'} size={20} color={isDeletionPending ? '#ffffff' : '#ef4444'} />
           <Text style={[styles.deleteButtonText, isDeletionPending && styles.deleteButtonWarningText]}>
-            {isDeletionPending ? `Delete Profile (${remainingDays} days)` : 'Delete Profile'}
+            {isDeletionPending ? 'Cancel Profile Deletion' : 'Delete Profile'}
           </Text>
         </TouchableOpacity>
 
@@ -445,7 +486,7 @@ const Profile = () => {
               </View>
               <View style={styles.statusRow}>
                 <Text style={styles.statusLabel}>Days Remaining:</Text>
-                <Text style={[styles.statusValue, { color: '#dc2626', fontWeight: '700' }]}>{remainingDays} days</Text>
+                <Text style={[styles.statusValue, { color: '#dc2626', fontWeight: '700' }]}>{deletionDaysLabel} days</Text>
               </View>
             </View>
 
@@ -1160,8 +1201,8 @@ const styles = StyleSheet.create({
     borderColor: '#fecaca',
   },
   deleteButtonWarning: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#dc2626',
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
   },
   deleteButtonText: {
     color: '#ef4444',
@@ -1170,7 +1211,46 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   deleteButtonWarningText: {
-    color: '#dc2626',
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  deletionPendingCard: {
+    backgroundColor: '#fff7ed',
+    borderRadius: 12,
+    padding: 14,
+    marginHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+  },
+  deletionPendingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  deletionPendingTitle: {
+    color: '#9a3412',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  deletionPendingText: {
+    color: '#9a3412',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  cancelDeletionInlineButton: {
+    marginTop: 12,
+    backgroundColor: '#10b981',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelDeletionInlineText: {
+    color: '#ffffff',
+    fontSize: 14,
     fontWeight: '700',
   },
   // Confirmation Modal Styles

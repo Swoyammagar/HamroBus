@@ -3,6 +3,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import apiClient from '../services/apiClient';
 import { forceStopDriverTracking } from '../services/driverTrackingControl';
+import {
+  registerDeviceForPushNotifications,
+  unregisterDeviceForPushNotifications,
+  type PushUserType,
+} from '../services/pushNotificationService';
 
 const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
 
@@ -86,6 +91,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [passenger, setPassenger] = useState<Passenger | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const refreshRequestRef = useRef<Promise<boolean> | null>(null);
+  const pushRegistrationRef = useRef<string | null>(null);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -169,6 +175,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     initializeAuth();
   }, []);
+
+  useEffect(() => {
+    if (!token || isLoading) return;
+
+    const userType: PushUserType | null = driver?.id
+      ? 'driver'
+      : passenger?.id
+        ? 'passenger'
+        : null;
+
+    if (!userType) return;
+
+    const registrationKey = `${userType}:${driver?.id || passenger?.id}`;
+    if (pushRegistrationRef.current === registrationKey) return;
+    pushRegistrationRef.current = registrationKey;
+
+    registerDeviceForPushNotifications(userType).catch((error) => {
+      console.warn('Unable to register device for push notifications:', error);
+      pushRegistrationRef.current = null;
+    });
+  }, [token, isLoading, driver?.id, passenger?.id]);
 
   const login = async (
     email: string,
@@ -260,6 +287,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = async () => {
     try {
       forceStopDriverTracking();
+      const currentUserType: PushUserType | undefined = driver?.id
+        ? 'driver'
+        : passenger?.id
+          ? 'passenger'
+          : undefined;
+
+      await unregisterDeviceForPushNotifications(currentUserType);
 
       const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
       if (storedRefreshToken) {
@@ -275,6 +309,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(null);
       setDriver(null);
       setPassenger(null);
+      pushRegistrationRef.current = null;
 
       console.log('✅ User logged out successfully');
     } catch (error) {
@@ -283,6 +318,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(null);
       setDriver(null);
       setPassenger(null);
+      pushRegistrationRef.current = null;
     }
   };
 

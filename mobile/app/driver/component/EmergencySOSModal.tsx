@@ -46,9 +46,7 @@ export default function EmergencySOSModal({ visible, onClose }: Props) {
   const [sosSent, setSosSent] = useState(false);
 
   useEffect(() => {
-    if (!visible) {
-      return;
-    }
+    if (!visible) return;
 
     let mounted = true;
 
@@ -75,11 +73,8 @@ export default function EmergencySOSModal({ visible, onClose }: Props) {
           }
           return;
         }
-
         const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-        if (mounted) {
-          setCurrentLocation(pos.coords);
-        }
+        if (mounted) setCurrentLocation(pos.coords);
       } catch (error) {
         console.warn('Could not get SOS location', error);
       } finally {
@@ -88,10 +83,7 @@ export default function EmergencySOSModal({ visible, onClose }: Props) {
     };
 
     loadTripAndLocation();
-
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [visible]);
 
   const tripBusId = String(currentTrip?.busId?._id || currentTrip?.busId || '').trim();
@@ -127,16 +119,14 @@ export default function EmergencySOSModal({ visible, onClose }: Props) {
 
     try {
       setSending(true);
-      const payload = {
+      await driverService.sendSosAlert({
         busId: tripBusId,
         tripId: tripId || undefined,
         category: selectedCategory,
         details: details.trim(),
         latitude: currentLocation?.latitude,
         longitude: currentLocation?.longitude,
-      };
-
-      await driverService.sendSosAlert(payload);
+      });
       setSosSent(true);
       Alert.alert('SOS Sent', 'Admin has been notified immediately. Continue the trip only when safe.');
     } catch (error: any) {
@@ -150,6 +140,8 @@ export default function EmergencySOSModal({ visible, onClose }: Props) {
     <Modal animationType="slide" transparent visible={visible} onRequestClose={sosSent ? handlePrimaryAction : onClose}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
+
+          {/* ── Red header (title + close only) ── */}
           <View style={styles.header}>
             <View style={styles.titleBlock}>
               <View style={styles.alertBadge}>
@@ -160,36 +152,53 @@ export default function EmergencySOSModal({ visible, onClose }: Props) {
                 <Text style={styles.subtitle}>Select emergency type</Text>
               </View>
             </View>
-            <Pressable onPress={sosSent ? handlePrimaryAction : onClose} hitSlop={8} style={styles.closeButton}>
+            <Pressable
+              onPress={sosSent ? handlePrimaryAction : onClose}
+              hitSlop={8}
+              style={styles.closeButton}
+            >
               <Feather name="x" size={22} color="#fff" />
             </Pressable>
           </View>
 
+          {/* ── Location strip (outside header, between header and scroll) ── */}
           <View style={styles.locationCard}>
             <View style={styles.locationRow}>
-              <Feather name="map-pin" size={14} color="#fff" />
+              <Feather name="map-pin" size={14} color="#991b1b" />
               <Text style={styles.locationText}>{locationText}</Text>
             </View>
             <View style={styles.locationRow}>
-              <Feather name="clock" size={14} color="#fff" />
+              <Feather name="clock" size={14} color="#991b1b" />
               <Text style={styles.locationText}>{new Date().toLocaleTimeString()}</Text>
             </View>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          {/* ── Scrollable body ── */}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            {/* Category grid — explicit margins instead of gap to avoid RN wrap artifacts */}
             <View style={styles.grid}>
-              {SOS_CATEGORIES.map((item) => {
+              {SOS_CATEGORIES.map((item, index) => {
                 const selected = item.id === selectedCategory;
+                const isLeftColumn = index % 2 === 0;
                 return (
                   <Pressable
                     key={item.id}
                     onPress={() => setSelectedCategory(item.id)}
-                    style={[styles.categoryCard, selected && styles.categoryCardSelected]}
+                    style={[
+                      styles.categoryCard,
+                      selected && styles.categoryCardSelected,
+                      isLeftColumn ? { marginRight: 8 } : { marginRight: 0 },
+                    ]}
                   >
                     <View style={[styles.categoryIconWrap, selected && styles.categoryIconWrapSelected]}>
                       <Feather name={item.icon} size={22} color={selected ? '#ef4444' : '#6b7280'} />
                     </View>
-                    <Text style={[styles.categoryTitle, selected && styles.categoryTitleSelected]}>{item.title}</Text>
+                    <Text style={[styles.categoryTitle, selected && styles.categoryTitleSelected]}>
+                      {item.title}
+                    </Text>
                     <Text style={styles.categoryHelper}>{item.helper}</Text>
                   </Pressable>
                 );
@@ -227,6 +236,7 @@ export default function EmergencySOSModal({ visible, onClose }: Props) {
             </View>
           </ScrollView>
 
+          {/* ── Footer actions ── */}
           <View style={styles.footer}>
             <Pressable
               style={[styles.primary, (sending || loadingLocation) && styles.primaryDisabled]}
@@ -237,12 +247,13 @@ export default function EmergencySOSModal({ visible, onClose }: Props) {
                 {sosSent ? 'Continue Trip' : sending ? 'Sending Alert...' : 'Send Emergency Alert'}
               </Text>
             </Pressable>
-            {!sosSent ? (
+            {!sosSent && (
               <Pressable style={styles.secondary} onPress={onClose}>
                 <Text style={styles.secondaryText}>Cancel</Text>
               </Pressable>
-            ) : null}
+            )}
           </View>
+
         </View>
       </View>
     </Modal>
@@ -270,16 +281,22 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 14 },
     elevation: 20,
   },
+
+  // ── Header ──
   header: {
     backgroundColor: '#ef1111',
     paddingHorizontal: 18,
     paddingTop: 18,
     paddingBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   titleBlock: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    paddingRight: 36, // keep text clear of the absolute close button
   },
   alertBadge: {
     width: 40,
@@ -312,13 +329,15 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.88)',
     fontSize: 13,
   },
+
+  // ── Location strip ──
   locationCard: {
-    marginTop: 14,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 16,
-    paddingHorizontal: 14,
+    backgroundColor: '#fef2f2',
+    borderBottomWidth: 1,
+    borderBottomColor: '#fecaca',
+    paddingHorizontal: 18,
     paddingVertical: 12,
-    gap: 8,
+    gap: 6,
   },
   locationRow: {
     flexDirection: 'row',
@@ -326,30 +345,38 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   locationText: {
-    color: '#fff',
+    color: '#991b1b',
     fontSize: 13,
     fontWeight: '600',
   },
+
+  // ── Scroll body ──
   scrollContent: {
     padding: 18,
     paddingTop: 16,
   },
+
+  // ── Category grid ──
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 10,
   },
   categoryCard: {
-    width: '48.5%',
+    width: '48%',
     minHeight: 104,
+
     borderWidth: 1,
     borderColor: '#dbe1ea',
     borderRadius: 16,
+
     padding: 12,
     alignItems: 'center',
     justifyContent: 'center',
+
     backgroundColor: '#fff',
+
+    marginBottom: 10,
   },
   categoryCardSelected: {
     borderColor: '#ef4444',
@@ -388,6 +415,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 14,
   },
+
+  // ── Details input ──
   detailsWrap: {
     marginTop: 14,
   },
@@ -402,6 +431,8 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 14,
   },
+
+  // ── Notice card ──
   noticeCard: {
     marginTop: 14,
     backgroundColor: '#fff8e7',
@@ -421,6 +452,8 @@ const styles = StyleSheet.create({
     color: '#92400e',
     lineHeight: 18,
   },
+
+  // ── Quick call buttons ──
   quickActionsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -444,6 +477,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+
+  // ── Footer ──
   footer: {
     paddingHorizontal: 18,
     paddingBottom: 18,
@@ -456,13 +491,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
   },
   primaryDisabled: {
     opacity: 0.75,
   },
   primaryText: {
-    color: '#FFFFFF',
+    color: '#fff',
     fontWeight: '800',
     fontSize: 15,
   },

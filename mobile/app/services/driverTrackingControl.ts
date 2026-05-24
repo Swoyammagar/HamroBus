@@ -1,5 +1,6 @@
 let driverTrackingStopper: (() => void) | null = null;
 let driverTrackingStarter: (() => Promise<void>) | null = null;
+let driverTrackingPauser: (() => void) | null = null;
 
 export const registerDriverTrackingStopper = (stopper: () => void) => {
   driverTrackingStopper = stopper;
@@ -21,9 +22,25 @@ export const unregisterDriverTrackingStarter = (starter: () => Promise<void>) =>
   }
 };
 
+export const registerDriverTrackingPauser = (pauser: () => void) => {
+  driverTrackingPauser = pauser;
+};
+
+export const unregisterDriverTrackingPauser = (pauser: () => void) => {
+  if (driverTrackingPauser === pauser) {
+    driverTrackingPauser = null;
+  }
+};
+
 export const forceStopDriverTracking = () => {
   if (driverTrackingStopper) {
     driverTrackingStopper();
+  }
+};
+
+export const pauseDriverTrackingForBreak = () => {
+  if (driverTrackingPauser) {
+    driverTrackingPauser();
   }
 };
 

@@ -92,20 +92,7 @@ const DriverPhone = () => {
           )}
         </TouchableOpacity>
 
-        <View className="flex-row flex-wrap justify-center ">
-            <Text className="text-sm text-[#333] font-light">
-                By clicking Next, you agree to the{" "}
-            </Text>
-            <Text className="text-sm text-[#27AE60] font-medium underline">
-                Terms of Service
-            </Text>
-            <Text className="text-sm text-[#333] font-light">
-                {" "}and{" "}
-            </Text>
-            <Text className="text-sm text-[#27AE60] font-medium underline">
-                Privacy Policy
-            </Text>
-        </View>
+
       </View>
     </>
   );

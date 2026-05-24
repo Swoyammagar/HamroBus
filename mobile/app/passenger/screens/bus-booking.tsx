@@ -404,6 +404,7 @@ const BusBooking = () => {
     bookingId: result.bookingCode,
     passengerId: String(result.passengerId),
     busId: String(result.busId),
+    busNumber: String(result.busNumber ?? ''),
     routeId: String(result.routeId),
     token: result.bookingCode,
     seatNumber: (result.seatNumbers || []).join(', '),

@@ -86,7 +86,7 @@ export default function StopDetailModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
+        <Pressable style={styles.backdropPressable} onPress={onClose} />
         <View style={[styles.panel, shadow.card]}>
           {/* Header */}
           <View style={styles.header}>
@@ -224,12 +224,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'flex-end',
   },
+  backdropPressable: {
+    ...StyleSheet.absoluteFillObject, 
+  },
   panel: {
     backgroundColor: palette.surface,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
-    maxHeight: '90%',
-    paddingBottom: spacing.lg,
+    maxHeight: '85%',           // slightly tighter cap
+    paddingBottom: spacing.xl,  // more room for home indicator
+    ...shadow.card,
   },
   header: {
     borderBottomWidth: 1,
@@ -266,7 +270,6 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    maxHeight: '70%',
   },
   infoSection: {
     marginBottom: spacing.lg,

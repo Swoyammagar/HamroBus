@@ -41,7 +41,7 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
   const autoCompletedStopsRef = useRef<Set<string>>(new Set());
   const trackingInProgressRef = useRef(false); // ✅ Prevent duplicate tracking starts
 
-  const { location, loading, error, startTracking, stopTracking, requestPermission } = useLocation();
+  const { location, loading, error, startTracking, stopTracking, pauseTrackingForBreak, requestPermission } = useLocation();
 
   // Update passenger count from current trip
   useEffect(() => {
@@ -130,11 +130,19 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
 
   // Handle online/offline status change - with stable dependencies
   useEffect(() => {
-    if (isOnline && !isLocationEnabled) {
+    if (isOnline && currentTrip?.status !== 'on-break' && !isLocationEnabled) {
       console.log('User went online - starting location tracking');
       requestLocationPermission();
     }
-  }, [isOnline, isLocationEnabled, requestLocationPermission]);
+  }, [isOnline, currentTrip?.status, isLocationEnabled, requestLocationPermission]);
+
+  useEffect(() => {
+    if (isOnline && currentTrip?.status === 'on-break' && isLocationEnabled) {
+      console.log('Trip is on break - pausing location tracking without going offline');
+      pauseTrackingForBreak();
+      setIsLocationEnabled(false);
+    }
+  }, [isOnline, currentTrip?.status, isLocationEnabled, pauseTrackingForBreak]);
 
   // Stop tracking when going offline - separate from start logic
   useEffect(() => {

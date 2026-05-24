@@ -126,14 +126,6 @@ const Login = () => {
               ))}
             </View>
 
-            <View className="rounded-2xl p-3 mb-4" style={{ backgroundColor: subtleTint }}>
-              <Text className="text-sm text-gray-700 text-center">
-                {role === 'driver'
-                  ? 'Drivers need an approved account to access their dashboard.'
-                  : 'Passengers can browse routes and book seats after login.'}
-              </Text>
-            </View>
-
             {error ? <Text className="text-red-500 mb-4 text-center">{error}</Text> : null}
 
             <Text className="text-gray-700 mb-1">Email</Text>

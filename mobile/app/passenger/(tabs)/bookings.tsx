@@ -328,17 +328,85 @@ const MyBookings = () => {
     );
   };
 
+  const formatTicketLine = (label: string, value?: string | number | boolean | null) => {
+    const safeValue = value === undefined || value === null || value === '' ? 'N/A' : String(value);
+    return `${label.padEnd(16, ' ')}: ${safeValue}`;
+  };
+
+  const getPaymentLabel = (booking: BookingResponse) => {
+    if (booking.paymentStatus || booking.payment?.status === 'paid') {
+      const method = booking.payment?.method ? ` via ${booking.payment.method}` : '';
+      return `PAID${method}`;
+    }
+
+    return 'UNPAID';
+  };
+
+  const getBookingFare = (booking: BookingResponse) => booking.finalFare || booking.totalFare;
+
+  const buildShareTicketMessage = (
+    booking: BookingResponse,
+    qrToken?: string,
+    qrAttached?: boolean
+  ) => {
+    const busLabel = booking.busNumber ? `Bus ${booking.busNumber}` : getBusLabel(booking.busId);
+    const routeLabel = `${booking.boardingStop.stopName} -> ${booking.destinationStop.stopName}`;
+    const generatedAt = new Date().toLocaleString();
+
+    return [
+      'HAMRO BUS E-TICKET',
+      'Official Boarding Pass',
+      '================================',
+      formatTicketLine('Booking ID', booking.bookingCode),
+      formatTicketLine('Status', booking.status.toUpperCase()),
+      formatTicketLine('Bus', busLabel),
+      formatTicketLine('Route', routeLabel),
+      formatTicketLine('From', booking.boardingStop.stopName),
+      formatTicketLine('To', booking.destinationStop.stopName),
+      formatTicketLine('Seats', booking.seatNumbers.join(', ')),
+      formatTicketLine('Seat Count', booking.seatCount),
+      formatTicketLine('Travel Date', formatDate(booking.serviceDate)),
+      formatTicketLine('Departure', booking.scheduleStartTime || 'As per schedule'),
+      formatTicketLine('Fare', `Rs. ${getBookingFare(booking)}`),
+      formatTicketLine('Payment', getPaymentLabel(booking)),
+      '--------------------------------',
+      'BOARDING VERIFICATION',
+      formatTicketLine('Token', booking.bookingCode),
+      formatTicketLine('QR Token', qrToken || 'Open ticket in Hamro Bus app'),
+      formatTicketLine('QR Image', qrAttached ? 'Included where supported' : 'Available inside Hamro Bus app'),
+      '--------------------------------',
+      'Show this ticket or scan the QR at boarding.',
+      'Valid only for the passenger, route, seats, and travel date shown above.',
+      `Generated: ${generatedAt}`,
+      '================================',
+      'Hamro Bus - Smart bus booking for Nepal',
+    ].join('\n');
+  };
+
   const handleShareBookingAPI = async (booking: BookingResponse) => {
     try {
-      const busLabel = getBusLabel(booking.busId);
-      const message = `🎫 My Bus Booking\n\nBooking ID: ${booking.bookingCode}\nToken: ${booking.bookingCode}\n\n${busLabel}\nFrom: ${booking.boardingStop.stopName}\nTo: ${booking.destinationStop.stopName}\nSeats: ${booking.seatNumbers.join(', ')}\n\nDate: ${formatDate(booking.serviceDate)}\nPrice: Rs. ${booking.totalFare}\n\nShow this token to the driver while boarding.`;
+      let qrCodeDataUrl: string | undefined;
+      let qrToken: string | undefined;
+
+      // Reuse the existing QR endpoint so shared tickets match the in-app boarding QR.
+      try {
+        const qrData = await bookingService.getBookingQr(booking.id);
+        qrCodeDataUrl = qrData.qrCodeDataUrl || undefined;
+        qrToken = qrData.qrToken || undefined;
+      } catch (qrErr) {
+        console.warn('Share ticket QR unavailable:', qrErr);
+      }
+
+      const message = buildShareTicketMessage(booking, qrToken, Boolean(qrCodeDataUrl));
 
       await Share.share({
         message,
-        title: 'My Bus Booking Ticket',
+        title: `Hamro Bus Ticket ${booking.bookingCode}`,
+        ...(qrCodeDataUrl ? { url: qrCodeDataUrl } : {}),
       });
     } catch (err) {
       console.error('Share error:', err);
+      Alert.alert('Share Error', 'Unable to share this booking ticket right now.');
     }
   };
 

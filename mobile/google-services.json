@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1035415300244",
+    "project_id": "hamrobus-5b98c",
+    "storage_bucket": "hamrobus-5b98c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1035415300244:android:50a814cb045321f672ac81",
+        "android_client_info": {
+          "package_name": "com.anonymous.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBYuO6vMbZ-38bn6T2w_VUnXaWfUKG6D2o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

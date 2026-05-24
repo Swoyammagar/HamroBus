@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { accountDeletionService } from '../services/accountDeletionService';
 
 export interface DeletionState {
@@ -9,6 +9,16 @@ export interface DeletionState {
   loading: boolean;
   error: string | null;
 }
+
+const calculateRemainingDays = (deletionDate?: string | null) => {
+  if (!deletionDate) return null;
+
+  const targetTime = new Date(deletionDate).getTime();
+  if (Number.isNaN(targetTime)) return null;
+
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.ceil((targetTime - Date.now()) / millisecondsPerDay));
+};
 
 export const useAccountDeletion = () => {
   const [state, setState] = useState<DeletionState>({
@@ -26,11 +36,12 @@ export const useAccountDeletion = () => {
       const response = await accountDeletionService.checkDeletionStatus();
       
       if (response.success) {
+        const deletionDate = response.data.deletionDate || null;
         setState(prev => ({
           ...prev,
           isDeletionPending: response.data.isDeletionPending,
-          remainingDays: response.data.remainingDays || null,
-          deletionDate: response.data.deletionDate || null,
+          remainingDays: response.data.remainingDays ?? calculateRemainingDays(deletionDate),
+          deletionDate,
           message: response.data.message || null,
           loading: false,
         }));
@@ -58,10 +69,12 @@ export const useAccountDeletion = () => {
       const response = await accountDeletionService.requestProfileDeletion();
       
       if (response.success) {
+        const deletionDate = response.deleteScheduledFor || null;
         setState(prev => ({
           ...prev,
           isDeletionPending: true,
-          deletionDate: response.deleteScheduledFor || null,
+          remainingDays: calculateRemainingDays(deletionDate),
+          deletionDate,
           message: response.message,
           loading: false,
         }));
@@ -118,6 +131,10 @@ export const useAccountDeletion = () => {
       return { success: false, error: errorMsg };
     }
   }, []);
+
+  useEffect(() => {
+    checkDeletionStatus();
+  }, [checkDeletionStatus]);
 
   return {
     ...state,

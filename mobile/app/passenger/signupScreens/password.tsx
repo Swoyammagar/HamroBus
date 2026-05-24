@@ -17,6 +17,7 @@ import { useAuth } from "../../context/AuthContext";
 type FormValues = {
   password: string;
   confirmPassword: string;
+  acceptedTerms: boolean;
 };
 
 const NewPassword: React.FC = () => {
@@ -40,6 +41,7 @@ const NewPassword: React.FC = () => {
     defaultValues: {
       password: "",
       confirmPassword: "",
+      acceptedTerms: false,
     },
   });
 
@@ -221,6 +223,59 @@ const onSubmit = async (data: FormValues) => {
               </View>
               {errors.confirmPassword ? (
                 <Text className="text-red-500 text-xs mt-1">{errors.confirmPassword.message as string}</Text>
+              ) : null}
+
+              <Controller
+                control={control}
+                name="acceptedTerms"
+                rules={{
+                  validate: (value) =>
+                    value || "Please agree to the Terms & Conditions and Privacy Policy to continue",
+                }}
+                render={({ field: { onChange, value } }) => (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => onChange(!value)}
+                    disabled={isLoading}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "flex-start",
+                      marginTop: 18,
+                      padding: 12,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: errors.acceptedTerms ? "#ef4444" : "#d1d5db",
+                      backgroundColor: "#fff",
+                    }}
+                  >
+                    <Feather
+                      name={value ? "check-square" : "square"}
+                      size={20}
+                      color={value ? "#27AE60" : "#6b7280"}
+                      style={{ marginRight: 10, marginTop: 1 }}
+                    />
+                    <Text style={{ flex: 1, color: "#374151", fontSize: 13, lineHeight: 19 }}>
+                      By creating an account, you agree to the{" "}
+                      <Text
+                        style={{ color: "#2563eb", fontWeight: "600" }}
+                        onPress={() => router.push("/legal/terms" as any)}
+                      >
+                        Terms & Conditions
+                      </Text>
+                      {" "}and{" "}
+                      <Text
+                        style={{ color: "#2563eb", fontWeight: "600" }}
+                        onPress={() => router.push("/legal/privacy" as any)}
+                      >
+                        Privacy Policy
+                      </Text>
+                      .
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
+              {errors.acceptedTerms ? (
+                <Text className="text-red-500 text-xs mt-1">{errors.acceptedTerms.message as string}</Text>
               ) : null}
 
               <View className="flex-col items-center mt-5 space-y-4">

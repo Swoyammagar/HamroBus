@@ -20,6 +20,33 @@ interface LicenseForm {
   licenseImage: string | null;
 }
 
+// Accepts common Nepal license entries such as 01-06-12345678, BAG-01-1234567,
+// and older numeric records while rejecting short or symbol-heavy input.
+const validateNepalLicenseNumber = (value: string) => {
+  const normalized = value.trim().toUpperCase();
+  const compact = normalized.replace(/[\s\-/.]/g, "");
+
+  if (!normalized) return "License number is required";
+  if (!/^[A-Z0-9\s-/.]+$/.test(normalized)) {
+    return "License number can only include letters, numbers, spaces, hyphens, slashes, or dots";
+  }
+  if (compact.length < 6 || compact.length > 16) {
+    return "Enter a valid Nepal license number";
+  }
+  if (!/\d{4,}/.test(compact)) {
+    return "License number must include the numeric license sequence";
+  }
+  if (/^([A-Z0-9])\1+$/.test(compact)) {
+    return "Enter a valid Nepal license number";
+  }
+
+  const numericOnly = /^\d{6,12}$/.test(compact);
+  const regionalFormat =
+    /^[A-Z0-9]{2,4}[\s\-/.]?[A-Z0-9]{1,4}[\s\-/.]?\d{4,10}$/.test(normalized);
+
+  return numericOnly || regionalFormat || "Enter a valid Nepal license number";
+};
+
 
 const License = () => {
   const { signupData, updateSignupData } = useDriverSignup();
@@ -81,7 +108,7 @@ const License = () => {
           <Controller
             control={control}
             name="licenseNo"
-            rules={{ required: "License number is required" }}
+            rules={{ validate: validateNepalLicenseNumber }}
             render={({ field: { onChange, value } }) => (
               <TextInput
                 style={[
@@ -90,7 +117,7 @@ const License = () => {
                 ]}
                 placeholder="Enter license number"
                 value={value}
-                onChangeText={onChange}
+                onChangeText={(text) => onChange(text.toUpperCase())}
                 autoCapitalize="characters"
                 onFocus={() => setFocusedField("licenseNumber")}
                 onBlur={() => setFocusedField(null)}

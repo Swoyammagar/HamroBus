@@ -11,6 +11,7 @@ import NextTripSeatModal, { type SeatReservation } from '../component/NextTripSe
 import BookingQrScannerModal from '../component/BookingQrScannerModal';
 import driverService from '../services/driverService';
 import socketService from '../services/socketService';
+import { pauseDriverTrackingForBreak, startDriverTrackingNow } from '../../services/driverTrackingControl';
 
 interface Props {
   onSOSPress: () => void;
@@ -321,15 +322,20 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
 
       if (currentTrip.status === 'on-break') {
         await endBreak(currentTrip._id);
+        await startDriverTrackingNow();
         await refreshAll();
         Alert.alert('Success', 'Break ended successfully');
         return;
       }
 
+      pauseDriverTrackingForBreak();
       await startBreak(currentTrip._id);
       await refreshAll();
       Alert.alert('Success', 'Break started successfully');
     } catch (error: any) {
+      if (currentTrip?.status !== 'on-break') {
+        await startDriverTrackingNow();
+      }
       const apiMessage = error?.response?.data?.message;
       Alert.alert('Error', apiMessage || error.message || 'Failed to update break status');
     }
