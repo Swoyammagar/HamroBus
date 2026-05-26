@@ -8,7 +8,6 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
-  Share,
   Modal,
   TextInput,
   Animated,
@@ -89,6 +88,11 @@ const MyBookings = () => {
     token: b.bookingCode,
     seatNumber: (b.seatNumbers || []).join(', '),
     price: b.finalFare || b.totalFare,
+    totalFare: b.totalFare,
+    rewardPointsRedeemed: b.rewardPointsRedeemed,
+    discountPercentage: b.discountPercentage,
+    discountAmount: b.discountAmount,
+    finalFare: b.finalFare || b.totalFare,
     paymentStatus: Boolean(b.paymentStatus || b.payment?.status === 'paid'),
     bookingDate: b.createdAt,
     travelDate: b.serviceDate,
@@ -120,7 +124,11 @@ const MyBookings = () => {
     seatNumbers: booking.seatNumber.split(', '),
     seatCount: booking.seatNumber.split(', ').length,
     farePerSeat: Math.floor(booking.price / Math.max(booking.seatNumber.split(', ').length, 1)),
-    totalFare: booking.price,
+    totalFare: booking.totalFare || booking.price,
+    rewardPointsRedeemed: booking.rewardPointsRedeemed,
+    discountPercentage: booking.discountPercentage,
+    discountAmount: booking.discountAmount,
+    finalFare: booking.finalFare || booking.price,
     paymentStatus: booking.paymentStatus,
     payment: undefined,
     status: booking.status === 'ongoing' ? 'in-progress' : (booking.status as 'confirmed' | 'completed' | 'cancelled'),
@@ -275,7 +283,7 @@ const MyBookings = () => {
   const handleCancelBooking = (booking: Booking) => {
     Alert.alert(
       'Cancel Booking',
-      `Are you sure you want to cancel booking ${booking.bookingId}?\n\nYou will receive a refund shortly, and reward points will be deducted.`,
+      `Are you sure you want to cancel booking ${booking.bookingId}?\n\nYour reward points will be deducted.`,
       [
         {
           text: 'Cancel Booking',
@@ -310,7 +318,7 @@ const MyBookings = () => {
                 'Success',
                 response.warning 
                   ? `Your booking has been cancelled.\n\n⚠️ ${response.warning}`
-                  : 'Your booking has been cancelled. Refund will be processed soon.'
+                  : 'Your booking has been cancelled.'
               );
               
               await fetchBookings(); // Refresh the list
@@ -326,88 +334,6 @@ const MyBookings = () => {
         { text: 'Keep Booking', style: 'cancel' },
       ]
     );
-  };
-
-  const formatTicketLine = (label: string, value?: string | number | boolean | null) => {
-    const safeValue = value === undefined || value === null || value === '' ? 'N/A' : String(value);
-    return `${label.padEnd(16, ' ')}: ${safeValue}`;
-  };
-
-  const getPaymentLabel = (booking: BookingResponse) => {
-    if (booking.paymentStatus || booking.payment?.status === 'paid') {
-      const method = booking.payment?.method ? ` via ${booking.payment.method}` : '';
-      return `PAID${method}`;
-    }
-
-    return 'UNPAID';
-  };
-
-  const getBookingFare = (booking: BookingResponse) => booking.finalFare || booking.totalFare;
-
-  const buildShareTicketMessage = (
-    booking: BookingResponse,
-    qrToken?: string,
-    qrAttached?: boolean
-  ) => {
-    const busLabel = booking.busNumber ? `Bus ${booking.busNumber}` : getBusLabel(booking.busId);
-    const routeLabel = `${booking.boardingStop.stopName} -> ${booking.destinationStop.stopName}`;
-    const generatedAt = new Date().toLocaleString();
-
-    return [
-      'HAMRO BUS E-TICKET',
-      'Official Boarding Pass',
-      '================================',
-      formatTicketLine('Booking ID', booking.bookingCode),
-      formatTicketLine('Status', booking.status.toUpperCase()),
-      formatTicketLine('Bus', busLabel),
-      formatTicketLine('Route', routeLabel),
-      formatTicketLine('From', booking.boardingStop.stopName),
-      formatTicketLine('To', booking.destinationStop.stopName),
-      formatTicketLine('Seats', booking.seatNumbers.join(', ')),
-      formatTicketLine('Seat Count', booking.seatCount),
-      formatTicketLine('Travel Date', formatDate(booking.serviceDate)),
-      formatTicketLine('Departure', booking.scheduleStartTime || 'As per schedule'),
-      formatTicketLine('Fare', `Rs. ${getBookingFare(booking)}`),
-      formatTicketLine('Payment', getPaymentLabel(booking)),
-      '--------------------------------',
-      'BOARDING VERIFICATION',
-      formatTicketLine('Token', booking.bookingCode),
-      formatTicketLine('QR Token', qrToken || 'Open ticket in Hamro Bus app'),
-      formatTicketLine('QR Image', qrAttached ? 'Included where supported' : 'Available inside Hamro Bus app'),
-      '--------------------------------',
-      'Show this ticket or scan the QR at boarding.',
-      'Valid only for the passenger, route, seats, and travel date shown above.',
-      `Generated: ${generatedAt}`,
-      '================================',
-      'Hamro Bus - Smart bus booking for Nepal',
-    ].join('\n');
-  };
-
-  const handleShareBookingAPI = async (booking: BookingResponse) => {
-    try {
-      let qrCodeDataUrl: string | undefined;
-      let qrToken: string | undefined;
-
-      // Reuse the existing QR endpoint so shared tickets match the in-app boarding QR.
-      try {
-        const qrData = await bookingService.getBookingQr(booking.id);
-        qrCodeDataUrl = qrData.qrCodeDataUrl || undefined;
-        qrToken = qrData.qrToken || undefined;
-      } catch (qrErr) {
-        console.warn('Share ticket QR unavailable:', qrErr);
-      }
-
-      const message = buildShareTicketMessage(booking, qrToken, Boolean(qrCodeDataUrl));
-
-      await Share.share({
-        message,
-        title: `Hamro Bus Ticket ${booking.bookingCode}`,
-        ...(qrCodeDataUrl ? { url: qrCodeDataUrl } : {}),
-      });
-    } catch (err) {
-      console.error('Share error:', err);
-      Alert.alert('Share Error', 'Unable to share this booking ticket right now.');
-    }
   };
 
   const handleCancelBookingAPI = (booking: BookingResponse) => {
@@ -717,7 +643,6 @@ const MyBookings = () => {
         booking={selectedBooking}
         cancelling={cancelling}
         onClose={() => setBookingDetailModal(false)}
-        onShare={handleShareBookingAPI}
         onCancel={handleCancelBookingAPI}
       />
 

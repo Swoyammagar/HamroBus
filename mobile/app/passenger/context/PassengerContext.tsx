@@ -50,6 +50,11 @@ export interface Booking {
   token: string;
   seatNumber: string;
   price: number;
+  totalFare?: number;
+  rewardPointsRedeemed?: boolean;
+  discountPercentage?: number;
+  discountAmount?: number;
+  finalFare?: number;
   paymentStatus?: boolean;
   bookingDate: string;
   travelDate: string;

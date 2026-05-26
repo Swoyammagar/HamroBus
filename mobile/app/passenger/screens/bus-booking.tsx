@@ -408,7 +408,12 @@ const BusBooking = () => {
     routeId: String(result.routeId),
     token: result.bookingCode,
     seatNumber: (result.seatNumbers || []).join(', '),
-    price: result.totalFare,
+    price: result.finalFare || result.totalFare,
+    totalFare: result.totalFare,
+    rewardPointsRedeemed: result.rewardPointsRedeemed,
+    discountPercentage: result.discountPercentage,
+    discountAmount: result.discountAmount,
+    finalFare: result.finalFare || result.totalFare,
     paymentStatus: Boolean(result.paymentStatus || result.payment?.status === 'paid'),
     bookingDate: result.createdAt,
     travelDate: result.serviceDate,
@@ -549,18 +554,11 @@ const BusBooking = () => {
   };
 
   const handleDownloadTicket = async () => {
-    Alert.alert('Success', 'Ticket will be downloaded as PDF');
-    // In a real app, you would generate a PDF here
+    // PDF generation is handled inside BookingSuccessTicket so the UI QR is reused.
   };
 
   const handleViewTicket = () => {
-    Alert.alert('Ticket', generatedBooking?.token, [
-      {
-        text: 'Download',
-        onPress: handleDownloadTicket,
-      },
-      { text: 'Close', style: 'cancel' },
-    ]);
+    // PDF sharing is handled inside BookingSuccessTicket.
   };
 
   if (!bus || !route) {

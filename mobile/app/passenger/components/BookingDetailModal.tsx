@@ -8,17 +8,19 @@ import {
   Modal,
   ActivityIndicator,
   Image,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../context/AuthContext';
 import { bookingService, type BookingResponse } from '../services/bookingService';
 import { formatDate } from '../utils/helpers';
+import { getTicketPriceBreakdown, shareTicketPdf } from '../utils/ticketPdf';
 
 type BookingDetailModalProps = {
   visible: boolean;
   booking: BookingResponse | null;
   cancelling: boolean;
   onClose: () => void;
-  onShare: (booking: BookingResponse) => void;
   onCancel: (booking: BookingResponse) => void;
 };
 
@@ -27,12 +29,19 @@ const BookingDetailModal = ({
   booking,
   cancelling,
   onClose,
-  onShare,
   onCancel,
 }: BookingDetailModalProps) => {
+  const { user } = useAuth();
   const [selectedBookingQr, setSelectedBookingQr] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
+  const [sharingPdf, setSharingPdf] = useState(false);
+  const priceBreakdown = booking ? getTicketPriceBreakdown(booking) : null;
+  const passenger = {
+    name: [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim(),
+    email: user?.email,
+    phoneNumber: user?.phoneNumber,
+  };
 
   useEffect(() => {
     const loadQr = async () => {
@@ -54,6 +63,23 @@ const BookingDetailModal = ({
 
     loadQr();
   }, [visible, booking?.id]);
+
+  const handleSharePdf = async () => {
+    if (!booking) return;
+    try {
+      setSharingPdf(true);
+      await shareTicketPdf({
+        booking,
+        bus: { busNumber: booking.busNumber },
+        passenger,
+        qrCodeDataUrl: selectedBookingQr,
+      });
+    } catch (err: any) {
+      Alert.alert('Share Error', err?.message || 'Unable to share ticket PDF right now.');
+    } finally {
+      setSharingPdf(false);
+    }
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
@@ -139,27 +165,27 @@ const BookingDetailModal = ({
                   <Text style={styles.detailValue}>Rs. {booking.farePerSeat}</Text>
                 </View>
 
-                {booking.rewardPointsRedeemed && (booking.discountAmount ?? 0) > 0 ? (
+                {priceBreakdown?.rewardApplied && priceBreakdown.discountAmount > 0 ? (
                   <>
                     <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Original Total</Text>
-                      <Text style={styles.detailValue}>Rs. {booking.totalFare}</Text>
+                      <Text style={styles.detailLabel}>Ticket Price</Text>
+                      <Text style={styles.detailValue}>Rs. {priceBreakdown.originalFare}</Text>
                     </View>
 
                     <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Reward Discount ({booking.discountPercentage}%)</Text>
-                      <Text style={[styles.detailValue, { color: '#10b981' }]}>-Rs. {booking.discountAmount}</Text>
+                      <Text style={styles.detailLabel}>Reward Discount{priceBreakdown.discountPercentage ? ` (${priceBreakdown.discountPercentage}%)` : ''}</Text>
+                      <Text style={[styles.detailValue, { color: '#10b981' }]}>-Rs. {priceBreakdown.discountAmount}</Text>
                     </View>
 
                     <View style={[styles.detailRow, styles.priceRow]}>
-                      <Text style={styles.detailLabelBold}>Final Price</Text>
-                      <Text style={styles.detailValueBold}>Rs. {booking.finalFare || booking.totalFare}</Text>
+                      <Text style={styles.detailLabelBold}>Final Paid</Text>
+                      <Text style={styles.detailValueBold}>Rs. {priceBreakdown.finalFare}</Text>
                     </View>
                   </>
                 ) : (
                   <View style={[styles.detailRow, styles.priceRow]}>
-                    <Text style={styles.detailLabelBold}>Total Price</Text>
-                    <Text style={styles.detailValueBold}>Rs. {booking.totalFare}</Text>
+                    <Text style={styles.detailLabelBold}>Final Paid</Text>
+                    <Text style={styles.detailValueBold}>Rs. {priceBreakdown?.finalFare || booking.totalFare}</Text>
                   </View>
                 )}
 
@@ -218,8 +244,12 @@ const BookingDetailModal = ({
 
               {booking.status === 'confirmed' && (
                 <>
-                  <TouchableOpacity style={styles.actionButton} onPress={() => onShare(booking)}>
-                    <Ionicons name="share-social" size={18} color="#ffffff" />
+                  <TouchableOpacity style={styles.actionButton} onPress={handleSharePdf} disabled={sharingPdf}>
+                    {sharingPdf ? (
+                      <ActivityIndicator color="#ffffff" size="small" />
+                    ) : (
+                      <Ionicons name="share-social" size={18} color="#ffffff" />
+                    )}
                     <Text style={styles.actionButtonText}>Share Booking</Text>
                   </TouchableOpacity>
 
@@ -241,8 +271,12 @@ const BookingDetailModal = ({
               )}
 
               {booking.status === 'completed' && (
-                <TouchableOpacity style={styles.actionButton} onPress={() => onShare(booking)}>
-                  <Ionicons name="share-social" size={18} color="#ffffff" />
+                <TouchableOpacity style={styles.actionButton} onPress={handleSharePdf} disabled={sharingPdf}>
+                  {sharingPdf ? (
+                    <ActivityIndicator color="#ffffff" size="small" />
+                  ) : (
+                    <Ionicons name="share-social" size={18} color="#ffffff" />
+                  )}
                   <Text style={styles.actionButtonText}>Share Receipt</Text>
                 </TouchableOpacity>
               )}

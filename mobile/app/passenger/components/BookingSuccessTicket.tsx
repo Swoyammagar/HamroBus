@@ -7,11 +7,14 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../context/AuthContext';
 import { type Booking, type Bus, type Route } from '../context/PassengerContext';
 import { bookingService } from '../services/bookingService';
 import { formatDate } from '../utils/helpers';
+import { downloadTicketPdf, getTicketPriceBreakdown, shareTicketPdf } from '../utils/ticketPdf';
 
 type BookingSuccessTicketProps = {
   bus: Bus;
@@ -30,9 +33,17 @@ const BookingSuccessTicket = ({
   onDownloadTicket,
   onShareTicket,
 }: BookingSuccessTicketProps) => {
+  const { user } = useAuth();
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState<'download' | 'share' | null>(null);
+  const priceBreakdown = getTicketPriceBreakdown(booking);
+  const passenger = {
+    name: [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim(),
+    email: user?.email,
+    phoneNumber: user?.phoneNumber,
+  };
 
   useEffect(() => {
     const loadQr = async () => {
@@ -54,6 +65,31 @@ const BookingSuccessTicket = ({
 
     loadQr();
   }, [booking?.id]);
+
+  const handleDownloadTicket = async () => {
+    try {
+      setPdfLoading('download');
+      const uri = await downloadTicketPdf({ booking, bus, route, passenger, qrCodeDataUrl });
+      onDownloadTicket();
+      Alert.alert('Ticket PDF Ready', `Your ticket PDF has been generated.${uri ? `\n\nFile: ${uri}` : ''}`);
+    } catch (err: any) {
+      Alert.alert('Download Error', err?.message || 'Unable to generate ticket PDF right now.');
+    } finally {
+      setPdfLoading(null);
+    }
+  };
+
+  const handleShareTicket = async () => {
+    try {
+      setPdfLoading('share');
+      await shareTicketPdf({ booking, bus, route, passenger, qrCodeDataUrl });
+      onShareTicket();
+    } catch (err: any) {
+      Alert.alert('Share Error', err?.message || 'Unable to share ticket PDF right now.');
+    } finally {
+      setPdfLoading(null);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -128,27 +164,27 @@ const BookingSuccessTicket = ({
 
               <View style={styles.ticketDivider} />
 
-              {(booking as any)?.rewardPointsRedeemed && (booking as any)?.discountAmount > 0 ? (
+              {priceBreakdown.rewardApplied && priceBreakdown.discountAmount > 0 ? (
                 <>
                   <View style={styles.ticketRow}>
-                    <Text style={styles.ticketLabel}>Original Total</Text>
-                    <Text style={styles.ticketValue}>Rs. {(booking as any)?.totalFare || booking.price}</Text>
+                    <Text style={styles.ticketLabel}>Ticket Price</Text>
+                    <Text style={styles.ticketValue}>Rs. {priceBreakdown.originalFare}</Text>
                   </View>
 
                   <View style={styles.ticketRow}>
-                    <Text style={styles.ticketLabel}>Reward Discount ({(booking as any)?.discountPercentage || 10}%)</Text>
-                    <Text style={[styles.ticketValue, { color: '#10b981' }]}>-Rs. {(booking as any)?.discountAmount}</Text>
+                    <Text style={styles.ticketLabel}>Reward Discount{priceBreakdown.discountPercentage ? ` (${priceBreakdown.discountPercentage}%)` : ''}</Text>
+                    <Text style={[styles.ticketValue, { color: '#10b981' }]}>-Rs. {priceBreakdown.discountAmount}</Text>
                   </View>
 
                   <View style={styles.ticketRow}>
-                    <Text style={styles.ticketLabelBold}>Final Price</Text>
-                    <Text style={[styles.ticketValue, styles.priceText]}>Rs. {(booking as any)?.finalFare || booking.price}</Text>
+                    <Text style={styles.ticketLabelBold}>Final Paid</Text>
+                    <Text style={[styles.ticketValue, styles.priceText]}>Rs. {priceBreakdown.finalFare}</Text>
                   </View>
                 </>
               ) : (
                 <View style={styles.ticketRow}>
-                  <Text style={styles.ticketLabelBold}>Total Price</Text>
-                  <Text style={[styles.ticketValue, styles.priceText]}>Rs. {booking.price}</Text>
+                  <Text style={styles.ticketLabelBold}>Final Paid</Text>
+                  <Text style={[styles.ticketValue, styles.priceText]}>Rs. {priceBreakdown.finalFare}</Text>
                 </View>
               )}
             </View>
@@ -173,13 +209,21 @@ const BookingSuccessTicket = ({
             </View>
           </View>
 
-          <TouchableOpacity style={styles.downloadButton} onPress={onDownloadTicket}>
-            <Ionicons name="download" size={20} color="#ffffff" />
+          <TouchableOpacity style={styles.downloadButton} onPress={handleDownloadTicket} disabled={Boolean(pdfLoading)}>
+            {pdfLoading === 'download' ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Ionicons name="download" size={20} color="#ffffff" />
+            )}
             <Text style={styles.downloadButtonText}>Download Ticket (PDF)</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.shareButton} onPress={onShareTicket}>
-            <Ionicons name="share-social" size={20} color="#3b82f6" />
+          <TouchableOpacity style={styles.shareButton} onPress={handleShareTicket} disabled={Boolean(pdfLoading)}>
+            {pdfLoading === 'share' ? (
+              <ActivityIndicator size="small" color="#3b82f6" />
+            ) : (
+              <Ionicons name="share-social" size={20} color="#3b82f6" />
+            )}
             <Text style={styles.shareButtonText}>Share Ticket</Text>
           </TouchableOpacity>
         </View>
