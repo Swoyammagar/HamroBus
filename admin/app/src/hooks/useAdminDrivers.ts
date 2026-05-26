@@ -113,6 +113,7 @@ axios.defaults.withCredentials = true;
 export const useAdminDrivers = () => {
   const [drivers, setDrivers] = useState<DriverRecord[]>([]);
   const [pendingDrivers, setPendingDrivers] = useState<DriverRecord[]>([]);
+  const [adminReviews, setAdminReviews] = useState<AdminReviewItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -272,10 +273,29 @@ export const useAdminDrivers = () => {
           withCredentials: true,
         }
       );
+      setAdminReviews(data?.reviews || []);
       return data;
     },
     []
   );
+
+  const deleteReview = useCallback(async (reviewId: string): Promise<ActionResult> => {
+    try {
+      const { data } = await axios.delete<{ success?: boolean; message?: string; deletedReviewId?: string }>(
+        `${API_BASE}/admin/reviews/${reviewId}`,
+        { withCredentials: true }
+      );
+
+      setAdminReviews((prev) => prev.filter((review) => review._id !== reviewId));
+      return {
+        success: data?.success !== false,
+        message: data?.message || 'Review deleted successfully',
+      };
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Unable to delete review';
+      return { success: false, message };
+    }
+  }, []);
 
   const getDriverLeaderboard = useCallback(
   async (options?: { limit?: number; skip?: number; minReviews?: number; mode?: 'bayesian' | 'average' }) => {
@@ -304,6 +324,7 @@ export const useAdminDrivers = () => {
   return {
     drivers,
     pendingDrivers,
+    adminReviews,
     loading,
     error,
     fetchAllDrivers,
@@ -314,6 +335,7 @@ export const useAdminDrivers = () => {
     getDriverReviews,
     getDriverReviewInsights,
     getAllReviews,
+    deleteReview,
     getDriverLeaderboard,
   };
 };

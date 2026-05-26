@@ -5,15 +5,17 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
+  TouchableOpacity,
   useWindowDimensions,
 } from 'react-native';
-import { Tabs, Card, StatusBadge, EmptyState, Button, SearchBar } from '../../components/ui';
+import { Feather } from '@expo/vector-icons';
+import { Tabs, Card, StatusBadge, EmptyState, Button, SearchBar, Modal } from '../../components/ui';
 import Pagination from '../../components/ui/Pagination';
 import { useDriver, type AdminReviewItem, type DriverLeaderboardRow } from '../../context/domains';
 
 const Analytics = () => {
   const { width } = useWindowDimensions();
-  const { getAllReviews, getDriverLeaderboard } = useDriver();
+  const { getAllReviews, getDriverLeaderboard, deleteReview } = useDriver();
 
   const [activeTab, setActiveTab] = useState<'reviews' | 'leaderboard'>('reviews');
   const [reviews, setReviews] = useState<AdminReviewItem[]>([]);
@@ -25,8 +27,12 @@ const Analytics = () => {
   const [globalAverage, setGlobalAverage] = useState<number>(0);
   const [leaderboardTotal, setLeaderboardTotal] = useState<number>(0);
   const [reviewQuery, setReviewQuery] = useState('');
+  const [ratingFilter, setRatingFilter] = useState<'all' | 1 | 2 | 3 | 4 | 5>('all');
   const [reviewPage, setReviewPage] = useState(1);
   const [leaderPage, setLeaderPage] = useState(1);
+  const [selectedReview, setSelectedReview] = useState<AdminReviewItem | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const REVIEWS_PER_PAGE = 12;
   const LEADERS_PER_PAGE = 10;
   const isWide = width >= 900;
@@ -104,17 +110,42 @@ const Analytics = () => {
     return `${'★'.repeat(filled)}${'☆'.repeat(5 - filled)}`;
   };
 
+  const ratingOptions: Array<{ label: string; value: 'all' | 1 | 2 | 3 | 4 | 5 }> = [
+    { label: 'All', value: 'all' },
+    { label: '★★★★★', value: 5 },
+    { label: '★★★★', value: 4 },
+    { label: '★★★', value: 3 },
+    { label: '★★', value: 2 },
+    { label: '★', value: 1 },
+  ];
+
+  const handleDeleteConfirm = async (id: string) => {
+    setConfirmDeleteId(null);
+    setDeletingId(id);
+    const result = await deleteReview(id);
+    if (result.success) {
+      setReviews((prev) => prev.filter((review) => review._id !== id));
+      setSelectedReview((prev) => (prev?._id === id ? null : prev));
+    } else {
+      setReviewsError(result.message);
+    }
+    setDeletingId(null);
+  };
+
   const filteredReviews = useMemo(() => {
     const q = reviewQuery.trim().toLowerCase();
-    if (!q) return reviews;
     return reviews.filter((review) => {
+      if (ratingFilter !== 'all' && Math.round(review.rating) !== ratingFilter) return false;
+      if (!q) return true;
       const driver = review.driverId && typeof review.driverId !== 'string' ? review.driverId : null;
       return (
         getDriverName(driver).toLowerCase().includes(q) ||
-        getBusNumber(review).toLowerCase().includes(q)
+        getBusNumber(review).toLowerCase().includes(q) ||
+        getPassengerName(review).toLowerCase().includes(q) ||
+        (review.comment || '').toLowerCase().includes(q)
       );
     });
-  }, [reviewQuery, reviews]);
+  }, [reviewQuery, ratingFilter, reviews]);
 
   // Pagination slices
   const reviewTotalPages = Math.ceil(filteredReviews.length / REVIEWS_PER_PAGE);
@@ -171,11 +202,37 @@ const Analytics = () => {
           <SearchBar
             value={reviewQuery}
             onChangeText={(v) => { setReviewQuery(v); setReviewPage(1); }}
-            placeholder="Search by driver name or bus number"
+            placeholder="Search by driver, passenger, bus or feedback"
             onClear={() => { setReviewQuery(''); setReviewPage(1); }}
             showRefresh
             onRefresh={loadReviews}
           />
+
+          <View style={styles.filterRow}>
+            {ratingOptions.map((option) => (
+              <TouchableOpacity
+                key={String(option.value)}
+                onPress={() => {
+                  setRatingFilter(option.value);
+                  setReviewPage(1);
+                }}
+                style={[
+                  styles.ratingFilterBtn,
+                  ratingFilter === option.value && styles.ratingFilterBtnActive,
+                ]}
+                activeOpacity={0.75}
+              >
+                <Text
+                  style={[
+                    styles.ratingFilterText,
+                    ratingFilter === option.value && styles.ratingFilterTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           {reviewsLoading ? (
             <View style={styles.centerState}>
@@ -198,10 +255,33 @@ const Analytics = () => {
                   const busNumber = getBusNumber(review);
                   const reviewCardStyle = isWide ? styles.reviewCardWide : styles.reviewCard;
                   return (
-                    <Card key={review._id} padding="sm" style={reviewCardStyle}>
+                    <TouchableOpacity
+                      key={review._id}
+                      onPress={() => setSelectedReview(review)}
+                      activeOpacity={0.85}
+                      style={reviewCardStyle}
+                    >
+                    <Card padding="sm" style={styles.reviewCardInner}>
                       <View style={styles.reviewCardTop}>
                         <StatusBadge label={`⭐ ${review.rating.toFixed(1)}`} variant="success" />
-                        <Text style={styles.reviewDate}>{formatDate(review.reviewedAt || review.createdAt)}</Text>
+                        <View style={styles.reviewTopActions}>
+                          <Text style={styles.reviewDate}>{formatDate(review.reviewedAt || review.createdAt)}</Text>
+                          <TouchableOpacity
+                            onPress={(event: any) => {
+                              event?.stopPropagation?.();
+                              setConfirmDeleteId(review._id);
+                            }}
+                            style={styles.deleteBtn}
+                            disabled={deletingId === review._id}
+                            activeOpacity={0.7}
+                          >
+                            {deletingId === review._id ? (
+                              <ActivityIndicator size="small" color="#ef4444" />
+                            ) : (
+                              <Feather name="trash-2" size={15} color="#ef4444" />
+                            )}
+                          </TouchableOpacity>
+                        </View>
                       </View>
                       <Text style={styles.reviewDriver}>{getDriverName(driver)}</Text>
                       <Text style={styles.reviewMeta} numberOfLines={1}>
@@ -219,6 +299,7 @@ const Analytics = () => {
                         <Text style={styles.starText}>{renderStars(review.rating)}</Text>
                       </View>
                     </Card>
+                    </TouchableOpacity>
                   );
                 })}
               </ScrollView>
@@ -335,6 +416,83 @@ const Analytics = () => {
           )}
         </View>
       )}
+
+      <Modal
+        visible={!!selectedReview}
+        onClose={() => setSelectedReview(null)}
+        title="Review Details"
+        size="sm"
+        containerStyle={styles.detailModal}
+      >
+        {selectedReview ? (
+          <View style={styles.detailContent}>
+            <View style={styles.detailTopRow}>
+              <StatusBadge label={`★ ${selectedReview.rating.toFixed(1)}`} variant="success" />
+              <Text style={styles.reviewDate}>
+                {formatDate(selectedReview.reviewedAt || selectedReview.createdAt)}
+              </Text>
+            </View>
+            <View style={styles.detailBlock}>
+              <Text style={styles.detailLabel}>Driver</Text>
+              <Text style={styles.detailValue}>
+                {getDriverName(selectedReview.driverId && typeof selectedReview.driverId !== 'string' ? selectedReview.driverId : null)}
+              </Text>
+            </View>
+            <View style={styles.detailBlock}>
+              <Text style={styles.detailLabel}>Passenger</Text>
+              <Text style={styles.detailValue}>{getPassengerName(selectedReview)}</Text>
+            </View>
+            <View style={styles.detailMetaGrid}>
+              <View style={styles.detailMetaBox}>
+                <Text style={styles.detailLabel}>Bus</Text>
+                <Text style={styles.detailValue}>{getBusNumber(selectedReview)}</Text>
+              </View>
+              <View style={styles.detailMetaBox}>
+                <Text style={styles.detailLabel}>Booking</Text>
+                <Text style={styles.detailValue}>
+                  {selectedReview.bookingId && typeof selectedReview.bookingId !== 'string'
+                    ? selectedReview.bookingId.bookingCode || '-'
+                    : '-'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.detailBlock}>
+              <Text style={styles.detailLabel}>Feedback</Text>
+              <Text style={styles.detailFeedback}>
+                {selectedReview.comment?.trim() || 'No comment provided.'}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+      </Modal>
+
+      {confirmDeleteId && (
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmCard}>
+            <View style={styles.confirmIconWrap}>
+              <Feather name="trash-2" size={24} color="#ef4444" />
+            </View>
+            <Text style={styles.confirmTitle}>Delete Review?</Text>
+            <Text style={styles.confirmSub}>
+              This action cannot be undone. The review will be permanently removed.
+            </Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                onPress={() => setConfirmDeleteId(null)}
+                style={styles.confirmCancel}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleDeleteConfirm(confirmDeleteId)}
+                style={styles.confirmDelete}
+              >
+                <Text style={styles.confirmDeleteText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
@@ -385,6 +543,27 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sectionSub: { fontSize: 13, color: '#6b7280' },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  ratingFilterBtn: {
+    minHeight: 34,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ratingFilterBtnActive: {
+    backgroundColor: '#0f766e',
+    borderColor: '#0f766e',
+  },
+  ratingFilterText: { fontSize: 12, color: '#92400e', fontWeight: '800' },
+  ratingFilterTextActive: { color: '#ffffff' },
   centerState: {
     flex: 1,
     alignItems: 'center',
@@ -397,16 +576,13 @@ const styles = StyleSheet.create({
   reviewCard: {
     flexBasis: '100%',
     flexGrow: 1,
-    borderRadius: 14,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderLeftWidth: 4,
-    borderLeftColor: '#0ea5e9',
   },
   reviewCardWide: {
     flexBasis: '49%',
     flexGrow: 1,
+  },
+  reviewCardInner: {
+    flex: 1,
     borderRadius: 14,
     backgroundColor: '#ffffff',
     borderWidth: 1,
@@ -421,6 +597,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 8,
   },
+  reviewTopActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   reviewDate: { fontSize: 11, color: '#6b7280', fontWeight: '600' },
   reviewDriver: { fontSize: 15, fontWeight: '800', color: '#111827' },
   reviewMeta: { marginTop: 4, color: '#6b7280', fontSize: 11 },
@@ -433,6 +610,115 @@ const styles = StyleSheet.create({
   },
   reviewFooterText: { fontSize: 11, color: '#64748b', fontWeight: '600' },
   starText: { color: '#b45309', fontWeight: '800', fontSize: 12, letterSpacing: 0.3 },
+  deleteBtn: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  detailModal: {
+    maxHeight: '75%',
+  },
+  detailContent: { gap: 14 },
+  detailTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  detailBlock: { gap: 5 },
+  detailLabel: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  detailValue: { fontSize: 14, color: '#111827', fontWeight: '700' },
+  detailFeedback: { fontSize: 14, color: '#374151', lineHeight: 21 },
+  detailMetaGrid: { flexDirection: 'row', gap: 10 },
+  detailMetaBox: {
+    flex: 1,
+    gap: 5,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  confirmOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15,23,42,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  confirmCard: {
+    width: '82%',
+    maxWidth: 420,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
+  confirmIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  confirmSub: {
+    fontSize: 13,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+    width: '100%',
+  },
+  confirmCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  confirmCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  confirmDelete: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+  },
+  confirmDeleteText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
   leaderCard: {
     flexBasis: '49%',
     flexGrow: 1,

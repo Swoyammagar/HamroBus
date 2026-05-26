@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Platform, Pressable } from 'react-native';
-import { Tabs, SearchBar, Button, Input, StatusBadge } from '../../components/ui';
+import { Tabs, SearchBar, Button, Input, StatusBadge, FeedbackModal } from '../../components/ui';
 import { useRoute, type DayOfWeek, type RouteRecord } from '../../context/domains';
 import WebMap from './Maps/WebMap';
 import AddMap from './Maps/AddMap';
@@ -32,6 +32,7 @@ const RoutesPage: React.FC = () => {
   const [operatingDays, setOperatingDays] = useState<DayOfWeek[]>([]);
   const [newStops, setNewStops] = useState<Array<{ stopName: string; latitude: number; longitude: number; sequence: number }>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info' | 'warning'; title?: string; message: string } | null>(null);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -306,8 +307,7 @@ const RoutesPage: React.FC = () => {
                   disabled={isSubmitting || !newName || !newNumber || !source || !destination || !distance || !operatingDays.length || !newStops.length}
                   onPress={async () => {
                     if (!newName || !newNumber || !source || !destination || !distance || !operatingDays.length || !newStops.length) {
-                      // @ts-ignore
-                      alert('Please fill in all required fields and add at least one stop');
+                      setFeedback({ type: 'warning', title: 'Missing Details', message: 'Please fill in all required fields and add at least one stop.' });
                       return;
                     }
                     setIsSubmitting(true);
@@ -327,18 +327,15 @@ const RoutesPage: React.FC = () => {
                       };
                       const result = await createRoute(payload);
                       if (result.success) {
-                        // @ts-ignore
-                        alert('Route created successfully!');
                         resetForm();
                         setActiveTab('all');
+                        setFeedback({ type: 'success', title: 'Route Added', message: result.message || 'Route created successfully.' });
                       } else {
-                        // @ts-ignore
-                        alert(`Error: ${result.message}`);
+                        setFeedback({ type: 'error', title: 'Add Failed', message: result.message || 'Unable to create route.' });
                       }
                     } catch (error) {
                       console.error('Error creating route:', error);
-                      // @ts-ignore
-                      alert('Failed to create route. Please try again.');
+                      setFeedback({ type: 'error', title: 'Add Failed', message: 'Failed to create route. Please try again.' });
                     } finally {
                       setIsSubmitting(false);
                     }
@@ -394,6 +391,7 @@ const RoutesPage: React.FC = () => {
           setShowDetailModal(false);
           setConfirmDeleteId(id);
         }}
+        onFeedback={setFeedback}
       />
 
       {/* ← NEW: Delete Confirmation Overlay */}
@@ -418,9 +416,14 @@ const RoutesPage: React.FC = () => {
                 onPress={async () => {
                   const id = confirmDeleteId;
                   setConfirmDeleteId(null);
-                  await deleteRoute(id);
-                  setEditingRoute(null);
-                  fetchAllRoutes();
+                  const result = await deleteRoute(id);
+                  if (result.success) {
+                    setEditingRoute(null);
+                    fetchAllRoutes();
+                    setFeedback({ type: 'success', title: 'Route Deleted', message: result.message || 'Route deleted successfully.' });
+                  } else {
+                    setFeedback({ type: 'error', title: 'Delete Failed', message: result.message || 'Unable to delete route.' });
+                  }
                 }}
                 style={styles.confirmDelete}
               >
@@ -430,6 +433,13 @@ const RoutesPage: React.FC = () => {
           </View>
         </View>
       )}
+      <FeedbackModal
+        visible={!!feedback}
+        type={feedback?.type}
+        title={feedback?.title}
+        message={feedback?.message || ''}
+        onClose={() => setFeedback(null)}
+      />
     </View>
   );
 };

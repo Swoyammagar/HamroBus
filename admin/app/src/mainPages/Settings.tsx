@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useChangePassword } from '../hooks/useChangePassword';
 import { useAdminProfile } from '../hooks/useAdminProfile';
 import { useAuth } from '../../context/AuthContext';
+import { FeedbackModal } from '../../components/ui';
 
 type SettingsProps = {
   onOpenLegal?: () => void;
@@ -22,6 +23,7 @@ const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info' | 'warning'; title?: string; message: string } | null>(null);
 
   const { changePassword, loading, error, success, reset } = useChangePassword();
   const {
@@ -56,17 +58,11 @@ const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
 
     if (result.success) {
       await validateToken();
-      Alert.alert('Success', result.message, [
-        {
-          text: 'OK',
-          onPress: () => {
-            setShowProfileForm(false);
-            resetProfile();
-          },
-        },
-      ]);
+      setShowProfileForm(false);
+      resetProfile();
+      setFeedback({ type: 'success', title: 'Profile Updated', message: result.message });
     } else {
-      Alert.alert('Error', result.message);
+      setFeedback({ type: 'error', title: 'Update Failed', message: result.message });
     }
   };
 
@@ -78,25 +74,20 @@ const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
     });
 
     if (result.success) {
-      Alert.alert('Success', result.message, [
-        {
-          text: 'OK',
-          onPress: () => {
-            setShowPasswordForm(false);
-            setCurrentPassword('');
-            setNewPassword('');
-            setConfirmPassword('');
-            reset();
-          },
-        },
-      ]);
+      setShowPasswordForm(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      reset();
+      setFeedback({ type: 'success', title: 'Password Changed', message: result.message });
     } else {
-      Alert.alert('Error', result.message);
+      setFeedback({ type: 'error', title: 'Password Change Failed', message: result.message });
     }
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
+    <ScrollView style={styles.scrollContainer}>
       {/* Profile Update Section */}
       <View style={styles.section}>
         <Pressable
@@ -369,6 +360,14 @@ const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
         </Pressable>
       </View>
     </ScrollView>
+      <FeedbackModal
+        visible={!!feedback}
+        type={feedback?.type}
+        title={feedback?.title}
+        message={feedback?.message || ''}
+        onClose={() => setFeedback(null)}
+      />
+    </View>
   );
 };
 
@@ -376,6 +375,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9fafb',
+  },
+  scrollContainer: {
+    flex: 1,
   },
   header: {
     padding: 20,

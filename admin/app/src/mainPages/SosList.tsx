@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Image, ScrollView } from 'react-native';
 import axios from 'axios';
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
-import { Modal, Button, EmptyState, StatusBadge } from '../../components/ui';
+import { Modal, Button, EmptyState, StatusBadge, FeedbackModal } from '../../components/ui';
 import Pagination from '../../components/ui/Pagination';
 
 const SosList = () => {
@@ -11,6 +11,7 @@ const SosList = () => {
   const [selected, setSelected] = useState<any | null>(null);
   const [mapVisible, setMapVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info' | 'warning'; title?: string; message: string } | null>(null);
   const ITEMS_PER_PAGE = 8;
 
   const fetchSos = async () => {
@@ -25,7 +26,7 @@ const SosList = () => {
       }
     } catch (err: any) {
       console.error('Failed to load SOS list', err);
-      Alert.alert('Error', err?.response?.data?.message || 'Failed to load SOS list');
+      setFeedback({ type: 'error', title: 'Load Failed', message: err?.response?.data?.message || 'Failed to load SOS list.' });
     } finally {
       setLoading(false);
     }
@@ -152,6 +153,13 @@ const SosList = () => {
           )}
         </View>
       </Modal>
+      <FeedbackModal
+        visible={!!feedback}
+        type={feedback?.type}
+        title={feedback?.title}
+        message={feedback?.message || ''}
+        onClose={() => setFeedback(null)}
+      />
     </View>
   );
 };

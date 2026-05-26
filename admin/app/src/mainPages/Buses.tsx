@@ -11,6 +11,7 @@ import {
   Picker,
   Modal,
   StatusBadge,
+  FeedbackModal,
   type TableColumn,
   type PickerOption,
 } from '../../components/ui';
@@ -42,6 +43,9 @@ const Buses: React.FC = () => {
   const [editFields, setEditFields] = useState<Partial<Bus>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmRouteChange, setConfirmRouteChange] = useState(false);
+  const [pendingEditPayload, setPendingEditPayload] = useState<any | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info' | 'warning'; title?: string; message: string } | null>(null);
 
   const [addFields, setAddFields] = useState<Partial<Bus>>({
     busNumber: '',
@@ -156,7 +160,27 @@ const Buses: React.FC = () => {
     setIsSubmitting(true);
     const result = await deleteBus(busId);
     setIsSubmitting(false);
-    if (!result.success) alert(`Error: ${result.message}`);
+    setFeedback({
+      type: result.success ? 'success' : 'error',
+      title: result.success ? 'Bus Deleted' : 'Delete Failed',
+      message: result.message,
+    });
+  };
+
+  const submitBusEdit = async (payload: any) => {
+    if (!editingBus?._id) return;
+    setIsSubmitting(true);
+    const result = await updateBus(editingBus._id, payload);
+    setIsSubmitting(false);
+
+    if (result.success) {
+      setModalVisible(false);
+      setEditingBus(null);
+      setEditFields({});
+      setFeedback({ type: 'success', title: 'Bus Updated', message: result.message });
+    } else {
+      setFeedback({ type: 'error', title: 'Update Failed', message: result.message });
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -183,26 +207,17 @@ const Buses: React.FC = () => {
     const originalRouteId = getIdValue(editingBus.assignedRouteId);
     const newRouteId = routeId !== undefined ? routeId : originalRouteId;
     if (originalRouteId !== newRouteId) {
-      const confirmChange = confirm("Are you sure? The assigned schedule needs to be changed manually.");
-      if (!confirmChange) return;
+      setPendingEditPayload(updatePayload);
+      setConfirmRouteChange(true);
+      return;
     }
 
-    setIsSubmitting(true);
-    const result = await updateBus(editingBus._id, updatePayload);
-    setIsSubmitting(false);
-
-    if (result.success) {
-      setModalVisible(false);
-      setEditingBus(null);
-      setEditFields({});
-    } else {
-      alert(`Error: ${result.message}`);
-    }
+    await submitBusEdit(updatePayload);
   };
 
   const handleAddBus = async () => {
     if (!addFields.busNumber || !addFields.model || !addFields.capacity) {
-      alert('Please fill in all required fields');
+      setFeedback({ type: 'warning', title: 'Missing Details', message: 'Please fill in all required fields.' });
       return;
     }
     const driverId = getIdValue(addFields.assignedDriverId);
@@ -216,8 +231,13 @@ const Buses: React.FC = () => {
       assignedRouteId: routeId || undefined,
     });
     setIsSubmitting(false);
-    if (result.success) { resetAddForm(); setActiveTab('all'); }
-    else alert(`Error: ${result.message}`);
+    if (result.success) {
+      resetAddForm();
+      setActiveTab('all');
+      setFeedback({ type: 'success', title: 'Bus Added', message: result.message });
+    } else {
+      setFeedback({ type: 'error', title: 'Add Failed', message: result.message });
+    }
   };
 
   const resetAddForm = () => {
@@ -312,6 +332,48 @@ const Buses: React.FC = () => {
           </View>
         </View>
       )}
+
+      {confirmRouteChange && (
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmCard}>
+            <View style={styles.warningIconWrap}>
+              <Feather name="alert-triangle" size={24} color="#d97706" />
+            </View>
+            <Text style={styles.confirmTitle}>Change Assigned Route?</Text>
+            <Text style={styles.confirmSub}>Assigned schedules need to be changed manually after this update.</Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                onPress={() => {
+                  setConfirmRouteChange(false);
+                  setPendingEditPayload(null);
+                }}
+                style={styles.confirmCancel}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  const payload = pendingEditPayload;
+                  setConfirmRouteChange(false);
+                  setPendingEditPayload(null);
+                  submitBusEdit(payload);
+                }}
+                style={styles.confirmProceed}
+              >
+                <Text style={styles.confirmDeleteText}>Continue</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
+      <FeedbackModal
+        visible={!!feedback}
+        type={feedback?.type}
+        title={feedback?.title}
+        message={feedback?.message || ''}
+        onClose={() => setFeedback(null)}
+      />
     </View>
   );
 };
@@ -331,7 +393,9 @@ const styles = StyleSheet.create({
   confirmCancel: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#f1f5f9', alignItems: 'center' },
   confirmCancelText: { fontSize: 14, fontWeight: '600', color: '#334155' },
   confirmDelete: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#ef4444', alignItems: 'center' },
+  confirmProceed: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#0f766e', alignItems: 'center' },
   confirmDeleteText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  warningIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#fef3c7', borderWidth: 1, borderColor: '#fde68a', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
 });
 
 export { Buses };

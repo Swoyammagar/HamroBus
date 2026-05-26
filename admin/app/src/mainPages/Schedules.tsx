@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { Tabs, SearchBar, Table, Modal, Picker, Button, Input, type TableColumn } from '../../components/ui';
+import { Tabs, SearchBar, Table, Modal, Picker, Button, Input, FeedbackModal, type TableColumn } from '../../components/ui';
 import Pagination from '../../components/ui/Pagination';
 import {
   useRoute,
@@ -44,6 +44,7 @@ const Schedules: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info' | 'warning'; title?: string; message: string } | null>(null);
 
   interface ScheduleFormFields {
     dayOfWeek?: DayOfWeek;
@@ -249,22 +250,23 @@ const Schedules: React.FC = () => {
       if (result.success) {
         const route = routes.find(r => r._id === selectedRouteId);
         if (route?.schedules) setSchedules(route.schedules);
+        setFeedback({ type: 'success', title: 'Schedule Deleted', message: result.message || 'Schedule deleted successfully.' });
       } else {
-        alert(`Error: ${result.message}`);
+        setFeedback({ type: 'error', title: 'Delete Failed', message: result.message || 'Unable to delete schedule.' });
       }
     } catch (error) {
-      alert('Failed to delete schedule');
+      setFeedback({ type: 'error', title: 'Delete Failed', message: 'Failed to delete schedule.' });
     }
   };
 
   const handleSaveEdit = async () => {
     if (!editingSchedule || !selectedRouteId) return;
     if (!editFields.dayOfWeek || !editFields.busId || !editFields.startTime || !editFields.endTime) {
-      alert('Please fill all required fields');
+      setFeedback({ type: 'warning', title: 'Missing Details', message: 'Please fill all required fields.' });
       return;
     }
     if (!editFields.driverId) {
-      alert('Selected bus must have an assigned driver');
+      setFeedback({ type: 'warning', title: 'Driver Required', message: 'Selected bus must have an assigned driver.' });
       return;
     }
     setIsSubmitting(true);
@@ -284,24 +286,25 @@ const Schedules: React.FC = () => {
         setModalVisible(false);
         setEditingSchedule(null);
         setEditFields({});
+        setFeedback({ type: 'success', title: 'Schedule Updated', message: result.message || 'Schedule updated successfully.' });
       } else {
-        alert(`Error: ${result.message}`);
+        setFeedback({ type: 'error', title: 'Update Failed', message: result.message || 'Unable to update schedule.' });
       }
     } catch (error) {
-      alert('Failed to update schedule');
+      setFeedback({ type: 'error', title: 'Update Failed', message: 'Failed to update schedule.' });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleAddSchedule = async () => {
-    if (!selectedRouteId) { alert('Please select a route first'); return; }
-    if (busOptions.length === 0) { alert('No buses are assigned to this route.'); return; }
+    if (!selectedRouteId) { setFeedback({ type: 'warning', title: 'Route Required', message: 'Please select a route first.' }); return; }
+    if (busOptions.length === 0) { setFeedback({ type: 'warning', title: 'No Buses Assigned', message: 'No buses are assigned to this route.' }); return; }
     if (!editFields.dayOfWeek || !editFields.busId || !editFields.startTime || !editFields.endTime) {
-      alert('Please fill all required fields');
+      setFeedback({ type: 'warning', title: 'Missing Details', message: 'Please fill all required fields.' });
       return;
     }
-    if (!editFields.driverId) { alert('Selected bus must have an assigned driver'); return; }
+    if (!editFields.driverId) { setFeedback({ type: 'warning', title: 'Driver Required', message: 'Selected bus must have an assigned driver.' }); return; }
     setIsSubmitting(true);
     try {
       const result = await addSchedule(selectedRouteId, {
@@ -318,11 +321,12 @@ const Schedules: React.FC = () => {
         if (route?.schedules) setSchedules(route.schedules);
         setEditFields({});
         setActiveTab('all');
+        setFeedback({ type: 'success', title: 'Schedule Added', message: result.message || 'Schedule added successfully.' });
       } else {
-        alert(`Error: ${result.message}`);
+        setFeedback({ type: 'error', title: 'Add Failed', message: result.message || 'Unable to add schedule.' });
       }
     } catch (error) {
-      alert('Failed to add schedule');
+      setFeedback({ type: 'error', title: 'Add Failed', message: 'Failed to add schedule.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -550,6 +554,13 @@ const Schedules: React.FC = () => {
           </View>
         </ScrollView>
       )}
+      <FeedbackModal
+        visible={!!feedback}
+        type={feedback?.type}
+        title={feedback?.title}
+        message={feedback?.message || ''}
+        onClose={() => setFeedback(null)}
+      />
     </View>
   );
 };

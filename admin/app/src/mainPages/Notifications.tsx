@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Alert,
   Platform,
   ActivityIndicator,
   RefreshControl,
@@ -11,7 +10,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Picker as RNPicker } from '@react-native-picker/picker';
-import { Table, Modal, Input, Button, EmptyState, type TableColumn } from '../../components/ui';
+import { Table, Modal, Input, Button, EmptyState, FeedbackModal, type TableColumn } from '../../components/ui';
 import {
   useNotification,
   type NotificationAudience,
@@ -48,6 +47,7 @@ const Notifications = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [confirmDeleteItem, setConfirmDeleteItem] = useState<NotificationRecord | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info' | 'warning'; title?: string; message: string } | null>(null);
   const ITEMS_PER_PAGE = 10;
 
   const onRefresh = async () => {
@@ -98,13 +98,13 @@ const Notifications = () => {
     };
 
     if (!payload.title || !payload.message) {
-      Alert.alert('Validation', 'Please fill both title and message.');
+      setFeedback({ type: 'warning', title: 'Missing Details', message: 'Please fill both title and message.' });
       return;
     }
 
     const result = await sendNotification(payload);
     if (!result.success) {
-      Alert.alert('Failed', result.message);
+      setFeedback({ type: 'error', title: 'Send Failed', message: result.message });
       return;
     }
 
@@ -114,19 +114,21 @@ const Notifications = () => {
     setType('info');
     setSeverity('medium');
     setModalVisible(false);
-    Alert.alert('Success', result.message);
+    setFeedback({ type: 'success', title: 'Notification Sent', message: result.message });
   };
 
  const handleDeleteConfirmed = async (item: NotificationRecord) => {
   const deleteId = item._id || item.notificationId;
   if (!deleteId) {
-    Alert.alert('Failed', 'Notification id is missing.');
+    setFeedback({ type: 'error', title: 'Delete Failed', message: 'Notification id is missing.' });
     return;
   }
   const result = await deleteNotification(deleteId);
   setConfirmDeleteItem(null);
   if (!result.success) {
-    Alert.alert('Failed', result.message);
+    setFeedback({ type: 'error', title: 'Delete Failed', message: result.message });
+  } else {
+    setFeedback({ type: 'success', title: 'Notification Deleted', message: result.message });
   }
 };
 
@@ -443,6 +445,13 @@ const Notifications = () => {
           </View>
         </View>
       )}
+      <FeedbackModal
+        visible={!!feedback}
+        type={feedback?.type}
+        title={feedback?.title}
+        message={feedback?.message || ''}
+        onClose={() => setFeedback(null)}
+      />
     </View>
   );
 };

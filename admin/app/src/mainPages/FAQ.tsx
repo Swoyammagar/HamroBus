@@ -15,6 +15,7 @@ import { Feather } from "@expo/vector-icons";
 import { useAdminFAQs, type FAQRecord, type FAQRole } from "../../context/domains";
 import { Tabs } from "@/app/components/ui/Tabs";
 import Pagination from "@/app/components/ui/Pagination";
+import { Modal } from "@/app/components/ui/Modal";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -50,8 +51,9 @@ const FAQCard: React.FC<{
   faq: FAQRecord;
   index: number;
   onDelete: (id: string) => void;
+  onOpen: (faq: FAQRecord) => void;
   deleting: boolean;
-}> = ({ faq, index, onDelete, deleting }) => {
+}> = ({ faq, index, onDelete, onOpen, deleting }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(18)).current;
 
@@ -98,7 +100,11 @@ const FAQCard: React.FC<{
       {/* Left accent bar */}
       <View style={[styles.cardAccent, { backgroundColor: roleColor }]} />
 
-      <View style={styles.cardBody}>
+      <TouchableOpacity
+        style={styles.cardBody}
+        onPress={() => onOpen(faq)}
+        activeOpacity={0.85}
+      >
         {/* Top row */}
         <View style={styles.cardTopRow}>
           <View style={[styles.roleTag, { backgroundColor: `${roleColor}18`, borderColor: `${roleColor}40` }]}>
@@ -149,7 +155,10 @@ const FAQCard: React.FC<{
           </View>
 
           <TouchableOpacity
-            onPress={() => faq._id && onDelete(faq._id)}
+            onPress={(event: any) => {
+              event?.stopPropagation?.();
+              if (faq._id) onDelete(faq._id);
+            }}
             style={styles.deleteBtn}
             disabled={deleting}
             activeOpacity={0.7}
@@ -161,7 +170,7 @@ const FAQCard: React.FC<{
             )}
           </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     </Animated.View>
   );
 };
@@ -201,10 +210,22 @@ const FAQsPage: React.FC = () => {
   const [query, setQuery] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [selectedFAQ, setSelectedFAQ] = useState<FAQRecord | null>(null);
 
   // Counts per role for pill badges
   const driverCount = faqs.filter((f) => f.role === "driver").length;
   const passengerCount = faqs.filter((f) => f.role === "passenger").length;
+
+  const formatDetailDate = (dateStr?: string) => {
+    if (!dateStr) return "—";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
 
   // Refetch on screen focus
   useFocusEffect(
@@ -343,6 +364,7 @@ const FAQsPage: React.FC = () => {
                   faq={faq}
                   index={i}
                   onDelete={(id) => setConfirmDeleteId(id)}
+                  onOpen={setSelectedFAQ}
                   deleting={deletingId === faq._id}
                 />
               ))}
@@ -388,6 +410,57 @@ const FAQsPage: React.FC = () => {
           </View>
         </View>
       )}
+
+      <Modal
+        visible={!!selectedFAQ}
+        onClose={() => setSelectedFAQ(null)}
+        title={selectedFAQ?.title || "FAQ Details"}
+        size="sm"
+        containerStyle={styles.detailModal}
+      >
+        {selectedFAQ ? (
+          <View style={styles.detailContent}>
+            <View style={styles.detailTopRow}>
+              <View
+                style={[
+                  styles.roleTag,
+                  {
+                    backgroundColor: `${selectedFAQ.role === "driver" ? "#0d9488" : "#7c3aed"}18`,
+                    borderColor: `${selectedFAQ.role === "driver" ? "#0d9488" : "#7c3aed"}40`,
+                  },
+                ]}
+              >
+                <Feather
+                  name={selectedFAQ.role === "driver" ? "truck" : "user"}
+                  size={11}
+                  color={selectedFAQ.role === "driver" ? "#0d9488" : "#7c3aed"}
+                />
+                <Text
+                  style={[
+                    styles.roleTagText,
+                    { color: selectedFAQ.role === "driver" ? "#0d9488" : "#7c3aed" },
+                  ]}
+                >
+                  {selectedFAQ.role === "driver" ? "Driver" : "Passenger"}
+                </Text>
+              </View>
+              <Text style={styles.cardDate}>{formatDetailDate(selectedFAQ.createdAt)}</Text>
+            </View>
+            <View style={styles.detailBlock}>
+              <Text style={styles.detailLabel}>Submitted by</Text>
+              <Text style={styles.detailValue}>{selectedFAQ.name || "Anonymous"}</Text>
+              {selectedFAQ.email ? <Text style={styles.detailSubValue}>{selectedFAQ.email}</Text> : null}
+              {selectedFAQ.phoneNumber ? <Text style={styles.detailSubValue}>{selectedFAQ.phoneNumber}</Text> : null}
+            </View>
+            <View style={styles.detailBlock}>
+              <Text style={styles.detailLabel}>Message</Text>
+              <Text style={styles.detailMessage}>
+                {selectedFAQ.message || "No message provided."}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+      </Modal>
     </View>
   );
 };
@@ -645,6 +718,41 @@ const styles = StyleSheet.create({
     backgroundColor: "#fef2f2",
     borderWidth: 1,
     borderColor: "#fecaca",
+  },
+  detailModal: {
+    maxHeight: "75%",
+  },
+  detailContent: {
+    gap: 14,
+  },
+  detailTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
+  detailBlock: {
+    gap: 5,
+  },
+  detailLabel: {
+    fontSize: 11,
+    color: "#64748b",
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  detailValue: {
+    fontSize: 14,
+    color: "#111827",
+    fontWeight: "700",
+  },
+  detailSubValue: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  detailMessage: {
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 21,
   },
 
   // Empty

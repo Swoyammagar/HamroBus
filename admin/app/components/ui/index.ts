@@ -11,3 +11,4 @@ export type { PickerOption } from './Picker';
 export { Tabs } from './Tabs';
 export { SearchBar } from './SearchBar';
 export { EmptyState } from './EmptyState';
+export { FeedbackModal } from './FeedbackModal';

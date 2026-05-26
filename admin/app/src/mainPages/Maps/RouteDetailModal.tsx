@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { useEffect, useState } from 'react';
 import { View, ScrollView, Text, StyleSheet, Modal, Platform } from 'react-native';
-import { Button, Input } from '../../../components/ui';
+import { Button, Input, FeedbackModal } from '../../../components/ui';
 import { type RouteRecord, type DayOfWeek, type RouteStop } from '../../../context/domains';
 import AddMap from './AddMap';
 
@@ -10,13 +10,15 @@ interface RouteDetailModalProps {
   route: RouteRecord | null;
   onClose: () => void;
   onUpdate: (routeId: string, payload: any) => Promise<{ success: boolean; message?: string }>;
-  onDelete: (routeId: string) => Promise<{ success: boolean; message?: string }>;
+  onDelete: (routeId: string) => Promise<{ success: boolean; message?: string }> | void;
+  onFeedback?: (feedback: { type: 'success' | 'error' | 'info' | 'warning'; title?: string; message: string }) => void;
 }
 
-const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onClose, onUpdate, onDelete }) => {
+const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onClose, onUpdate, onDelete, onFeedback }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info' | 'warning'; title?: string; message: string } | null>(null);
 
   // Form state
   const [editName, setEditName] = useState('');
@@ -53,7 +55,7 @@ const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onC
   const handleSave = async () => {
     if (!route._id) return;
     if (!editName || !editNumber || !editSource || !editDestination || !editDistance || !editOperatingDays.length || !editStops.length) {
-      alert('Please fill in all required fields and add at least one stop');
+      setFeedback({ type: 'warning', title: 'Missing Details', message: 'Please fill in all required fields and add at least one stop.' });
       return;
     }
 
@@ -80,14 +82,14 @@ const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onC
 
       const result = await onUpdate(route._id, payload);
       if (result.success) {
-        alert('Route updated successfully!');
+        onFeedback?.({ type: 'success', title: 'Route Updated', message: result.message || 'Route updated successfully.' });
         onClose();
       } else {
-        alert(`Error: ${result.message}`);
+        setFeedback({ type: 'error', title: 'Update Failed', message: result.message || 'Unable to update route.' });
       }
     } catch (error) {
       console.error('Error updating route:', error);
-      alert('Failed to update route.');
+      setFeedback({ type: 'error', title: 'Update Failed', message: 'Failed to update route.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -95,20 +97,12 @@ const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onC
 
   const handleDelete = async () => {
     if (!route._id) return;
-    if (!confirm('Are you sure you want to delete this route?')) return;
-
     setIsDeleting(true);
     try {
-      const result = await onDelete(route._id);
-      if (result.success) {
-        alert('Route deleted successfully!');
-        onClose();
-      } else {
-        alert(`Error: ${result.message}`);
-      }
+      await onDelete(route._id);
     } catch (error) {
       console.error('Error deleting route:', error);
-      alert('Failed to delete route.');
+      setFeedback({ type: 'error', title: 'Delete Failed', message: 'Failed to delete route.' });
     } finally {
       setIsDeleting(false);
     }
@@ -413,6 +407,13 @@ const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onC
             )}
           </View>
         </View>
+        <FeedbackModal
+          visible={!!feedback}
+          type={feedback?.type}
+          title={feedback?.title}
+          message={feedback?.message || ''}
+          onClose={() => setFeedback(null)}
+        />
       </View>
     </Modal>
   );
