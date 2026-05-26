@@ -17,12 +17,13 @@ const {
 } = require("../controllers/admin.controller");
 const { authenticateAdmin } = require("../middlewares/admin.auth.middleware");
 const { currentUser } = require("../controllers/decodedTokenAdmin.controller");
-const { getAdminReviews, getAdminReviewSummary, getDriverLeaderboard } = require("../controllers/admin/review.controller");
+const { getAdminReviews, getAdminReviewSummary, getDriverLeaderboard, deleteReviewById } = require("../controllers/admin/review.controller");
 
 // Admin review routes
 router.get("/reviews", authenticateAdmin, getAdminReviews);
 router.get("/reviews/summary", authenticateAdmin, getAdminReviewSummary);
 router.get("/reviews/leaderboard", authenticateAdmin, getDriverLeaderboard);
+router.delete("/reviews/:id", authenticateAdmin, deleteReviewById);
 // Public routes
 router.post("/login", Login);
 router.post("/request-password-reset", requestPasswordReset);

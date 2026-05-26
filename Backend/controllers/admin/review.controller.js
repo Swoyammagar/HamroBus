@@ -84,6 +84,54 @@ const getAdminReviews = async (req, res) => {
   }
 };
 
+const deleteReviewById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid review ID' });
+    }
+
+    const deletedReview = await Review.findByIdAndDelete(id).select('_id driverId');
+
+    if (!deletedReview) {
+      return res.status(404).json({ success: false, message: 'Review not found' });
+    }
+
+    if (deletedReview.driverId) {
+      const rows = await Review.aggregate([
+        { $match: { driverId: new mongoose.Types.ObjectId(String(deletedReview.driverId)) } },
+        {
+          $group: {
+            _id: '$driverId',
+            avgRating: { $avg: '$rating' },
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+
+      const avg = rows[0]?.avgRating || 0;
+      const count = rows[0]?.count || 0;
+
+      await Driver.findByIdAndUpdate(deletedReview.driverId, {
+        $set: {
+          ratingAverage: Number(avg.toFixed(2)),
+          ratingCount: count,
+        },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Review deleted successfully',
+      deletedReviewId: String(deletedReview._id),
+    });
+  } catch (error) {
+    console.error('Delete admin review error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
 const getAdminReviewSummary = async (req, res) => {
   const { driverId } = req.query;
 
@@ -248,5 +296,6 @@ const getDriverLeaderboard = async (req, res) => {
 module.exports = {
   getAdminReviews,
   getAdminReviewSummary,
-  getDriverLeaderboard
+  getDriverLeaderboard,
+  deleteReviewById
 };
