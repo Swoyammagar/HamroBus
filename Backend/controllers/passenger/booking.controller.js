@@ -512,15 +512,16 @@ const createBooking = async (req, res) => {
           severity: 'medium',
         });
 
-        // Emit to driver socket room
-        io.to(`driver:${String(driverIdToNotify)}`).emit('booking:created', {
+        const notificationPayload = {
           _id: String(driverNotif._id),
+          id: String(driverNotif._id),
           notificationId: driverNotif.notificationId,
           title: driverNotif.title,
           message: driverNotifMessage,
-          type: 'alert',
-          severity: 'medium',
-          sentBy: 'system',
+          type: driverNotif.type,
+          severity: driverNotif.severity,
+          sentBy: driverNotif.sentBy,
+          targetAudience: driverNotif.targetAudience,
           bookingCode,
           passengerName,
           seatNumbers: selectedSeats,
@@ -529,8 +530,15 @@ const createBooking = async (req, res) => {
           tripStartTime: schedule.startTime,
           tripEndTime: schedule.endTime,
           isMidTripBooking,
-          createdAt: new Date(),
-        });
+          createdAt: driverNotif.createdAt,
+        };
+
+        // Emit on the shared notification event consumed by Admin Panel and Driver App.
+        io.to(`driver:${String(driverIdToNotify)}`).emit('notification:new', notificationPayload);
+        io.to('admin-room').emit('notification:new', notificationPayload);
+
+        // Keep the booking-specific event for any booking/seat screens that rely on it.
+        io.to(`driver:${String(driverIdToNotify)}`).emit('booking:created', notificationPayload);
 
         console.log(`📢 [DRIVER NOTIF] Driver ${driverIdToNotify} notified of ${isMidTripBooking ? 'mid-trip' : 'pre-trip'} booking: ${driverNotifMessage}`);
         sendPushToUsers({
