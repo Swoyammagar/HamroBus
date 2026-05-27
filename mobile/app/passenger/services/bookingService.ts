@@ -45,9 +45,11 @@ export interface BookingResponse {
     amount?: number;
     khaltiIdx?: string;
   };
-  status: 'confirmed' | 'in-progress' | 'completed' | 'cancelled';
+  status: 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show';
   cancelledAt?: string;
   cancellationReason?: string;
+  noShowAt?: string;
+  noShowReason?: string;
   startedAt?: string;
   completedAt?: string;
   createdAt: string;

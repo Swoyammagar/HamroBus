@@ -95,7 +95,7 @@ const MyBookings = () => {
     status:
       b.status === 'in-progress'
         ? 'ongoing'
-        : (b.status as 'confirmed' | 'ongoing' | 'completed' | 'cancelled'),
+        : (b.status as 'confirmed' | 'ongoing' | 'completed' | 'cancelled' | 'no-show'),
     boardingStop: b.boardingStop?.stopName || '',
     alightingStop: b.destinationStop?.stopName || '',
     tripStarted: b.status === 'in-progress' || b.status === 'completed',
@@ -127,7 +127,7 @@ const MyBookings = () => {
     finalFare: booking.finalFare || booking.price,
     paymentStatus: booking.paymentStatus,
     payment: undefined,
-    status: booking.status === 'ongoing' ? 'in-progress' : (booking.status as 'confirmed' | 'completed' | 'cancelled'),
+    status: booking.status === 'ongoing' ? 'in-progress' : (booking.status as 'confirmed' | 'completed' | 'cancelled' | 'no-show'),
     createdAt: booking.bookingDate,
     updatedAt: booking.bookingDate,
     busNumber: booking.busNumber,
@@ -267,7 +267,7 @@ const MyBookings = () => {
     const filtered = bookings.filter(b => {
       if (activeTab === 'upcoming') return b.status === 'confirmed'|| b.status === 'ongoing';
       if (activeTab === 'completed') return b.status === 'completed';
-      if (activeTab === 'cancelled') return b.status === 'cancelled';
+      if (activeTab === 'cancelled') return b.status === 'cancelled' || b.status === 'no-show';
       return false;
     });
     return filtered;
@@ -336,7 +336,7 @@ const MyBookings = () => {
     const isUpcoming = booking.status === 'confirmed';
     const isOngoing = booking.status === 'ongoing';
     const isCompleted = booking.status === 'completed';
-    const isCancelled = booking.status === 'cancelled';
+    const isNoShow = booking.status === 'no-show';
 
     return (
       <TouchableOpacity
@@ -363,6 +363,8 @@ const MyBookings = () => {
                   ? '#dbeafe'
                   : isCompleted
                   ? '#f3e8ff'
+                  : isNoShow
+                  ? '#fee2e2'
                   : '#fee2e2',
               },
             ]}
@@ -377,11 +379,13 @@ const MyBookings = () => {
                     ? '#1d4ed8'
                     : isCompleted
                     ? '#6b21a8'
+                    : isNoShow
+                    ? '#991b1b'
                     : '#991b1b',
                 },
               ]}
             >
-              {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+              {isNoShow ? 'No Show' : booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
             </Text>
           </View>
         </View>

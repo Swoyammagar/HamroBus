@@ -91,6 +91,9 @@ export interface DriverSeatReservation {
         method?: string;
         amount?: number;
     } | null;
+    boardingStop?: { stopName: string; sequence: number } | null;
+    destinationStop?: { stopName: string; sequence: number } | null;
+    seatCount?: number;
 }
 
 export interface ScanBookingQrResponse {

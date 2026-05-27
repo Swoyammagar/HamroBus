@@ -43,7 +43,9 @@ const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(String(id || '')
 const toObjectId = (id) => new mongoose.Types.ObjectId(String(id));
 
 const extractSchedule = (route, scheduleId) => {
-  const schedule = route.schedules.id(scheduleId);
+  const schedule = route.schedules?.id
+    ? route.schedules.id(scheduleId)
+    : route.schedules?.find((row) => String(row._id) === String(scheduleId));
   if (!schedule) return null;
   return schedule;
 };
@@ -176,6 +178,8 @@ const mapBookingResponse = (booking) => ({
   status: booking.status,
   cancelledAt: booking.cancelledAt,
   cancellationReason: booking.cancellationReason,
+  noShowAt: booking.noShowAt,
+  noShowReason: booking.noShowReason,
   startedAt: booking.startedAt,
   completedAt: booking.completedAt,
   createdAt: booking.createdAt,
@@ -549,8 +553,7 @@ const createBooking = async (req, res) => {
               .lean()
               .then((r) => {
                 if (!r) return null;
-                const sched = r.schedules?.id(scheduleId);
-                return sched;
+                return extractSchedule(r, scheduleId);
               }),
           ]);
 
@@ -560,7 +563,7 @@ const createBooking = async (req, res) => {
             String(s.stopName || '').trim().toLowerCase() === String(destinationStop.stopName || '').trim().toLowerCase()
           );
           const eta = arrivalTimeObj?.arrivalTime || schedule.endTime || 'N/A';
-          const delayText = startDelayMinutes > 0 ? ` (${startDelayMinutes} min late)` : '';
+          const delayText = startDelayMinutes > 0 ? ` ${startDelayMinutes} minutes late` : ' on time';
 
           const passengerNotifMessage = `Your trip started${delayText}. Expected arrival at ${destinationStop.stopName} is ${eta}. (Booking ${bookingCode})`;
           const passengerNotif = await Notification.create({

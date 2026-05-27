@@ -5,10 +5,13 @@ import { palette, spacing, radius, shadow } from '../theme';
 import { useLocation } from '../hooks/useLocation';
 import { useAppContext } from '../context/AppContext';
 import { useTripActions } from '../hooks/useDriver';
+import driverService from '../services/driverService';
 import RouteStopsPanel from '../component/RouteStopsPanel';
 import PassengerLogModal from '../component/PassengerLogModal';
 import StopDetailModal from '../component/StopDetailModal';
 import OpenStreetMap from '../component/RealTimeMap';
+
+const AUTO_COMPLETE_STOP_RADIUS_METERS = 100;
 
 interface Props {
   isOnline: boolean;
@@ -36,6 +39,7 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
   const [isMarkingStop, setIsMarkingStop] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
+  const [expectedPassengersByStop, setExpectedPassengersByStop] = useState<Record<string, number>>({});
   const pendingAutoStopRef = useRef<Set<string>>(new Set());
   const autoCompletedStopsRef = useRef<Set<string>>(new Set());
   const trackingInProgressRef = useRef(false);
@@ -157,6 +161,53 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
     [resolvedStopArrivals]
   );
 
+  const normalizeStopName = useCallback((value?: string) => {
+    return String(value || '').trim().toLowerCase();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadExpectedPassengers = async () => {
+      if (!currentTrip?.scheduleId || !currentTrip?.startTime) {
+        setExpectedPassengersByStop({});
+        return;
+      }
+
+      const serviceDate = new Date(currentTrip.startTime).toISOString().split('T')[0];
+
+      try {
+        const data = await driverService.getScheduleSeatMap(String(currentTrip.scheduleId), serviceDate);
+        if (cancelled) return;
+
+        const grouped: Record<string, number> = {};
+        (data?.reservedSeats || []).forEach((seat: any) => {
+          const status = String(seat?.status || '').toLowerCase();
+          const isActiveBooking = status === 'confirmed' || status === 'in-progress';
+          const isWaitingToBoard = !seat?.boarded;
+          const stopKey = normalizeStopName(seat?.boardingStop?.stopName);
+
+          if (isActiveBooking && isWaitingToBoard && stopKey) {
+            grouped[stopKey] = (grouped[stopKey] || 0) + 1;
+          }
+        });
+
+        setExpectedPassengersByStop(grouped);
+      } catch (error) {
+        if (!cancelled) {
+          setExpectedPassengersByStop({});
+          console.error('Failed to load expected passengers by stop:', error);
+        }
+      }
+    };
+
+    loadExpectedPassengers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentTrip?.scheduleId, currentTrip?.startTime, currentTrip?.updatedAt, normalizeStopName]);
+
   const busStops = assignedRoute?.stops
     ? assignedRoute.stops.map((stop, index) => ({
         id: index + 1,
@@ -166,7 +217,7 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
           : index === activeStopIndex
             ? 'active'
             : 'upcoming' as any,
-        passengers: currentTrip?.completedStops?.[index]?.passengersBoarded || 0,
+        passengers: expectedPassengersByStop[normalizeStopName(stop.stopName)] || 0,
         time: getStopArrivalTime(stop.stopName),
         latitude: stop.latitude,
         longitude: stop.longitude
@@ -218,7 +269,7 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
         }
       });
 
-      if (nearestIndex < 0 || nearestDistance > 120) {
+      if (nearestIndex < 0 || nearestDistance > AUTO_COMPLETE_STOP_RADIUS_METERS) {
         return;
       }
 
@@ -426,7 +477,7 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
       {currentTrip &&
       <StopDetailModal
         visible={showStopDetail}
-        stop={selectedStop}
+        stop={selectedStop ? busStops.find((stop) => stop.name === selectedStop.name) || selectedStop : null}
         isLoading={isMarkingStop}
         onClose={() => {
           setShowStopDetail(false);

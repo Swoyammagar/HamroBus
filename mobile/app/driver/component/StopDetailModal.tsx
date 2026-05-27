@@ -198,7 +198,7 @@ export default function StopDetailModal({
             <View style={styles.tipsSection}>
               <Text style={styles.tipLabel}>💡 Helpful Tips:</Text>
               <Text style={styles.tipText}>
-                • The system auto-marks stops as complete when you're within 500m of the stop location.
+                • The system auto-marks stops as complete when you're within 100m of the stop location.
               </Text>
               <Text style={styles.tipText}>
                 • You can manually mark stops if auto-detection is unavailable.

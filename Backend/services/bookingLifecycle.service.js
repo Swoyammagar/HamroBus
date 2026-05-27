@@ -12,6 +12,7 @@ const { getIoInstance } = require('./ioManager');
 const { v4: uuidv4 } = require('uuid');
 const { missed_trip_apology_boilerplate } = require('../utils/boilerplate.data');
 const { sendPushToUsers } = require('./pushNotificationService');
+const { BOOKING_STATUS, ACTIVE_BOOKING_STATUSES } = require('../utils/bookingStatus');
 
 const APP_TIMEZONE = process.env.APP_TIMEZONE || 'Asia/Kathmandu';
 
@@ -207,7 +208,7 @@ const syncBookingsOnTripStart = async ({ trip }) => {
     busId: trip.busId,
     scheduleId: trip.scheduleId,
     serviceDate,
-    status: 'confirmed',
+    status: BOOKING_STATUS.CONFIRMED,
   };
 
   const transitionTime = new Date();
@@ -224,7 +225,7 @@ const syncBookingsOnTripStart = async ({ trip }) => {
     filter,
     {
       $set: {
-        status: 'in-progress',
+        status: BOOKING_STATUS.IN_PROGRESS,
         tripSessionId: trip._id,
         startedAt: transitionTime,
       },
@@ -275,15 +276,27 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {})
     busId: trip.busId,
     scheduleId: trip.scheduleId,
     tripSessionId: trip._id,
-    status: 'in-progress',
+    status: BOOKING_STATUS.IN_PROGRESS,
     'destinationStop.sequence': { $lte: reachedSequence },
+    isBoarded: true,
   }).select('_id seatCount passengerId bookingCode').lean();
 
-  if (!bookingsToComplete.length) {
-    return { matched: 0, modified: 0 };
+  const noShowCandidates = await Booking.find({
+    routeId: trip.routeId,
+    busId: trip.busId,
+    scheduleId: trip.scheduleId,
+    tripSessionId: trip._id,
+    status: { $in: ACTIVE_BOOKING_STATUSES },
+    'boardingStop.sequence': { $lte: reachedSequence },
+    $or: [{ isBoarded: false }, { isBoarded: { $exists: false } }],
+  }).select('_id passengerId bookingCode').lean();
+
+  if (!bookingsToComplete.length && !noShowCandidates.length) {
+    return { matched: 0, modified: 0, noShowMatched: 0, noShowModified: 0 };
   }
 
   const seatsFreed = bookingsToComplete.reduce((sum, b) => sum + (Number(b.seatCount || 0)), 0);
+  const transitionTime = new Date();
 
   const result = await Booking.updateMany(
     {
@@ -291,17 +304,43 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {})
       busId: trip.busId,
       scheduleId: trip.scheduleId,
       tripSessionId: trip._id,
-      status: 'in-progress',
+      status: BOOKING_STATUS.IN_PROGRESS,
       'destinationStop.sequence': { $lte: reachedSequence },
+      isBoarded: true,
     },
     {
       $set: {
-        status: 'completed',
-        completedAt: new Date(),
+        status: BOOKING_STATUS.COMPLETED,
+        completedAt: transitionTime,
       },
     }
   );
-  await releaseSeatLocksForBookings(bookingsToComplete.map((booking) => booking._id));
+
+  const noShowResult = noShowCandidates.length
+    ? await Booking.updateMany(
+        {
+          routeId: trip.routeId,
+          busId: trip.busId,
+          scheduleId: trip.scheduleId,
+          tripSessionId: trip._id,
+          status: { $in: ACTIVE_BOOKING_STATUSES },
+          'boardingStop.sequence': { $lte: reachedSequence },
+          $or: [{ isBoarded: false }, { isBoarded: { $exists: false } }],
+        },
+        {
+          $set: {
+            status: BOOKING_STATUS.NO_SHOW,
+            noShowAt: transitionTime,
+            noShowReason: 'No-show - Passenger did not board by their boarding stop',
+          },
+        }
+      )
+    : { matchedCount: 0, modifiedCount: 0 };
+
+  await releaseSeatLocksForBookings([
+    ...bookingsToComplete.map((booking) => booking._id),
+    ...noShowCandidates.map((booking) => booking._id),
+  ]);
 
   try {
     const tripDoc = await TripSession.findById(trip._id);
@@ -350,12 +389,12 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {})
       const payload = {
         bookingId: String(b._id),
         bookingCode: b.bookingCode,
-        status: 'completed',
+        status: BOOKING_STATUS.COMPLETED,
         tripId: String(trip._id),
         routeId: String(trip.routeId),
         busId: String(trip.busId),
         scheduleId: String(trip.scheduleId),
-        completedAt: new Date().toISOString(),
+        completedAt: transitionTime.toISOString(),
         timestamp: new Date().toISOString(),
       };
 
@@ -372,11 +411,32 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {})
         }
       }
     }
+
+    for (const b of noShowCandidates) {
+      const payload = {
+        bookingId: String(b._id),
+        bookingCode: b.bookingCode,
+        status: BOOKING_STATUS.NO_SHOW,
+        tripId: String(trip._id),
+        routeId: String(trip.routeId),
+        busId: String(trip.busId),
+        scheduleId: String(trip.scheduleId),
+        noShowAt: transitionTime.toISOString(),
+        reason: 'No-show - Passenger did not board by their boarding stop',
+        timestamp: new Date().toISOString(),
+      };
+
+      if (b.passengerId) {
+        io.to(`passenger:${String(b.passengerId)}`).emit('booking:status-updated', payload);
+      }
+    }
   }
 
   return {
     matched: result.matchedCount || bookingsToComplete.length,
     modified: result.modifiedCount || bookingsToComplete.length,
+    noShowMatched: noShowResult.matchedCount || noShowCandidates.length,
+    noShowModified: noShowResult.modifiedCount || noShowCandidates.length,
   };
 };
 
@@ -390,51 +450,101 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
     return { matched: 0, modified: 0, changedBookings: [] };
   }
 
-  const filter = {
+  const tripSessionFilter = [
+    { tripSessionId: trip._id },
+    { tripSessionId: { $exists: false } },
+    { tripSessionId: null },
+  ];
+
+  const completedFilter = {
     routeId: trip.routeId,
     busId: trip.busId,
     scheduleId: trip.scheduleId,
     serviceDate: tripDate,
-    status: { $in: ['in-progress', 'on-break'] },
-    $or: [
-      { tripSessionId: trip._id },
-      { tripSessionId: { $exists: false } },
-      { tripSessionId: null },
+    status: BOOKING_STATUS.IN_PROGRESS,
+    isBoarded: true,
+    $or: tripSessionFilter,
+  };
+
+  const noShowFilter = {
+    routeId: trip.routeId,
+    busId: trip.busId,
+    scheduleId: trip.scheduleId,
+    serviceDate: tripDate,
+    status: { $in: ACTIVE_BOOKING_STATUSES },
+    $and: [
+      { $or: [{ isBoarded: false }, { isBoarded: { $exists: false } }] },
+      { $or: tripSessionFilter },
     ],
   };
 
   const transitionTime = new Date();
 
-  const candidates = await Booking.find(filter)
+  const candidates = await Booking.find(completedFilter)
+    .select('_id bookingCode passengerId seatCount')
+    .lean();
+  const noShowCandidates = await Booking.find(noShowFilter)
     .select('_id bookingCode passengerId')
     .lean();
 
-  if (!candidates.length) {
+  if (!candidates.length && !noShowCandidates.length) {
     return { matched: 0, modified: 0, changedBookings: [] };
   }
 
-  const result = await Booking.updateMany(
-    filter,
-    {
-      $set: {
-        status: 'completed',
-        completedAt: transitionTime,
-        tripSessionId: trip._id,
-      },
-    }
-  );
-  await releaseSeatLocksForBookings(candidates.map((booking) => booking._id));
+  const result = candidates.length
+    ? await Booking.updateMany(
+        completedFilter,
+        {
+          $set: {
+            status: BOOKING_STATUS.COMPLETED,
+            completedAt: transitionTime,
+            tripSessionId: trip._id,
+          },
+        }
+      )
+    : { matchedCount: 0, modifiedCount: 0 };
+
+  let noShowResult = { matchedCount: 0, modifiedCount: 0 };
+  if (noShowCandidates.length > 0) {
+    noShowResult = await Booking.updateMany(
+      noShowFilter,
+      {
+        $set: {
+          status: BOOKING_STATUS.NO_SHOW,
+          noShowAt: transitionTime,
+          noShowReason: 'No-show - Did not board the bus',
+          tripSessionId: trip._id,
+        },
+      }
+    );
+  }
+
+  await releaseSeatLocksForBookings([
+    ...candidates.map((booking) => booking._id),
+    ...noShowCandidates.map((booking) => booking._id),
+  ]);
 
   const changedBookings = candidates.map((row) => ({
     bookingId: String(row._id),
     bookingCode: row.bookingCode,
     passengerId: String(row.passengerId),
-    status: 'completed',
+    status: BOOKING_STATUS.COMPLETED,
     completedAt: transitionTime,
   }));
 
+  const noShowBookings = noShowCandidates.map((row) => ({
+    bookingId: String(row._id),
+    bookingCode: row.bookingCode,
+    passengerId: String(row.passengerId),
+    status: BOOKING_STATUS.NO_SHOW,
+    noShowAt: transitionTime,
+    reason: 'No-show - Did not board the bus',
+  }));
+
+  changedBookings.push(...noShowBookings);
+
   for (const booking of changedBookings) {
-    if (booking.passengerId) {
+    if (booking.passengerId && booking.status === BOOKING_STATUS.COMPLETED) {
       try {
         const rewardResult = await awardPoints(String(booking.passengerId), String(booking.bookingId));
         if (rewardResult.success) {
@@ -445,7 +555,7 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
     }
   }
 
-  const passengersCompleted = result.modifiedCount || 0;
+  const passengersCompleted = candidates.reduce((sum, booking) => sum + Number(booking.seatCount || 0), 0);
   if (passengersCompleted > 0) {
     try {
       const io = getIoInstance();
@@ -495,49 +605,7 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
     }
   }
 
-  const noShowFilter = {
-    routeId: trip.routeId,
-    busId: trip.busId,
-    scheduleId: trip.scheduleId,
-    serviceDate: tripDate,
-    status: 'confirmed', // Bookings that were never boarded
-    $or: [
-      { tripSessionId: trip._id },
-      { tripSessionId: { $exists: false } },
-      { tripSessionId: null },
-    ],
-  };
-
-  const noShowCandidates = await Booking.find(noShowFilter)
-    .select('_id bookingCode passengerId')
-    .lean();
-
   if (noShowCandidates.length > 0) {
-    const noShowResult = await Booking.updateMany(
-      noShowFilter,
-      {
-        $set: {
-          status: 'cancelled',
-          cancelledAt: transitionTime,
-          cancellationReason: 'No-show - Did not board the bus',
-          tripSessionId: trip._id,
-        },
-      }
-    );
-    await releaseSeatLocksForBookings(noShowCandidates.map((booking) => booking._id));
-
-    const noShowBookings = noShowCandidates.map((row) => ({
-      bookingId: String(row._id),
-      bookingCode: row.bookingCode,
-      passengerId: String(row.passengerId),
-      status: 'cancelled',
-      cancelledAt: transitionTime,
-      reason: 'No-show - Did not board the bus',
-    }));
-
-    changedBookings.push(...noShowBookings);
-
-
     try {
       const io = getIoInstance();
       const Bus_doc = await Bus.findById(trip.busId).select('busNumber').lean();
@@ -557,7 +625,7 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
               const source = Route_doc?.source || 'Unknown';
               const destination = Route_doc?.destination || 'Unknown';
 
-              const notifMessage = `You missed your trip on ${busNumber} from ${source} to ${destination}. Your booking (${noShowBooking.bookingCode}) has been cancelled.`;
+              const notifMessage = `You missed your trip on ${busNumber} from ${source} to ${destination}. Your booking (${noShowBooking.bookingCode}) was marked as no-show.`;
 
               const noShowNotif = await Notification.create({
                 notificationId: `notif_${uuidv4()}`,
@@ -582,7 +650,7 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
                   bookingCode: noShowBooking.bookingCode,
                   busNumber,
                   route: `${source} → ${destination}`,
-                  cancelledAt: noShowBooking.cancelledAt,
+                  noShowAt: noShowBooking.noShowAt,
                   createdAt: new Date(),
                 });
 
@@ -617,6 +685,8 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
   return {
     matched: result.matchedCount || 0,
     modified: result.modifiedCount || 0,
+    noShowMatched: noShowResult.matchedCount || 0,
+    noShowModified: noShowResult.modifiedCount || 0,
     changedBookings,
   };
 };

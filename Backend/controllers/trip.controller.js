@@ -12,6 +12,7 @@ const {
 const Notification = require('../models/notification.model');
 const { v4: uuidv4 } = require('uuid');
 const { sendPushToUsers } = require('../services/pushNotificationService');
+const { calculateStartDelayMinutes } = require('../utils/tripDelay');
 
 const normalize = (v) => String(v || '').trim().toLowerCase();
 const NEPAL_TIME_OFFSET_MINUTES = 5 * 60 + 45;
@@ -45,28 +46,6 @@ const parseNepalDateBoundary = (value, boundary) => {
 
     const date = new Date(utcMs);
     return Number.isNaN(date.getTime()) ? null : date;
-};
-
-const parseScheduledTimeToUtcDate = (timeString, referenceDate = new Date()) => {
-    if (!timeString || typeof timeString !== 'string') return null;
-    const [hoursRaw, minutesRaw] = timeString.split(':');
-    const hours = Number(hoursRaw);
-    const minutes = Number(minutesRaw);
-    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
-
-    const dt = new Date(referenceDate);
-    dt.setHours(hours, minutes, 0, 0);
-    return dt;
-};
-
-const calculateStartDelayMinutes = (scheduleDoc, actualStartTime) => {
-    if (!scheduleDoc?.startTime || !actualStartTime) return 0;
-    const scheduledStart = parseScheduledTimeToUtcDate(scheduleDoc.startTime, actualStartTime);
-    if (!scheduledStart) return 0;
-
-    const diffMs = new Date(actualStartTime).getTime() - scheduledStart.getTime();
-    if (diffMs <= 0) return 0;
-    return Math.floor(diffMs / (1000 * 60));
 };
 
 const buildDriverStatusPayload = async ({ trip, driverId }) => {
@@ -113,11 +92,11 @@ const notifyPassengersTripStarted = async ({ io, trip, routeDoc, scheduleDoc, de
     const eta = etaMatch?.arrivalTime || scheduleDoc.endTime || 'N/A';
     const passengerName = [b.passengerId?.firstName, b.passengerId?.lastName].filter(Boolean).join(' ').trim() || 'Passenger';
         const delayText = delayMinutes > 0
-            ? ` It started ${delayMinutes} minute(s) later than scheduled.`
-            : ' It started on time.';
+            ? ` Your trip started ${delayMinutes} minutes late.`
+            : ' Your trip started on time.';
 
     const title = 'Trip started';
-        const message = `Hi ${passengerName}, your trip has started.${delayText} Expected arrival at ${b.destinationStop?.stopName || 'your stop'} is around ${eta}. (Booking ${b.bookingCode})`;
+        const message = `Hi ${passengerName}.${delayText} Expected arrival at ${b.destinationStop?.stopName || 'your stop'} is around ${eta}. (Booking ${b.bookingCode})`;
 
     const doc = await Notification.create({
       notificationId: `notif_${uuidv4()}`,
@@ -865,7 +844,7 @@ const getScheduleSeatMap = async (req, res) => {
             status: { $in: ['confirmed', 'in-progress'] }
         })
             .populate('passengerId', 'firstName lastName phoneNumber')
-            .select('bookingCode seatNumbers passengerId status paymentStatus payment isBoarded boardedAt')
+            .select('bookingCode seatNumbers passengerId status paymentStatus payment isBoarded boardedAt boardingStop destinationStop seatCount')
             .lean();
 
         const reservedSeats = bookings.flatMap((booking) => {
@@ -881,7 +860,10 @@ const getScheduleSeatMap = async (req, res) => {
                 paymentStatus: booking.paymentStatus || false,
                 payment: booking.payment || null,
                 boarded: Boolean(booking.isBoarded),
-                boardedAt: booking.boardedAt || null
+                boardedAt: booking.boardedAt || null,
+                boardingStop: booking.boardingStop || null,
+                destinationStop: booking.destinationStop || null,
+                seatCount: booking.seatCount || (booking.seatNumbers || []).length
             }));
         });
 

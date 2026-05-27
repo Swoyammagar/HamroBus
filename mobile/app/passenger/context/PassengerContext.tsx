@@ -58,7 +58,7 @@ export interface Booking {
   paymentStatus?: boolean;
   bookingDate: string;
   travelDate: string;
-  status: 'confirmed' | 'ongoing' | 'completed' | 'cancelled';
+  status: 'confirmed' | 'ongoing' | 'completed' | 'cancelled' | 'no-show';
   boardingStop: string;
   alightingStop: string;
   tripStarted: boolean;
@@ -237,7 +237,7 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
       const rawStatus = String(payload.status);
       const mappedStatus = rawStatus === 'in-progress' ? 'ongoing' : rawStatus;
 
-      if (mappedStatus !== 'confirmed' && mappedStatus !== 'ongoing' && mappedStatus !== 'completed' && mappedStatus !== 'cancelled') {
+      if (mappedStatus !== 'confirmed' && mappedStatus !== 'ongoing' && mappedStatus !== 'completed' && mappedStatus !== 'cancelled' && mappedStatus !== 'no-show') {
         return;
       }
 

@@ -117,7 +117,7 @@ const bookingSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['confirmed', 'cancelled', 'in-progress', 'completed'],
+      enum: ['confirmed', 'cancelled', 'in-progress', 'completed', 'no-show'],
       default: 'confirmed',
       index: true,
     },
@@ -138,6 +138,16 @@ const bookingSchema = new mongoose.Schema(
     completedAt: {
       type: Date,
       required: false,
+    },
+    noShowAt: {
+      type: Date,
+      required: false,
+    },
+    noShowReason: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 250,
     },
     payment: {
       status: {

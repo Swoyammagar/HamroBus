@@ -3,6 +3,7 @@ const Booking = require('../../models/booking.model');
 const Review = require('../../models/review.model');
 const TripSession = require('../../models/tripSession.model');
 const Driver = require('../../models/driver.model');
+const { canReviewBooking, REVIEWABLE_BOOKING_STATUS } = require('../../utils/bookingStatus');
 
 const REVIEW_WINDOW_HOURS = 72;
 
@@ -56,14 +57,14 @@ const createBookingReview = async (req, res) => {
     const booking = await Booking.findOne({
       _id: bookingId,
       passengerId,
-    }).select('_id status completedAt tripSessionId updatedAt');
+    }).select('_id status completedAt tripSessionId updatedAt isBoarded');
 
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
-    if (booking.status !== 'completed') {
-      return res.status(409).json({ message: 'Review allowed only for completed bookings' });
+    if (!canReviewBooking(booking)) {
+      return res.status(409).json({ message: 'Review allowed only for completed boarded bookings' });
     }
 
     const completedAnchor = booking.completedAt || booking.updatedAt;
@@ -129,7 +130,8 @@ const getMyReviewableBookings = async (req, res) => {
 
     const completedBookings = await Booking.find({
       passengerId,
-      status: 'completed',
+      status: REVIEWABLE_BOOKING_STATUS,
+      isBoarded: true,
       completedAt: { $gte: cutoffDate },
     })
       .select('_id bookingCode busId routeId boardingStop destinationStop seatNumbers totalFare completedAt')
