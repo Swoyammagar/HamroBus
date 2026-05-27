@@ -10,6 +10,7 @@ const {
   approveDriver,
   rejectDriver,
   getAllDrivers,
+  getApprovedDrivers,
   updateDriverProfile,
   changeDriverPassword,
   checkPhoneNumberAvailability,
@@ -29,6 +30,7 @@ router.get('/check-license-availability', checkLicenseNumberAvailability);
 
 router.get('/pending', authenticateAdmin, getPendingDrivers);
 router.get('/allDrivers', authenticateAdmin, getAllDrivers);
+router.get('/approvedDrivers', authenticateAdmin, getApprovedDrivers);
 router.post('/approve/:driverId', authenticateAdmin, approveDriver);
 router.post('/reject/:driverId', authenticateAdmin, rejectDriver);
 

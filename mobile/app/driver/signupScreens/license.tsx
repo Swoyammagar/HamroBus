@@ -21,35 +21,31 @@ interface LicenseForm {
 }
 
 const validateNepalLicenseNumber = (value: string) => {
-  const normalized = value.trim().toUpperCase();
-  const compact = normalized.replace(/[\s\-/.]/g, "");
-
-  if (!normalized) return "License number is required";
-  if (!/^[A-Z0-9\s-/.]+$/.test(normalized)) {
-    return "License number can only include letters, numbers, spaces, hyphens, slashes, or dots";
-  }
-  if (compact.length < 6 || compact.length > 16) {
-    return "Enter a valid Nepal license number";
-  }
-  if (!/\d{4,}/.test(compact)) {
-    return "License number must include the numeric license sequence";
-  }
-  if (/^([A-Z0-9])\1+$/.test(compact)) {
-    return "Enter a valid Nepal license number";
-  }
-
-  const numericOnly = /^\d{6,12}$/.test(compact);
-  const regionalFormat =
-    /^[A-Z0-9]{2,4}[\s\-/.]?[A-Z0-9]{1,4}[\s\-/.]?\d{4,10}$/.test(normalized);
-
-  return numericOnly || regionalFormat || "Enter a valid Nepal license number";
+  if (!value || value.replace(/-/g, "").trim().length === 0)
+    return "License number is required";
+  const pattern = /^[A-Z0-9]{2,3}-\d{2}-\d{5,7}$/;
+  if (!pattern.test(value))
+    return "Format must be XX-XX-XXXXXX (e.g. BP-07-123456)";
+  return true;
 };
 
+const formatLicense = (text: string) => {
+  const clean = text.replace(/[^A-Z0-9]/g, "");
+  if (clean.length <= 3) return clean;
+  if (clean.length <= 5) return `${clean.slice(0, 3)}-${clean.slice(3)}`;
+  return `${clean.slice(0, 3)}-${clean.slice(3, 5)}-${clean.slice(5, 12)}`;
+};
 
 const License = () => {
   const { signupData, updateSignupData } = useDriverSignup();
 
-  const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm<LicenseForm>({
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<LicenseForm>({
     defaultValues: {
       licenseNo: signupData.licenseNo || "",
       licenseImage: signupData.licenseImage || null,
@@ -70,7 +66,6 @@ const License = () => {
       setValue("licenseImage", result.assets[0].uri);
     }
   };
-
 
   const onSubmit = (data: LicenseForm) => {
     if (!data.licenseImage) {
@@ -98,10 +93,14 @@ const License = () => {
         >
           <View className="flex-row mb-6 mt-6 justify-center">
             <Text className="text-2xl font-medium text-black">License</Text>
-            <Text className="text-2xl font-medium text-[#27AE60] ml-2">Information</Text>
+            <Text className="text-2xl font-medium text-[#27AE60] ml-2">
+              Information
+            </Text>
           </View>
 
-          <Text className="font-medium text-[#333] mt-3 mb-1">License Number:</Text>
+          <Text className="font-medium text-[#333] mt-3 mb-1">
+            License Number:
+          </Text>
 
           <Controller
             control={control}
@@ -113,27 +112,33 @@ const License = () => {
                   styles.input,
                   focusedField === "licenseNumber" && styles.inputFocused,
                 ]}
-                placeholder="Enter license number"
+                placeholder="e.g. BP-07-123456"
+                placeholderTextColor="#aaa"
                 value={value}
-                onChangeText={(text) => onChange(text.toUpperCase())}
+                onChangeText={(text) => {
+                  const formatted = formatLicense(text.toUpperCase());
+                  onChange(formatted);
+                }}
                 autoCapitalize="characters"
+                keyboardType="default"
+                maxLength={13}
                 onFocus={() => setFocusedField("licenseNumber")}
                 onBlur={() => setFocusedField(null)}
               />
             )}
           />
-          {errors.licenseNo && <Text style={styles.errorText}>{errors.licenseNo.message}</Text>}
-
+          {errors.licenseNo && (
+            <Text style={styles.errorText}>{errors.licenseNo.message}</Text>
+          )}
 
           <TouchableOpacity style={styles.imagePicker} onPress={handlePickImage}>
-
             {licenseImage ? (
-                <View style={styles.imageWrapper}>
-                  <Image
-                    source={{ uri: licenseImage }}
-                    style={{ width: 300, height: 160, resizeMode: "cover" }}
-                  />
-                </View>
+              <View style={styles.imageWrapper}>
+                <Image
+                  source={{ uri: licenseImage }}
+                  style={{ width: 300, height: 160, resizeMode: "cover" }}
+                />
+              </View>
             ) : (
               <>
                 <Text style={styles.imagePickerText}>Add License Image</Text>
@@ -144,7 +149,10 @@ const License = () => {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.nextButton} onPress={handleSubmit(onSubmit)}>
+          <TouchableOpacity
+            style={styles.nextButton}
+            onPress={handleSubmit(onSubmit)}
+          >
             <Text style={styles.nextButtonText}>SUBMIT</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -175,7 +183,7 @@ const styles = StyleSheet.create({
     color: "#777",
     fontSize: 16,
   },
-   dropdown: {
+  dropdown: {
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#000",
@@ -218,7 +226,7 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 4,
-    borderStyle: "solid",// removes blue border on web
+    borderStyle: "solid",
   },
   inputFocused: {
     borderColor: "#3b82f6",
@@ -263,4 +271,3 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 });
-

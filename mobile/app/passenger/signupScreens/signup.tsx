@@ -158,29 +158,34 @@ const PersonalInfo = () => {
                 />
                 {errors.lastName && <Text style={styles.errorText}>{errors.lastName.message}</Text>}
 
-        <Text className="font-medium text-[#333]  mb-1">Phone Number: </Text>
-        <Controller
-          control={control}
-          name="phoneNumber"
-          rules={{
-            required: "Phone number is required",
-            pattern: {
-              value: /^[0-9]{10}$/,
-              message: "Invalid phone number"
-            }
-          }}
-          render={({ field: { onChange, value } }) => (
-            <TextInput
-              style={styles.input}
-              placeholder="+977 XXXXXXXXXX"
-              value={value}
-              onChangeText={onChange}
-              keyboardType="phone-pad"
-            />
+        <Text className="font-medium text-[#333] mb-1">Phone Number: </Text>
+          <Controller
+            control={control}
+            name="phoneNumber"
+            rules={{
+              required: "Phone number is required",
+              pattern: {
+                value: /^[0-9]{10}$/,
+                message: "Must be exactly 10 digits",
+              },
+            }}
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                style={styles.input}
+                placeholder="Enter 10 digit phone number"
+                value={value}
+                onChangeText={(text) => {
+                  const cleaned = text.replace(/[^0-9]/g, "").slice(0, 10);
+                  onChange(cleaned);
+                }}
+                keyboardType="phone-pad"
+                maxLength={10}
+              />
+            )}
+          />
+          {errors.phoneNumber && (
+            <Text style={styles.errorText}>{errors.phoneNumber.message}</Text>
           )}
-          {...errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber.message}</Text>}
-
-        />
         <Text className="font-medium text-[#333]  mb-1">Gender: </Text>
         <Controller
           control={control}

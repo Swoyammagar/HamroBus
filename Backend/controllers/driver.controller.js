@@ -480,6 +480,16 @@ const getAllDrivers = async (req, res) => {
     }
 };
 
+const getApprovedDrivers = async (req, res) => {
+    try {
+        const drivers = await Driver.find({ validationStatus: 'approved' }).select('-password -refreshToken');
+        res.status(200).json({ drivers });
+    } catch (error) {
+        console.error('Error fetching approved drivers:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 /**
  * Update driver profile (firstName, lastName, phoneNumber, profileImgUrl, licenseNo, licenseImgUrl)
  */
@@ -770,6 +780,7 @@ module.exports = {
     approveDriver,
     rejectDriver,
     getAllDrivers,
+    getApprovedDrivers,
     updateDriverProfile,
     changeDriverPassword,
     checkPhoneNumberAvailability,

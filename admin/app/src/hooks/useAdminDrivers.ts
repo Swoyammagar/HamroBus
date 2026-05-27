@@ -113,6 +113,7 @@ axios.defaults.withCredentials = true;
 export const useAdminDrivers = () => {
   const [drivers, setDrivers] = useState<DriverRecord[]>([]);
   const [pendingDrivers, setPendingDrivers] = useState<DriverRecord[]>([]);
+  const [approvedDrivers, setApprovedDrivers] = useState<DriverRecord[]>([]);
   const [adminReviews, setAdminReviews] = useState<AdminReviewItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -153,6 +154,22 @@ export const useAdminDrivers = () => {
       setPendingDrivers((data?.drivers || []).map(normalizeDriverRecord));
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Failed to fetch pending drivers';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizeDriverRecord]);
+
+  const fetchApprovedDrivers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await axios.get<{ drivers?: DriverRecord[] }>(
+        `${API_BASE}/driver/approvedDrivers`
+      );
+      setApprovedDrivers((data?.drivers || []).map(normalizeDriverRecord));
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Failed to fetch approved drivers';
       setError(message);
     } finally {
       setLoading(false);
@@ -324,11 +341,13 @@ export const useAdminDrivers = () => {
   return {
     drivers,
     pendingDrivers,
+    approvedDrivers,
     adminReviews,
     loading,
     error,
     fetchAllDrivers,
     fetchPendingDrivers,
+    fetchApprovedDrivers,
     approveDriver,
     rejectDriver,
     getDriverReviewSummary,

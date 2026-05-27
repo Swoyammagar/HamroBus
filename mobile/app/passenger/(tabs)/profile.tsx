@@ -45,12 +45,13 @@ const Profile = () => {
     }, [fetchRewardPoints, fetchReviewStats, checkDeletionStatus])
   );
 
+  // Sync profileData from the hook into context — only runs when data arrives
   React.useEffect(() => {
     if (!profileData) return;
 
     const { user: userData } = profileData;
     setProfile({
-      id: '',                          // not returned by hook — add to service if needed
+      id: '',
       passengerId: '',
       name: `${userData.firstName} ${userData.lastName}`,
       email: userData.email,
@@ -59,9 +60,9 @@ const Profile = () => {
       totalTrips: 0,
       totalSpent: 0,
       averageRating: 0,
-      memberSince: new Date().toISOString(), // add createdAt to service if needed
+      memberSince: new Date().toISOString(),
     });
-  }, [profileData]);
+  }, [profileData, setProfile]);
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -107,6 +108,7 @@ const Profile = () => {
     }
   };
 
+  // ── Loading state: driven by the fetch hook, not context ──────────────────
   if (loading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -116,11 +118,25 @@ const Profile = () => {
     );
   }
 
-  if (error || !profile) {
+  // ── Error state: only show when the hook itself errored ───────────────────
+  if (error) {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <Ionicons name="alert-circle" size={48} color="#ef4444" />
-        <Text style={styles.errorText}>{error ?? 'Failed to load profile'}</Text>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={refetch}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // ── No data returned from hook (unexpected) ───────────────────────────────
+  if (!profileData) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Ionicons name="alert-circle" size={48} color="#ef4444" />
+        <Text style={styles.errorText}>Failed to load profile</Text>
         <TouchableOpacity style={styles.retryButton} onPress={refetch}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
@@ -139,7 +155,7 @@ const Profile = () => {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.profileCard}>
-          {profile.profilePicture ? (
+          {profile?.profilePicture ? (
             <Image source={{ uri: profile.profilePicture }} style={styles.profileImage} />
           ) : (
             <View style={styles.profileAvatar}>
@@ -148,12 +164,12 @@ const Profile = () => {
           )}
 
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{profile.name}</Text>
-            <Text style={styles.profileEmail}>{profile.email}</Text>
-            <Text style={styles.profilePhone}>{profile.phone}</Text>
-            {profile.id && (
+            <Text style={styles.profileName}>{profile?.name ?? ''}</Text>
+            <Text style={styles.profileEmail}>{profile?.email ?? ''}</Text>
+            <Text style={styles.profilePhone}>{profile?.phone ?? ''}</Text>
+            {profile?.id ? (
               <Text style={styles.profileId}>ID: {profile.id.slice(-8)}</Text>
-            )}
+            ) : null}
           </View>
 
           <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
@@ -328,7 +344,7 @@ const Profile = () => {
           <View style={styles.infoBox}>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Member Since</Text>
-              <Text style={styles.infoValue}>{formatDate(profile.memberSince)}</Text>
+              <Text style={styles.infoValue}>{formatDate(profile?.memberSince ?? new Date().toISOString())}</Text>
             </View>
 
             <View style={styles.infoDivider} />
@@ -350,7 +366,9 @@ const Profile = () => {
               Your profile is scheduled for deletion{deletionDate ? ` on ${new Date(deletionDate).toLocaleDateString()}` : ''}.
             </Text>
             <Text style={styles.deletionPendingText}>
-              {remainingDays != null ? `${remainingDays} day${remainingDays === 1 ? '' : 's'} remaining in the grace period.` : 'Grace period remaining is being calculated.'}
+              {remainingDays != null
+                ? `${remainingDays} day${remainingDays === 1 ? '' : 's'} remaining in the grace period.`
+                : 'Grace period remaining is being calculated.'}
             </Text>
             <TouchableOpacity
               style={styles.cancelDeletionInlineButton}
@@ -376,7 +394,11 @@ const Profile = () => {
           onPress={() => isDeletionPending ? handleCancelDeletion() : setShowDeleteConfirm(true)}
           disabled={deletionLoading}
         >
-          <Ionicons name={isDeletionPending ? 'refresh-outline' : 'trash-outline'} size={20} color={isDeletionPending ? '#ffffff' : '#ef4444'} />
+          <Ionicons
+            name={isDeletionPending ? 'refresh-outline' : 'trash-outline'}
+            size={20}
+            color={isDeletionPending ? '#ffffff' : '#ef4444'}
+          />
           <Text style={[styles.deleteButtonText, isDeletionPending && styles.deleteButtonWarningText]}>
             {isDeletionPending ? 'Cancel Profile Deletion' : 'Delete Profile'}
           </Text>
@@ -464,11 +486,15 @@ const Profile = () => {
             <View style={styles.statusBox}>
               <View style={styles.statusRow}>
                 <Text style={styles.statusLabel}>Deletion Date:</Text>
-                <Text style={styles.statusValue}>{deletionDate ? new Date(deletionDate).toLocaleDateString() : 'Unknown'}</Text>
+                <Text style={styles.statusValue}>
+                  {deletionDate ? new Date(deletionDate).toLocaleDateString() : 'Unknown'}
+                </Text>
               </View>
               <View style={styles.statusRow}>
                 <Text style={styles.statusLabel}>Days Remaining:</Text>
-                <Text style={[styles.statusValue, { color: '#dc2626', fontWeight: '700' }]}>{deletionDaysLabel} days</Text>
+                <Text style={[styles.statusValue, { color: '#dc2626', fontWeight: '700' }]}>
+                  {deletionDaysLabel} days
+                </Text>
               </View>
             </View>
 
@@ -552,7 +578,9 @@ const Profile = () => {
                   <View style={styles.streakWarningBox}>
                     <Ionicons name="alert-circle" size={20} color="#f59e0b" />
                     <View style={styles.streakWarningText}>
-                      <Text style={styles.streakWarningTitle}>Cancellation Streak: {rewardInfo.data.consecutiveCancellations}/5</Text>
+                      <Text style={styles.streakWarningTitle}>
+                        Cancellation Streak: {rewardInfo.data.consecutiveCancellations}/5
+                      </Text>
                       <Text style={styles.streakWarningSubtitle}>
                         {5 - rewardInfo.data.consecutiveCancellations} more cancellations will get you banned for 30 minutes
                       </Text>
@@ -562,22 +590,45 @@ const Profile = () => {
 
                 <FlatList
                   data={rewardInfo.data.pointsHistory}
-                  keyExtractor={(item, idx) => idx.toString()}
+                  keyExtractor={(_, idx) => idx.toString()}
                   renderItem={({ item }) => (
                     <View style={styles.historyItem}>
-                      <View style={[styles.historyIcon, { backgroundColor: item.action === 'earned' ? '#d1fae5' : item.action === 'redeemed' ? '#dbeafe' : '#fee2e2' }]}>
+                      <View style={[
+                        styles.historyIcon,
+                        {
+                          backgroundColor:
+                            item.action === 'earned'   ? '#d1fae5' :
+                            item.action === 'redeemed' ? '#dbeafe' : '#fee2e2',
+                        },
+                      ]}>
                         <Ionicons
-                          name={item.action === 'earned' ? 'add-circle' : item.action === 'redeemed' ? 'gift' : 'remove-circle'}
+                          name={
+                            item.action === 'earned'   ? 'add-circle' :
+                            item.action === 'redeemed' ? 'gift'       : 'remove-circle'
+                          }
                           size={20}
-                          color={item.action === 'earned' ? '#10b981' : item.action === 'redeemed' ? '#3b82f6' : '#ef4444'}
+                          color={
+                            item.action === 'earned'   ? '#10b981' :
+                            item.action === 'redeemed' ? '#3b82f6' : '#ef4444'
+                          }
                         />
                       </View>
                       <View style={styles.historyContent}>
                         <Text style={styles.historyDescription}>{item.description}</Text>
-                        <Text style={styles.historyTimestamp}>{new Date(item.timestamp).toLocaleDateString()} {new Date(item.timestamp).toLocaleTimeString()}</Text>
+                        <Text style={styles.historyTimestamp}>
+                          {new Date(item.timestamp).toLocaleDateString()}{' '}
+                          {new Date(item.timestamp).toLocaleTimeString()}
+                        </Text>
                       </View>
-                      <Text style={[styles.historyPoints, { color: item.action === 'earned' ? '#10b981' : item.action === 'redeemed' ? '#3b82f6' : '#ef4444' }]}>
-                        {item.action === 'earned' ? '+' : item.action === 'redeemed' ? '-' : '-'}{item.points}
+                      <Text style={[
+                        styles.historyPoints,
+                        {
+                          color:
+                            item.action === 'earned'   ? '#10b981' :
+                            item.action === 'redeemed' ? '#3b82f6' : '#ef4444',
+                        },
+                      ]}>
+                        {item.action === 'earned' ? '+' : '-'}{item.points}
                       </Text>
                     </View>
                   )}
@@ -861,7 +912,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   rewardCard: {
-    backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    backgroundColor: '#667eea',
     marginHorizontal: 12,
     marginVertical: 16,
     borderRadius: 16,
