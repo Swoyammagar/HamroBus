@@ -88,7 +88,6 @@ export default function StopDetailModal({
       <View style={styles.backdrop}>
         <Pressable style={styles.backdropPressable} onPress={onClose} />
         <View style={[styles.panel, shadow.card]}>
-          {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerContent}>
               <View style={[styles.statusIcon, { backgroundColor: getStatusColor() + '20' }]}>
@@ -113,7 +112,6 @@ export default function StopDetailModal({
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* Scheduled Arrival Time */}
             <View style={styles.infoSection}>
               <View style={styles.infoHeader}>
                 <Feather name="clock" size={16} color={palette.primary} />
@@ -124,7 +122,6 @@ export default function StopDetailModal({
               </Text>
             </View>
 
-            {/* Location Coordinates */}
             {(stop.latitude || stop.longitude) && (
               <View style={styles.infoSection}>
                 <View style={styles.infoHeader}>
@@ -137,7 +134,6 @@ export default function StopDetailModal({
               </View>
             )}
 
-            {/* Expected Passengers */}
             <View style={styles.infoSection}>
               <View style={styles.infoHeader}>
                 <Feather name="users" size={16} color={palette.primary} />
@@ -146,7 +142,6 @@ export default function StopDetailModal({
               <Text style={styles.infoValue}>{stop.passengers} passengers</Text>
             </View>
 
-            {/* Stop Sequence/Order */}
             <View style={styles.infoSection}>
               <View style={styles.infoHeader}>
                 <Feather name="list" size={16} color={palette.primary} />
@@ -155,7 +150,6 @@ export default function StopDetailModal({
               <Text style={styles.infoValue}>Stop #{stop.id}</Text>
             </View>
 
-            {/* Status-based Actions */}
             <View style={styles.actionSection}>
               {stop.status === 'upcoming' && (
                 <Pressable
@@ -201,7 +195,6 @@ export default function StopDetailModal({
               )}
             </View>
 
-            {/* Helpful Tips */}
             <View style={styles.tipsSection}>
               <Text style={styles.tipLabel}>💡 Helpful Tips:</Text>
               <Text style={styles.tipText}>
@@ -225,7 +218,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   backdropPressable: {
-    ...StyleSheet.absoluteFillObject, 
+    ...StyleSheet.absoluteFillObject,
   },
   panel: {
     backgroundColor: palette.surface,

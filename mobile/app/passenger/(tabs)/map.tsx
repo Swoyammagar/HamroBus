@@ -51,19 +51,12 @@ const MapTab = () => {
   const { buses: fetchedBuses } = useBuses(selectedRouteId);
   const { schedules } = useRouteSchedules(selectedRouteId);
 
-  // Track all buses for the selected route so passenger can see multiple drivers.
   const trackingBusIds = fetchedBuses
     .map((bus) => String(bus._id || bus.id || '').trim())
     .filter((id) => id.length > 0);
   const trackingEnabled = showMap && trackingBusIds.length > 0;
-  
-  console.log('🔍 [MAP TAB] Driver tracking config:', {
-    selectedBus: selectedBus ? `${selectedBus._id || selectedBus.id}` : 'null',
-    showMap,
-    trackingBusIds,
-    trackingEnabled
-  });
-  
+
+
   const { driverLocations, isConnected, error: trackingError } = useDriverTracking({
     busIds: trackingBusIds,
     enabled: trackingEnabled,
@@ -71,20 +64,10 @@ const MapTab = () => {
 
   useEffect(() => {
     if (driverLocations.length > 0) {
-      console.log('📍 [MAP TAB] Driver locations updated:',
-        driverLocations.map((driverLocation) => ({
-          busId: driverLocation.busId,
-          driverId: driverLocation.driverId,
-          lat: driverLocation.latitude,
-          lng: driverLocation.longitude,
-          speed: driverLocation.speed
-        }))
-      );
     }
   }, [driverLocations]);
 
   useEffect(() => {
-    console.log('🔌 [MAP TAB] Socket connection status:', isConnected);
   }, [isConnected]);
 
   useEffect(() => {
@@ -112,7 +95,6 @@ const MapTab = () => {
     return () => clearTimeout(debounceId);
   }, [searchQuery, searchRoutes, fetchedRoutes, setRoutes]);
 
-  // Handle routeId from navigation (coming from home screen)
   useEffect(() => {
     if (!routeIdValue) return;
 
@@ -129,7 +111,6 @@ const MapTab = () => {
     setShowBusesPanel(false);
   }, [routeIdValue, routeList, showMap, selectedRouteForMap, setSelectedRoute]);
 
-  // Fetch buses for selected route
   useEffect(() => {
     if (selectedRouteForMap) {
       setBusesList(fetchedBuses);
@@ -137,7 +118,6 @@ const MapTab = () => {
     }
   }, [selectedRouteForMap, fetchedBuses, setBuses]);
 
-  // Keep selection route-specific: clear stale bus when changing routes.
   useEffect(() => {
     if (!selectedRouteForMap) return;
     const selectedBusId = selectedBus?._id || selectedBus?.id;
@@ -149,12 +129,10 @@ const MapTab = () => {
     });
 
     if (!stillInCurrentRoute) {
-      console.log('🧹 [MAP TAB] Clearing stale selected bus for new route');
       setSelectedBus(null);
     }
   }, [selectedRouteForMap, fetchedBuses, selectedBus, setSelectedBus]);
 
-  // Auto-select a bus so tracking starts without requiring manual bus tap.
   useEffect(() => {
     if (!showMap || !selectedRouteForMap) return;
     if (!fetchedBuses.length) return;
@@ -174,12 +152,10 @@ const MapTab = () => {
     const busToTrack = activeBus || fetchedBuses[0];
 
     if (busToTrack) {
-      console.log('✅ [MAP TAB] Auto-selected bus for tracking:', busToTrack._id || busToTrack.id);
       setSelectedBus(busToTrack);
     }
   }, [showMap, selectedRouteForMap, fetchedBuses, selectedBus, setSelectedBus]);
 
-  // Filter routes based on search query
   const filteredRoutes = routeList.filter(route =>
     route.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     route.stops.some(stop => stop.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -197,7 +173,6 @@ const MapTab = () => {
     setBusesList([]);
     setShowBusesPanel(false);
     setSelectedBus(null);
-    // Clear the routeId param to prevent the useEffect from re-triggering
     router.setParams({ routeId: undefined });
   };
 
@@ -296,7 +271,6 @@ const MapTab = () => {
           </View>
         )}
 
-        {/* Floating Bus Info Button */}
         {busesList.length > 0 && (
           <FloatingBusButton
             busCount={busesList.length}
@@ -304,7 +278,6 @@ const MapTab = () => {
           />
         )}
 
-        {/* Buses Panel */}
         {showBusesPanel && (
           <BusesPanelSheet
             buses={busesList}
@@ -313,7 +286,6 @@ const MapTab = () => {
           />
         )}
 
-        {/* Bus Details Modal */}
         <BusDetailsModal
           visible={selectedBusModal}
           bus={selectedBusForModal}
@@ -340,7 +312,6 @@ const MapTab = () => {
         <Text style={styles.headerSubtitle}>Find routes near you</Text>
       </View>
 
-      {/* Map Preview Area */}
       <View style={styles.mapArea}>
         <View style={styles.mapPlaceholder}>
           <Ionicons name="map" size={64} color="#d1d5db" />
@@ -351,7 +322,6 @@ const MapTab = () => {
         </View>
       </View>
 
-      {/* Search and Filter */}
       <View style={styles.controlsContainer}>
         <View style={styles.searchBox}>
           <Ionicons name="search" size={20} color="#9ca3af" />
@@ -370,7 +340,6 @@ const MapTab = () => {
         </View>
       </View>
 
-      {/* Routes List */}
       <ScrollView style={styles.routesContainer} showsVerticalScrollIndicator={false}>
         {filteredRoutes.length > 0 ? (
           <View style={styles.routesList}>

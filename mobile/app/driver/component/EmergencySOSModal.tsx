@@ -141,7 +141,6 @@ export default function EmergencySOSModal({ visible, onClose }: Props) {
       <View style={styles.backdrop}>
         <View style={styles.card}>
 
-          {/* ── Red header (title + close only) ── */}
           <View style={styles.header}>
             <View style={styles.titleBlock}>
               <View style={styles.alertBadge}>
@@ -161,7 +160,6 @@ export default function EmergencySOSModal({ visible, onClose }: Props) {
             </Pressable>
           </View>
 
-          {/* ── Location strip (outside header, between header and scroll) ── */}
           <View style={styles.locationCard}>
             <View style={styles.locationRow}>
               <Feather name="map-pin" size={14} color="#991b1b" />
@@ -173,12 +171,10 @@ export default function EmergencySOSModal({ visible, onClose }: Props) {
             </View>
           </View>
 
-          {/* ── Scrollable body ── */}
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
-            {/* Category grid — explicit margins instead of gap to avoid RN wrap artifacts */}
             <View style={styles.grid}>
               {SOS_CATEGORIES.map((item, index) => {
                 const selected = item.id === selectedCategory;
@@ -236,7 +232,6 @@ export default function EmergencySOSModal({ visible, onClose }: Props) {
             </View>
           </ScrollView>
 
-          {/* ── Footer actions ── */}
           <View style={styles.footer}>
             <Pressable
               style={[styles.primary, (sending || loadingLocation) && styles.primaryDisabled]}
@@ -282,7 +277,6 @@ const styles = StyleSheet.create({
     elevation: 20,
   },
 
-  // ── Header ──
   header: {
     backgroundColor: '#ef1111',
     paddingHorizontal: 18,
@@ -330,7 +324,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  // ── Location strip ──
   locationCard: {
     backgroundColor: '#fef2f2',
     borderBottomWidth: 1,
@@ -350,13 +343,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // ── Scroll body ──
   scrollContent: {
     padding: 18,
     paddingTop: 16,
   },
 
-  // ── Category grid ──
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -416,7 +407,6 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 
-  // ── Details input ──
   detailsWrap: {
     marginTop: 14,
   },
@@ -432,7 +422,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  // ── Notice card ──
   noticeCard: {
     marginTop: 14,
     backgroundColor: '#fff8e7',
@@ -453,7 +442,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  // ── Quick call buttons ──
   quickActionsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -478,7 +466,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // ── Footer ──
   footer: {
     paddingHorizontal: 18,
     paddingBottom: 18,

@@ -191,13 +191,11 @@ const getDriverLeaderboard = async (req, res) => {
     const parsedSkip = Math.max(toInt(skip ?? offset, 0), 0);
     const parsedMinReviews = Math.max(toInt(minReviews, 1), 1);
 
-    // Global average rating C (used for Bayesian smoothing)
     const avgRows = await Review.aggregate([
       { $group: { _id: null, globalAvg: { $avg: '$rating' } } },
     ]);
     const C = Number(avgRows[0]?.globalAvg || 0);
 
-    // m = confidence constant (bigger m -> stronger smoothing)
     const m = 5;
 
     const basePipeline = [

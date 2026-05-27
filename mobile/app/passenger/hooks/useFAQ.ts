@@ -25,11 +25,8 @@ export const usePassengerFAQ = () => {
       setError(null);
 
       try {
-        // Get token from storage before making request
         const token = await AsyncStorage.getItem('authToken');
-        console.log('[FAQ Submit] Token from storage:', token ? 'Present' : 'Missing');
-        console.log('[FAQ Submit] Token value:', token?.substring(0, 20) + '...');
-        
+
         const response = await apiClient.post(
           '/faq/submit',
           {
@@ -42,7 +39,6 @@ export const usePassengerFAQ = () => {
           }
         );
 
-        console.log('[FAQ Submit] Response:', response.data);
 
         if (response.data.success) {
           return {

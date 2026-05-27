@@ -139,7 +139,6 @@ const routeSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Index for frequently queried fields
 routeSchema.index({ routeNumber: 1 });
 routeSchema.index({ 'stops.latitude': 1, 'stops.longitude': 1 });
 

@@ -10,7 +10,7 @@ const DriverPhone = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const { requestSignupOTP } = useAuth();
-  
+
   const { control, handleSubmit, formState: { errors } } = useForm({
     defaultValues: { email: '' },
   });
@@ -18,9 +18,8 @@ const DriverPhone = () => {
   const onSubmit = async (data: { email: string }) => {
     setIsSubmitting(true);
     setError("");
-    
+
     try {
-      // Request OTP for signup
       const result = await requestSignupOTP(data.email, 'passenger');
       if (result.success) {
         updateSignupData({ email: data.email });
@@ -45,7 +44,6 @@ const DriverPhone = () => {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.container}>
-        {/* Header */}
         <View className="flex-row mb-6 mt-6 justify-center">
           <Text className="text-2xl font-medium text-black">Create New</Text>
           <Text className="text-2xl font-medium text-[#27AE60] ml-2">Account</Text>
@@ -79,7 +77,7 @@ const DriverPhone = () => {
         {errors.email && (
           <Text style={{ color: 'red', marginBottom: 20 }}>{errors.email.message}</Text>
         )}
-        
+
         <TouchableOpacity
           style={[styles.nextButton, isSubmitting && styles.disabledButton]}
           onPress={handleSubmit(onSubmit)}

@@ -18,15 +18,14 @@ export const connectAdminSocket = (): Socket => {
     });
 
     adminSocket.on('connect', () => {
-      console.log('✅ notificationSocket connected:', adminSocket?.id);
       adminSocket?.emit('join-admin');
     });
 
     adminSocket.on('connect_error', (err) => {
-      console.error('❌ notificationSocket connect_error:', err);
+      console.error(' notificationSocket connect_error:', err);
     });
     adminSocket.on('disconnect', (reason) => {
-      console.warn('⚠️ notificationSocket disconnected:', reason);
+      console.warn(' notificationSocket disconnected:', reason);
     });
   }
 
@@ -40,7 +39,6 @@ export const connectAdminSocket = (): Socket => {
 export const onNotificationReceived = (handler: (payload: any) => void) => {
   const socket = connectAdminSocket();
   const wrapped = (payload: any) => {
-    console.log('📨 notification:new received:', payload);
     try {
       handler(payload);
     } catch (err) {
@@ -56,7 +54,6 @@ export const onNotificationReceived = (handler: (payload: any) => void) => {
 export const onSosAlertReceived = (handler: (payload: any) => void) => {
   const socket = connectAdminSocket();
   const wrapped = (payload: any) => {
-    console.log('📨 sos:alert received:', payload);
     try {
       handler(payload);
     } catch (err) {
@@ -72,7 +69,6 @@ export const onSosAlertReceived = (handler: (payload: any) => void) => {
 export const onSosClearedReceived = (handler: (payload: any) => void) => {
   const socket = connectAdminSocket();
   const wrapped = (payload: any) => {
-    console.log('📨 sos:cleared received:', payload);
     try {
       handler(payload);
     } catch (err) {

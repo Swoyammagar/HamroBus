@@ -1,4 +1,3 @@
-// Global socket.io instance manager
 let globalIoInstance = null;
 
 const setIoInstance = (io) => {

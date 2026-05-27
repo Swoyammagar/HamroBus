@@ -51,7 +51,6 @@ const BusDetailsModal: React.FC<BusDetailsModalProps> = ({
     fetchLatestReviews();
   }, [visible, bus?.driverId]);
 
-  // Listen for real-time driver stop updates
   useEffect(() => {
     if (!visible || !bus) {
       return;

@@ -19,16 +19,15 @@ interface Props {
 }
 
 export default function HomeScreen({ onSOSPress, isOnline }: Props) {
-  // ✅ Use shared context instead of individual hooks
-  const { 
-    assignedRoute: route, 
-    schedules, 
-    routeLoading, 
-    currentTrip, 
+  const {
+    assignedRoute: route,
+    schedules,
+    routeLoading,
+    currentTrip,
     tripLoading,
-    refreshAll 
+    refreshAll
   } = useAppContext();
-  
+
   const {
     startTrip,
     endTrip,
@@ -61,7 +60,6 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     return String(value);
   };
 
-  // Fetch today's completed trips on mount and after trip end
   useEffect(() => {
     fetchCompletedTrips();
   }, [currentTrip]);
@@ -80,7 +78,6 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     }
   };
 
-  // Handle pull-to-refresh - now refreshes shared data
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -92,25 +89,19 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     }
   };
 
-  // Handle online/offline status
   useEffect(() => {
     if (isOnline && currentTrip) {
-      // Refresh when coming back online
       refreshAll();
     }
   }, [isOnline]);
 
-  // ========== REAL-TIME SEAT MODAL REFRESH ==========
-  // Listen for new bookings and refresh seat map if modal is open
   useEffect(() => {
     if (!showSeatMapModal || !selectedSchedule?._id) {
       return;
     }
 
     const handleSeatBooked = (data: any) => {
-      console.log('🎫 [SEAT BOOKED] New booking detected:', data);
-      
-      // Compute service date here to avoid dependency array issues
+
       let serviceDate = '';
       if (selectedSchedule) {
         if (currentTrip?.scheduleId) {
@@ -128,13 +119,10 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
           }
         }
       }
-      
-      // Refresh seat map if this is for the current schedule
+
       if (String(data.scheduleId) === String(selectedSchedule._id) && serviceDate) {
-        console.log('🔄 Refreshing seat map due to new booking');
         loadSeatMap(selectedSchedule, serviceDate);
-        
-        // Show toast notification
+
         Alert.alert('New Booking', `Seats ${data.seatNumbers.join(', ')} just got booked!`);
       }
     };
@@ -145,9 +133,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       socketService.off('seat:booked', handleSeatBooked);
     };
   }, [showSeatMapModal, selectedSchedule?._id, currentTrip?.scheduleId, currentTrip?.startTime]);
-  // ========== END REAL-TIME SEAT MODAL REFRESH ==========
 
-  // Get today's schedules sorted by time
   const getTodaySchedules = () => {
     if (!schedules || schedules.length === 0) return [];
 
@@ -156,7 +142,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     const todayName = dayNames[today.getDay()];
 
     return schedules
-      .filter((schedule: any) => 
+      .filter((schedule: any) =>
         schedule.dayOfWeek?.toLowerCase() === todayName.toLowerCase()
       )
       .sort((a: any, b: any) => {
@@ -180,7 +166,6 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     return result.toISOString().split('T')[0];
   };
 
-  // Get next schedule that hasn't been completed today
   const getNextSchedule = () => {
     const todaySchedules = getTodaySchedules();
     if (todaySchedules.length === 0) return null;
@@ -188,11 +173,9 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-    // Find the first schedule that hasn't ended yet and hasn't been completed
     for (const schedule of todaySchedules) {
       const scheduleId = schedule._id?.toString();
-      
-      // Skip if this schedule was already completed today
+
       if (scheduleId && completedScheduleIds.has(scheduleId)) {
         continue;
       }
@@ -202,7 +185,6 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       const startMinutes = startHour * 60 + startMin;
       const endMinutes = endHour * 60 + endMin;
 
-      // If schedule hasn't ended yet, it's the next one
       if (currentMinutes < endMinutes) {
         return schedule;
       }
@@ -211,9 +193,6 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     return null; // All schedules for today are completed
   };
 
-  // Get schedule to show in seat map:
-  // 1) If a trip is ongoing, show that trip's schedule bookings.
-  // 2) Otherwise show next upcoming not-completed schedule.
   const getSeatMapTargetSchedule = () => {
     const todaySchedules = getTodaySchedules();
 
@@ -255,18 +234,15 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
         return;
       }
 
-      // Get busId from schedule
       const busId = nextSchedule.busId?._id || nextSchedule.busId;
       const scheduleId = nextSchedule._id;
 
-      // Guard against stale local state: backend may still have an active trip.
       const existingTrip = await driverService.getCurrentTrip();
       if (existingTrip) {
         Alert.alert('Trip already active', 'You already have an ongoing trip. Please end it before starting a new one.');
         return;
       }
 
-      console.log('Starting trip with:', { routeId: route._id, busId, scheduleId });
 
       await startTrip(route._id, busId, scheduleId);
       setShowStartTrip(false);
@@ -299,7 +275,6 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
             text: 'Stop Trip',
             onPress: async () => {
               await endTrip(currentTrip._id);
-              // Context will auto-update via WebSocket
               Alert.alert('Success', 'Trip ended successfully');
             },
             style: 'destructive'
@@ -425,7 +400,6 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
         throw new Error('Current stop not available');
       }
 
-      // Calculate difference
       const difference = count - (currentTrip.passengerCount || 0);
       const passengersBoarded = difference > 0 ? difference : 0;
       const passengersAlighted = difference < 0 ? Math.abs(difference) : 0;
@@ -441,7 +415,6 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
         passengersAlighted
       );
 
-      // Context will auto-update via WebSocket
       Alert.alert('Success', 'Passenger count updated');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to update passenger count');
@@ -449,7 +422,6 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     }
   };
 
-  // Get next upcoming schedule
   const nextSchedule = getNextSchedule();
   const seatMapTargetSchedule = getSeatMapTargetSchedule();
   const seatMapTargetServiceDate = seatMapTargetSchedule
@@ -459,7 +431,6 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     : '';
   const todaySchedules = getTodaySchedules();
 
-  // Calculate stats from current trip
   const stats = [
     {
       label: "Today's Trips",
@@ -491,12 +462,12 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
   }
 
   return (
-    <ScrollView 
-      style={styles.container} 
+    <ScrollView
+      style={styles.container}
       contentContainerStyle={styles.scrollContent}
       refreshControl={
-        <RefreshControl 
-          refreshing={refreshing} 
+        <RefreshControl
+          refreshing={refreshing}
           onRefresh={handleRefresh}
           tintColor={palette.primary}
         />
@@ -518,7 +489,6 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       )}
 
       {isOnline && currentTrip ? (
-        // Active Trip Card
         <LinearGradient colors={[palette.primary, '#1E3A8A']} style={styles.tripCard}>
           <View style={styles.tripHeader}>
             <View>
@@ -574,9 +544,8 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
             </View>
           </View>
 
-          {/* Action Buttons for Active Trip */}
           <View style={styles.tripActionRow}>
-            <Pressable 
+            <Pressable
               style={[styles.tripButton, styles.tripButtonSecondary, tripActionLoading && { opacity: 0.6 }]}
               onPress={handleToggleBreak}
               disabled={tripActionLoading || !currentTrip}
@@ -586,7 +555,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
                 {currentTrip?.status === 'on-break' ? 'Resume' : 'Break'}
               </Text>
             </Pressable>
-            <Pressable 
+            <Pressable
               style={[styles.tripButton, styles.tripButtonDanger, tripActionLoading && { opacity: 0.6 }]}
               onPress={handleEndTrip}
               disabled={tripActionLoading}
@@ -599,7 +568,6 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
           </View>
         </LinearGradient>
       ) : (
-        // No Active Trip - Show assigned route info
         route && (
           <LinearGradient colors={['#f3f4f6', '#e5e7eb']} style={styles.tripCard}>
             <View style={styles.tripHeader}>
@@ -704,7 +672,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
           <Text style={styles.quickTitle}>Take Break</Text>
           <Text style={styles.quickSub}>{currentTrip?.status === 'on-break' ? 'Resume trip' : 'Pause location'}</Text>
         </Pressable>
-        <Pressable 
+        <Pressable
           style={[styles.quickCard, shadow.card]}
           onPress={handleOpenPassengerLog}
           disabled={!currentTrip}
@@ -753,8 +721,8 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
         tripDetails={{
           route: route?.routeName || 'Route',
           time: nextSchedule?.startTime || '00:00',
-          duration: nextSchedule 
-            ? `${nextSchedule.startTime} - ${nextSchedule.endTime}` 
+          duration: nextSchedule
+            ? `${nextSchedule.startTime} - ${nextSchedule.endTime}`
             : '0h'
         }}
         onStart={handleStartTrip}

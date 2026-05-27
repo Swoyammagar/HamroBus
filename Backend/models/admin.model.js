@@ -3,30 +3,30 @@ const mongoose = require("mongoose");
 const adminSchema = new mongoose.Schema({
     fullname: {
         type: String,
-        default: 'Administrator'       
+        default: 'Administrator'
     },
     email: {
         type: String,
         required: true,
-        unique: true // ✅ Add unique constraint
+        unique: true
     },
     password: {
         type: String,
-        required: true // ✅ Make required
-    }, 
+        required: true
+    },
     confirmPassword: {
         type: String,
     },
     otp: {
         type: String,
-    }, 
+    },
     role: {
         type: String,
         default: 'admin'
     },
     permissions: {
         type: [String],
-        default: [] // ✅ Add permissions array for future RBAC
+        default: []
     },
     isVerified: {
         type: Boolean,
@@ -35,17 +35,41 @@ const adminSchema = new mongoose.Schema({
     refreshToken: {
         type: String,
         default: null,
+        select: false,
+    },
+    refreshTokens: {
+        type: [{
+            token: {
+                type: String,
+                required: true,
+            },
+            createdAt: {
+                type: Date,
+                default: Date.now,
+            },
+            expiresAt: {
+                type: Date,
+                default: null,
+            },
+            deviceId: {
+                type: String,
+                default: null,
+            },
+        }],
+        default: [],
+        select: false,
     },
     phone: {
         type: String,
         default: null
     },
-    
+
 }, {
-    timestamps: true // ✅ Add timestamps
+    timestamps: true
 });
 
-// ✅ Add index for faster email lookups
+
 adminSchema.index({ email: 1 });
+adminSchema.index({ 'refreshTokens.token': 1 });
 
 module.exports = mongoose.models.Admin || mongoose.model("Admin", adminSchema);

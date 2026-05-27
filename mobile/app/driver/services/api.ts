@@ -45,7 +45,6 @@ const refreshMobileAccessToken = async (): Promise<RefreshResult> => {
   return refreshPromise;
 };
 
-// Add auth token to requests
 apiClient.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem('authToken');
@@ -59,7 +58,6 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Handle response errors
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -78,17 +76,14 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       }
 
-      // If refresh failed due to invalid/expired refresh token, perform logout/navigation.
       const invalidStatuses = [400, 401, 403];
       if (refreshResult.status && invalidStatuses.includes(refreshResult.status)) {
         await AsyncStorage.removeItem('authToken');
         await AsyncStorage.removeItem('refreshToken');
         router.push('/pages/mobilelogin');
-        // reject original error after navigation
         return Promise.reject(error);
       }
 
-      // For network/transient failures (no status), do not force logout — reject and let UI handle it.
       return Promise.reject(error);
     }
 

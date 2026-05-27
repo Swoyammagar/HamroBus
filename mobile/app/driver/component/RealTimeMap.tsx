@@ -32,43 +32,32 @@ export default function OpenStreetMap({
 
   const webViewRef = useRef<WebView>(null);
 
-  // ✅ Track when map is ready AND when updateDriverLocation function is ready
   const [mapReady, setMapReady] = useState(false);
   const [driverLocationReady, setDriverLocationReady] = useState(false);
 
-  // ✅ FIXED: Only inject JS after location is available AND driverLocationReady is true
   useEffect(() => {
     if (!currentLocation) {
-      console.log('RealTimeMap: No location available yet');
       return;
     }
-    
+
     if (!webViewRef.current) {
-      console.log('RealTimeMap: WebView ref not available');
       return;
     }
 
     if (!driverLocationReady) {
-      console.log('RealTimeMap: Driver location function not ready yet');
       return;
     }
 
-    console.log('RealTimeMap: All conditions met, injecting location', {
-      lat: currentLocation.latitude,
-      lng: currentLocation.longitude,
-    });
 
-    // Use JSON to safely handle numeric values
     const lat = JSON.stringify(currentLocation.latitude);
     const lng = JSON.stringify(currentLocation.longitude);
-    
+
     const js = `
       (function() {
-        console.log('🗺️ WebView JS: Calling updateDriverLocation with', ${lat}, ${lng});
         if(typeof window.updateDriverLocation === 'function'){
           window.updateDriverLocation(${lat}, ${lng});
         } else {
-          console.error('❌ updateDriverLocation is not a function!');
+          console.error(' updateDriverLocation is not a function!');
         }
       })();
       true;
@@ -164,9 +153,7 @@ body, html { margin:0; padding:0; height:100%; }
 <script>
 
 const stops = ${JSON.stringify(busStops)};
-console.log('Map initializing with stops:', stops.length);
 
-// Use first stop or default location - don't use currentLocation here!
 const initialLat = stops[0]?.latitude || 27.7172;
 const initialLng = stops[0]?.longitude || 85.3240;
 
@@ -175,18 +162,14 @@ const map = L.map('map',{ zoomControl:true }).setView(
   14
 );
 
-console.log('✅ Leaflet map created successfully');
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   attribution:'© OpenStreetMap contributors'
 }).addTo(map);
 
-console.log('✅ Tile layer added, map ready for markers');
 
-// Signal that map is ready
 if(window.ReactNativeWebView){
   window.ReactNativeWebView.postMessage('mapReady');
-  console.log('✅ Sent mapReady signal to React Native');
 }
 
 let driverMarker = null;
@@ -200,31 +183,24 @@ let stepsData = [];
 ========================= */
 
 window.updateDriverLocation = function(lat,lng){
-  console.log('🗺️ updateDriverLocation called with:', lat, lng);
-  
+
   if(!driverMarker){
-    console.log('🟢 Creating new driver marker at:', lat, lng);
     driverMarker = L.circleMarker([lat,lng],{
       radius:8,
       color:'#2563EB',
       fillColor:'#2563EB',
       fillOpacity:1
     }).addTo(map);
-    console.log('✅ Driver marker created and added to map');
   } else {
-    console.log('🔄 Updating existing driver marker to:', lat, lng);
     driverMarker.setLatLng([lat,lng]);
   }
 
   map.setView([lat,lng], map.getZoom(), { animate:true });
-  console.log('✅ Map centered on driver location');
   updateStepHighlight(lat,lng);
 };
 
-// Signal that updateDriverLocation function is ready
 if(window.ReactNativeWebView){
   window.ReactNativeWebView.postMessage('driverLocationReady');
-  console.log('✅ Sent driverLocationReady signal');
 }
 
 /* =========================
@@ -361,12 +337,10 @@ btn.addEventListener("click",()=>{
         domStorageEnabled={true}
         startInLoadingState={true}
         onLoadEnd={() => {
-          console.log('WebView onLoadEnd called');
           setMapReady(true);
         }}
         onMessage={(event) => {
           const message = event.nativeEvent.data;
-          console.log('📨 WebView message received:', message);
 
           try {
             const payload = JSON.parse(message);
@@ -375,15 +349,12 @@ btn.addEventListener("click",()=>{
               return;
             }
           } catch {
-            // Non-JSON messages are expected for lifecycle signals.
           }
 
           if (message === 'mapReady') {
-            console.log('✅ Map ready signal received!');
             setMapReady(true);
           }
           if (message === 'driverLocationReady') {
-            console.log('✅ Driver location function ready signal received!');
             setDriverLocationReady(true);
           }
         }}

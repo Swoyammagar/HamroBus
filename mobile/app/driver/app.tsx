@@ -100,7 +100,7 @@ export default function App() {
 
     if (!token) {
       console.warn(
-        '⚠️ No auth token found - redirecting to login'
+        ' No auth token found - redirecting to login'
       );
 
       router.replace('/pages/mobilelogin');
@@ -109,7 +109,7 @@ export default function App() {
 
     if (!driver?.id) {
       console.warn(
-        '⚠️ No driver data found - redirecting to login'
+        ' No driver data found - redirecting to login'
       );
 
       router.replace('/pages/mobilelogin');
@@ -195,10 +195,6 @@ export default function App() {
       const onSosAlert = (payload: any) => {
         if (!mounted) return;
 
-        console.log(
-          '🆘 [DRIVER APP] SOS alert received:',
-          payload
-        );
 
         if (!sosOpenRef.current) {
           sosOpenRef.current = true;
@@ -276,7 +272,6 @@ export default function App() {
             style={styles.container}
             edges={['top', 'left', 'right']}
           >
-            {/* HEADER */}
             <Header
               isOnline={isOnline}
               onToggleOnline={async () => {
@@ -307,7 +302,6 @@ export default function App() {
               onMenuPress={() => setMenuOpen(true)}
             />
 
-            {/* MAIN CONTENT */}
             <View style={styles.content}>
               <RootNavigator
                 isOnline={isOnline}
@@ -315,20 +309,17 @@ export default function App() {
               />
             </View>
 
-            {/* SOS MODAL */}
             <EmergencySOSModal
               visible={showSOS}
               onClose={() => setShowSOS(false)}
             />
 
-            {/* SIDE MENU */}
             <SideMenu
               isOpen={menuOpen}
               onClose={() => setMenuOpen(false)}
               isOnline={isOnline}
             />
 
-            {/* PREMIUM TOAST */}
             {toast ? (
               <View
                 style={styles.toastWrap}
@@ -343,7 +334,6 @@ export default function App() {
                     },
                   ]}
                 >
-                  {/* LOGO */}
                   <View style={styles.leftSection}>
                     <Image
                       source={require('../utils/MainLogo.png')}
@@ -352,7 +342,6 @@ export default function App() {
                     />
                   </View>
 
-                  {/* CONTENT */}
                   <View style={styles.contentSection}>
                     <View style={styles.headerRow}>
                       <View style={styles.titleWrap}>

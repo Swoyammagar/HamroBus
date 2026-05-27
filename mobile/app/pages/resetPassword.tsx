@@ -63,7 +63,6 @@ const ResetPassword: React.FC = () => {
         className="bg-[#f9f9f9]"
       >
         <View className="flex-1 min-h-screen bg-[#f9f9f9] px-6 py-10 items-center justify-center">
-          {/* Logo */}
           <View className="items-center mb-6">
             <Image
               source={mainLogo}
@@ -72,7 +71,6 @@ const ResetPassword: React.FC = () => {
             />
           </View>
 
-          {/* Heading */}
           <View className="flex-row mb-8 w-full justify-center">
             <Text className="text-3xl font-semibold text-black">Forgot Your</Text>
             <Text className="text-3xl font-semibold text-[#27AE60] ml-2">
@@ -80,13 +78,11 @@ const ResetPassword: React.FC = () => {
             </Text>
           </View>
 
-          {/* Error & Success messages */}
           {error ? <Text className="text-red-500 text-sm mb-2">{error}</Text> : null}
           {success ? (
             <Text className="text-green-500 text-sm mb-2">{success}</Text>
           ) : null}
 
-          {/* Role Selector */}
           <View className="w-80 mb-4">
             <Text className="text-base font-medium text-[#333] mb-2">
               I am a
@@ -112,7 +108,6 @@ const ResetPassword: React.FC = () => {
             </View>
           </View>
 
-          {/* Email Field */}
           <View className="w-80">
             <Text className="text-base font-medium text-[#333] mb-2 self-start">
               Email Address
@@ -131,7 +126,6 @@ const ResetPassword: React.FC = () => {
               }`}
             />
 
-            {/* Send Reset Button */}
             <TouchableOpacity
               onPress={handleResetPassword}
               disabled={isLoading}
@@ -148,7 +142,6 @@ const ResetPassword: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Login link */}
           <View className="mt-5 flex-row items-center">
             <Text className="text-sm text-[#333]">Remember your password?</Text>
             <TouchableOpacity onPress={() => router.push("/pages/mobilelogin")}>

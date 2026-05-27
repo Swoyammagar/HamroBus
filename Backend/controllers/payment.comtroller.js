@@ -136,7 +136,6 @@ const initiateKhaltiPayment = async (req, res) => {
       }
 
       if (lookupResponse.ok && isKhaltiFailedStatus(khaltiStatus)) {
-        // Old session is no longer payable; mark failed and create a fresh session below.
         booking.payment = {
           ...(booking.payment || {}),
           status: 'failed',
@@ -157,13 +156,11 @@ const initiateKhaltiPayment = async (req, res) => {
       }
     }
 
-    // ========== USE FINAL FARE (WITH DISCOUNT IF REDEEMED) ==========
     const chargeAmount = Number(booking.finalFare || booking.totalFare || 0);
     const amount = Math.round(chargeAmount * 100);
     if (amount <= 0) {
       return res.status(400).json({ message: 'Invalid booking amount for payment' });
     }
-    // ========== END NEW ==========
 
     const fallbackReturnUrl = String(process.env.KHALTI_RETURN_URL || 'https://example.com/khalti-return').trim();
     const fallbackWebsiteUrl = String(process.env.KHALTI_WEBSITE_URL || 'https://example.com').trim();
@@ -201,7 +198,6 @@ const initiateKhaltiPayment = async (req, res) => {
     });
 
     const data = await safeJson(response);
-    console.log('Khalti initiate response:', { status: response.status, data });
 
     if (!response.ok) {
       return res.status(response.status).json({
@@ -232,7 +228,6 @@ const initiateKhaltiPayment = async (req, res) => {
       expiresIn: data?.expires_in,
     });
   } catch (error) {
-    console.log('Khalti initiate error:', error.message);
     return res.status(500).json({
       success: false,
       message: 'Failed to initiate Khalti payment',
@@ -308,8 +303,6 @@ const verifyKhaltiPayment = async (req, res) => {
       khaltiStatus,
     });
   } catch (error) {
-    console.log('Khalti verify error:', error.message);
-
     return res.status(400).json({
       success: false,
       message: 'Payment verification failed',

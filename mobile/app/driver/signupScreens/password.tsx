@@ -85,7 +85,7 @@ const NewPassword: React.FC = () => {
     isSuccess = true;
 
   } catch (err: any) {
-    console.error("❌ REGISTER FAILED:", err);
+    console.error(" REGISTER FAILED:", err);
     Alert.alert("Error", err?.message || "Registration failed. Please try again.");
     setError(
       err?.response?.data?.message ||
@@ -121,10 +121,8 @@ const NewPassword: React.FC = () => {
         <View className="flex-1 min-h-screen bg-[#f9f9f9] items-center px-6 py-10">
           <View className="w-full mt-6 flex-col lg:flex-row items-center justify-between max-w-[1200px]">
 
-            {/* Left Side */}
             <View style={{ width: "100%", maxWidth: 510 }}>
 
-              {/* Heading */}
               <View className="flex-row mb-4 justify-center">
                 <Text className="text-2xl font-medium text-black">Set Your</Text>
                 <Text className="text-2xl font-medium text-[#27AE60] ml-2">Password</Text>
@@ -132,7 +130,6 @@ const NewPassword: React.FC = () => {
 
               {error ? <Text className="text-red-500 text-sm mb-4">{error}</Text> : null}
 
-              {/* New Password */}
               <Text className="font-medium text-[#333] mt-3 mb-1">Password</Text>
               <View className="relative">
                 <Controller
@@ -174,7 +171,6 @@ const NewPassword: React.FC = () => {
                 <Text className="text-red-500 text-xs mt-1">{errors.password.message as string}</Text>
               ) : null}
 
-              {/* Confirm Password */}
               <Text className="font-medium text-[#333] mt-3 mb-1">Confirm Password</Text>
               <View className="relative">
                 <Controller
@@ -278,7 +274,6 @@ const NewPassword: React.FC = () => {
                     <Text className="font-extralight text-[#333] mt-2 mb-1">must have one special character and number</Text>
                 </View> */}
 
-              {/* Button */}
                 <View className="flex-col items-center mt-5 space-y-4">
                     <TouchableOpacity
                     onPress={handleSubmit(onSubmit)}

@@ -23,11 +23,9 @@ export const useReviews = () => {
   });
 
 const fetchReviews = useCallback(async (page: number = 1) => {
-  console.log('[useReviews] 🔄 Fetching reviews for page:', page);
   setState(prev => ({ ...prev, loading: true, error: null }));
   try {
     const response = await reviewService.getMyReviews(page, 10);
-    console.log('[useReviews] ✅ Reviews fetched successfully');
     if (response.success) {
       setState(prev => ({
         ...prev,
@@ -49,11 +47,9 @@ const fetchReviews = useCallback(async (page: number = 1) => {
 }, []);
 
   const fetchStats = useCallback(async () => {
-    console.log('[useReviews] 📊 Fetching review stats...');
     try {
       const response = await reviewService.getReviewStats();
-      console.log('[useReviews] ✅ Stats fetched successfully');
-      
+
       if (response.success) {
         setState(prev => ({
           ...prev,

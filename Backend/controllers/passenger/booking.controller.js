@@ -16,8 +16,6 @@ const { deductPoints, checkBanStatus } = require('../../services/rewardService')
 const { sendPushToUsers } = require('../../services/pushNotificationService');
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-// Seats are considered taken only for confirmed or in-progress bookings.
-// Completed bookings should free up seats so new passengers can book them.
 const BOOKING_ACTIVE_STATUSES = ['confirmed', 'in-progress'];
 const BOOKING_CANCELLABLE_STATUS = 'confirmed';
 const QR_SCHEMA_VERSION = 1;
@@ -231,11 +229,9 @@ const createBooking = async (req, res) => {
         $gte: dayRange.start,
         $lt: dayRange.end,
       },
-      // include on-break as an active trip so mid-trip bookings are considered
       status: { $in: ['in-progress', 'on-break', 'completed'] },
     }).select('_id status startTime currentStop driverId');
 
-    // NEW: Allow mid-trip booking if bus hasn't reached destination yet
     if (existingTrip && existingTrip.status === 'completed') {
       return res.status(409).json({
         message: `Booking closed. This trip is already completed.`,
@@ -246,24 +242,19 @@ const createBooking = async (req, res) => {
     let tripSessionId = null;
 
     if (existingTrip && existingTrip.status === 'in-progress') {
-      // Mid-trip booking: check if bus has already passed boarding or destination
       tripSessionId = existingTrip._id;
       isMidTripBooking = true;
-      
-      // Validate destination: bus cannot have already passed it
-      // Fetch route to get stop sequences
+
       let route_for_validation = await Route.findById(routeId).select('stops').lean();
       if (route_for_validation) {
         const currentStopSeq = getCurrentStopSequence(existingTrip.currentStop, { stops: route_for_validation.stops });
         const boardingStopSeq = Number(getStopByName({ stops: route_for_validation.stops }, boardingStopName)?.sequence || -1);
         const destinationStopSeq = Number(getStopByName({ stops: route_for_validation.stops }, destinationStopName)?.sequence || -1);
 
-        // If boarding or destination stop not found for validation
         if (boardingStopSeq <= 0 || destinationStopSeq <= 0) {
           return res.status(400).json({ message: 'Boarding or destination stop not found for validation' });
         }
 
-        // If boarding stop already reached or passed, disallow booking
         if (currentStopSeq >= boardingStopSeq) {
           return res.status(409).json({
             message: `Cannot book. Bus has already reached or passed your boarding stop (${boardingStopName}).`,
@@ -365,10 +356,8 @@ const createBooking = async (req, res) => {
     const farePerSeat = Number(route.fareInfo || 0);
     const totalFare = farePerSeat * parsedSeatCount;
 
-    // ========== CREATE BOOKING ID FIRST (needed for reward history) ==========
     const bookingId = new mongoose.Types.ObjectId();
     const bookingCode = makeBookingCode();
-    // ========== END NEW ==========
 
     const lockResult = await acquireSeatLocks({
       bookingId,
@@ -383,8 +372,7 @@ const createBooking = async (req, res) => {
       return res.status(409).json({ message: lockResult.message });
     }
     lockedBookingId = bookingId;
-    
-    // ========== NEW: Handle Reward Points Redemption ==========
+
     let discountCode = null;
     let discountPercentage = 0;
     let discountAmount = 0;
@@ -393,9 +381,8 @@ const createBooking = async (req, res) => {
 
     if (redeemRewardPoints === true) {
       try {
-        // ========== FIX: Load full reward fields, not just a subset ==========
         const passenger = await Passenger.findById(passengerId).select('rewardPoints totalPointsRedeemed pointsHistory firstName lastName');
-        
+
         if (passenger && passenger.rewardPoints >= 500) {
           discountPercentage = 10;
           discountAmount = Math.round((totalFare * discountPercentage) / 100 * 100) / 100; // Round to 2 decimals
@@ -403,15 +390,13 @@ const createBooking = async (req, res) => {
           discountCode = `HAMRO-${Date.now()}-${String(passengerId).slice(-6).toUpperCase()}`;
           rewardPointsRedeemed = true;
 
-          // Deduct points from passenger
           passenger.rewardPoints -= 500;
           passenger.totalPointsRedeemed += 500;
-          
-          // Initialize pointsHistory if not present
+
           if (!passenger.pointsHistory) {
             passenger.pointsHistory = [];
           }
-          
+
           passenger.pointsHistory.push({
             action: 'redeemed',
             points: 500,
@@ -421,14 +406,11 @@ const createBooking = async (req, res) => {
           });
           await passenger.save();
 
-          console.log(`🎁 Passenger ${passengerId} redeemed 500 points for ${discountPercentage}% discount on booking`);
         }
       } catch (err) {
         console.error('Error processing reward points redemption:', err);
-        // Don't fail the booking if redemption fails, continue with full price
       }
     }
-    // ========== END NEW ==========
     const qrToken = makeQrToken();
     const bookingStatus = 'confirmed';
     const qrRawPayload = buildBookingQrRawPayload({
@@ -482,16 +464,13 @@ const createBooking = async (req, res) => {
 
     const qrCodeDataUrl = await generateQrDataUrlFromPayload(qrPayload);
 
-    // ========== DRIVER NOTIFICATION - ALWAYS SEND FOR ANY BOOKING ==========
     try {
       const io = getIoInstance();
-      
-      // Get driver ID based on trip state
+
       let driverIdToNotify = null;
       if (isMidTripBooking && existingTrip) {
         driverIdToNotify = existingTrip.driverId;
       } else {
-        // Pre-trip booking
         driverIdToNotify = (schedule && schedule.driverId) || bus.assignedDriverId || null;
       }
 
@@ -533,14 +512,11 @@ const createBooking = async (req, res) => {
           createdAt: driverNotif.createdAt,
         };
 
-        // Emit on the shared notification event consumed by Admin Panel and Driver App.
         io.to(`driver:${String(driverIdToNotify)}`).emit('notification:new', notificationPayload);
         io.to('admin-room').emit('notification:new', notificationPayload);
 
-        // Keep the booking-specific event for any booking/seat screens that rely on it.
         io.to(`driver:${String(driverIdToNotify)}`).emit('booking:created', notificationPayload);
 
-        console.log(`📢 [DRIVER NOTIF] Driver ${driverIdToNotify} notified of ${isMidTripBooking ? 'mid-trip' : 'pre-trip'} booking: ${driverNotifMessage}`);
         sendPushToUsers({
           userType: 'driver',
           userIds: [driverIdToNotify],
@@ -562,12 +538,10 @@ const createBooking = async (req, res) => {
       console.error('Error sending driver booking notification:', driverNotifErr);
     }
 
-    // ========== PASSENGER NOTIFICATION FOR MID-TRIP BOOKINGS ==========
     if (isMidTripBooking && existingTrip) {
       try {
         const io = getIoInstance();
         if (io) {
-          // Get trip and schedule details for ETA
           const [tripDoc, scheduleDoc] = await Promise.all([
             TripSession.findById(existingTrip._id).select('startDelayMinutes startTime endTime').lean(),
             Route.findById(routeId)
@@ -582,7 +556,6 @@ const createBooking = async (req, res) => {
 
           const startDelayMinutes = tripDoc?.startDelayMinutes || 0;
 
-          // Send trip reminder to passenger with arrival time and delay info
           const arrivalTimeObj = scheduleDoc?.stopArrivals?.find((s) =>
             String(s.stopName || '').trim().toLowerCase() === String(destinationStop.stopName || '').trim().toLowerCase()
           );
@@ -602,7 +575,6 @@ const createBooking = async (req, res) => {
             severity: 'medium',
           });
 
-          // Emit to passenger socket room
           io.to(`passenger:${String(passengerId)}`).emit('trip:reminder', {
             _id: String(passengerNotif._id),
             notificationId: passengerNotif.notificationId,
@@ -620,7 +592,6 @@ const createBooking = async (req, res) => {
             createdAt: new Date(),
           });
 
-          console.log(`ℹ️ [TRIP REMINDER] Passenger ${passengerId} notified:`, passengerNotifMessage);
           sendPushToUsers({
             userType: 'passenger',
             userIds: [passengerId],
@@ -643,7 +614,6 @@ const createBooking = async (req, res) => {
       }
     }
 
-    // ========== SEAT UPDATE BROADCAST ==========
     try {
       const io = getIoInstance();
       if (io) {
@@ -656,12 +626,10 @@ const createBooking = async (req, res) => {
           bookingCode,
         });
 
-        console.log(`✅ [SEAT UPDATE] Emitted seat:booked for bus ${busId}:`, selectedSeats);
       }
     } catch (seatUpdateErr) {
       console.error('Error broadcasting seat update:', seatUpdateErr);
     }
-    // ========== END NOTIFICATIONS ==========
 
     return res.status(201).json({
       message: 'Booking created successfully',
@@ -697,7 +665,6 @@ const cancelBooking = async (req, res) => {
       return res.status(400).json({ message: 'Invalid bookingId' });
     }
 
-    // ========== NEW: Check if passenger is banned ==========
     const banStatus = await checkBanStatus(passengerId);
     if (banStatus.isBanned) {
       return res.status(403).json({
@@ -707,7 +674,6 @@ const cancelBooking = async (req, res) => {
         minutesRemaining: banStatus.minutesRemaining,
       });
     }
-    // ========== END NEW ==========
 
     const booking = await Booking.findOne({
       _id: bookingId,
@@ -796,11 +762,9 @@ const cancelBooking = async (req, res) => {
       console.error('Error notifying driver about booking cancellation:', notificationError);
     }
 
-    // ========== NEW: Deduct reward points and handle cancellation streak ==========
     try {
       const deductResult = await deductPoints(passengerId, bookingId);
       if (deductResult.success) {
-        console.log(`❌ Cancellation recorded for passenger ${passengerId}:`, deductResult.message);
 
         if (deductResult.isBanned) {
           return res.status(200).json({
@@ -824,7 +788,6 @@ const cancelBooking = async (req, res) => {
     } catch (err) {
       console.error('Error deducting reward points:', err);
     }
-    // ========== END NEW ==========
 
     return res.status(200).json({
       message: 'Booking cancelled successfully',
@@ -924,7 +887,7 @@ const getSeatAvailability = async (req, res) => {
 const getBookingQr = async (req, res) => {
   const passengerId = req.user.id;
   const { bookingId } = req.params;
-  try {    
+  try {
     if (!isValidObjectId(bookingId)) {
       return res.status(400).json({ message: 'Invalid bookingId' });
     }

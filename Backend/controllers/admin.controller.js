@@ -3,7 +3,7 @@ const Bus = require('../models/bus.model');
 const Driver = require('../models/driver.model');
 const Route = require('../models/route.model');
 const bcrypt = require('bcrypt');
-const { generateToken, generateRefreshToken } = require('../utils/authutils');
+const { generateToken, generateRefreshToken, addAdminRefreshToken, pruneExpiredAdminRefreshTokens } = require('../utils/authutils');
 const { generateOTP } = require('../utils/OTPutils');
 const { sendPasswordResetEmail } = require('../utils/OTPutils');
 const { hashPassword, comparePassword } = require('../utils/authutils');
@@ -21,7 +21,7 @@ const {
 const Login = async (req, res) =>{
     const { email, password } = req.body;
     try {
-        const existing = await Admin.findOne({ email });
+        const existing = await Admin.findOne({ email }).select('+refreshToken +refreshTokens');
         if(!existing){
             return res.status(400).json({ message: "Admin does not exist" });
         }
@@ -31,21 +31,22 @@ const Login = async (req, res) =>{
         }
     const token = generateToken(existing);
     const refreshToken = generateRefreshToken(existing);
-    existing.refreshToken = refreshToken;
+    pruneExpiredAdminRefreshTokens(existing);
+    addAdminRefreshToken(existing, refreshToken, {
+      deviceId: req.headers['x-device-id'] || req.body.deviceId || null,
+    });
     await existing.save();
-    
-    // Set access token in httpOnly cookie
+
     res.cookie('access_token', token, authCookieOptions(15 * 60 * 1000));
-    
-    // Set refresh token in httpOnly cookie
+
     res.cookie('refresh_token', refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
-    
-    res.status(200).json({ 
+
+    res.status(200).json({
       success: true,
       admin: { email: existing.email, id: existing._id, fullname: existing.fullname, phone: existing.phone },
       accessToken: token,
       message: "Login successful"});
-    }   
+    }
     catch (error) {
         console.error("Error logging in admin:", error);
         res.status(500).json({ message: "Internal server error" });
@@ -165,54 +166,50 @@ const changeAdminPassword = async (req, res) => {
   const { currentPassword, newPassword, confirmPassword } = req.body;
 
   try {
-    // Validate input
     if (!currentPassword || !newPassword || !confirmPassword) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: "Current password, new password, and confirmation are required" 
+        message: "Current password, new password, and confirmation are required"
       });
     }
 
     if (newPassword !== confirmPassword) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: "New passwords do not match" 
+        message: "New passwords do not match"
       });
     }
 
     if (newPassword.length < 8) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: "New password must be at least 8 characters long" 
+        message: "New password must be at least 8 characters long"
       });
     }
 
     if (currentPassword === newPassword) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: "New password must be different from current password" 
+        message: "New password must be different from current password"
       });
     }
 
-    // Find admin
     const admin = await Admin.findById(adminId);
     if (!admin) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: "Admin not found" 
+        message: "Admin not found"
       });
     }
 
-    // Verify current password
     const isPasswordValid = await comparePassword(currentPassword, admin.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         success: false,
-        message: "Current password is incorrect" 
+        message: "Current password is incorrect"
       });
     }
 
-    // Hash and save new password
     const hashedPassword = await hashPassword(newPassword);
     admin.password = hashedPassword;
     await admin.save();
@@ -224,9 +221,9 @@ const changeAdminPassword = async (req, res) => {
 
   } catch (error) {
     console.error("Error changing admin password:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: "Internal server error" 
+      message: "Internal server error"
     });
   }
 };
@@ -359,7 +356,6 @@ const getDashboardData = async (req, res) => {
   }
 };
 
-// ==================== USER MANAGEMENT FUNCTIONS ====================
 
 /**
  * GET /admin/passengers
@@ -525,15 +521,14 @@ const deleteDriverByAdmin = async (req, res) => {
   }
 };
 
-module.exports = { 
-  Login, 
-  requestPasswordReset, 
-  resetPassword, 
-  verifyOTPUser, 
+module.exports = {
+  Login,
+  requestPasswordReset,
+  resetPassword,
+  verifyOTPUser,
   changeAdminPassword,
   updateAdminProfile,
   getDashboardData,
-  // User Management
   getPassengersList,
   getPassengerInfo,
   deletePassengerByAdmin,

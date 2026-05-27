@@ -9,14 +9,12 @@ const Passenger = require("../models/passenger.model");
  */
 async function authenticateUser(req, res, next) {
   try {
-    // 1️⃣ Read token from cookies
     const token = req.cookies.access_token;
 
     if (!token) {
       return res.status(401).json({ error: "Access token missing" });
     }
 
-    // 2️⃣ Verify token
     const data = jwt.verify(token, process.env.JWT_SECRET);
     req.userId = data.id;
 
@@ -25,11 +23,10 @@ async function authenticateUser(req, res, next) {
       return res.status(401).json({ error: "User not found" });
     }
 
-    // ✅ Add role verification
     if (user.role !== 'admin') {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: "Access denied",
-        message: "Admin privileges required" 
+        message: "Admin privileges required"
       });
     }
 
@@ -79,7 +76,6 @@ async function authUser(req, res, next) {
     req.userId = data.id;
     req.userRole = data.role; // IMPORTANT (driver/passenger)
 
-    // Try passenger first
     let user =
       (await Passenger.findById(req.userId)) ||
       (await Driver.findById(req.userId));

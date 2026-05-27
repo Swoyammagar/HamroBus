@@ -37,7 +37,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelect, selectedKey: externa
   const router = useRouter();
   const { logout } = useAuth();
 
-  // Use external selected key if provided, otherwise use internal state
   const selectedKey = externalSelectedKey ?? internalSelectedKey;
 
   const items: { key: MenuKey; label: string }[] = [
@@ -87,7 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelect, selectedKey: externa
         {items.map((it) => {
           const isSelected = selectedKey === it.key;
           const isHovered = hoverKey === it.key;
-          
+
           return (
             <Pressable
               key={it.key}

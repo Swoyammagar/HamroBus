@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 interface PassengerSignupData {
-  // Personal Info
   firstName?: string;
   lastName?: string;
   email?: string;
@@ -11,7 +10,6 @@ interface PassengerSignupData {
   profileImage?: string;
   phoneNumber?: string;
   emailVerified?: boolean;
-  // Password
   password?: string;
 }
 

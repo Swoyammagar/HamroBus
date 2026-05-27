@@ -15,7 +15,7 @@ const GRACE_PERIOD_MS = DELETION_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
 const requestPassengerProfileDeletion = async (passengerId) => {
     try {
         const passenger = await Passenger.findById(passengerId);
-        
+
         if (!passenger) {
             return {
                 success: false,
@@ -23,7 +23,6 @@ const requestPassengerProfileDeletion = async (passengerId) => {
             };
         }
 
-        // If already marked for deletion, return current deletion date
         if (passenger.deleteRequestedAt) {
             const deletionDate = new Date(passenger.deleteRequestedAt.getTime() + GRACE_PERIOD_MS);
             return {
@@ -33,12 +32,11 @@ const requestPassengerProfileDeletion = async (passengerId) => {
             };
         }
 
-        // Mark profile for deletion
         passenger.deleteRequestedAt = new Date();
         await passenger.save();
 
         const deletionDate = new Date(Date.now() + GRACE_PERIOD_MS);
-        
+
         return {
             success: true,
             message: `Your profile will be permanently deleted on ${deletionDate.toLocaleDateString()}. You can restore it by logging in anytime before then.`,
@@ -62,7 +60,7 @@ const requestPassengerProfileDeletion = async (passengerId) => {
 const requestDriverProfileDeletion = async (driverId) => {
     try {
         const driver = await Driver.findById(driverId);
-        
+
         if (!driver) {
             return {
                 success: false,
@@ -70,7 +68,6 @@ const requestDriverProfileDeletion = async (driverId) => {
             };
         }
 
-        // If already marked for deletion, return current deletion date
         if (driver.deleteRequestedAt) {
             const deletionDate = new Date(driver.deleteRequestedAt.getTime() + GRACE_PERIOD_MS);
             return {
@@ -80,12 +77,11 @@ const requestDriverProfileDeletion = async (driverId) => {
             };
         }
 
-        // Mark profile for deletion
         driver.deleteRequestedAt = new Date();
         await driver.save();
 
         const deletionDate = new Date(Date.now() + GRACE_PERIOD_MS);
-        
+
         return {
             success: true,
             message: `Your profile will be permanently deleted on ${deletionDate.toLocaleDateString()}. You can restore it by logging in anytime before then.`,
@@ -108,7 +104,7 @@ const requestDriverProfileDeletion = async (driverId) => {
 const cancelPassengerProfileDeletion = async (passengerId) => {
     try {
         const passenger = await Passenger.findById(passengerId);
-        
+
         if (!passenger) {
             return {
                 success: false,
@@ -147,7 +143,7 @@ const cancelPassengerProfileDeletion = async (passengerId) => {
 const cancelDriverProfileDeletion = async (driverId) => {
     try {
         const driver = await Driver.findById(driverId);
-        
+
         if (!driver) {
             return {
                 success: false,
@@ -187,7 +183,7 @@ const cancelDriverProfileDeletion = async (driverId) => {
 const permanentlyDeletePassengerProfile = async (passengerId) => {
     try {
         const passenger = await Passenger.findById(passengerId);
-        
+
         if (!passenger) {
             return {
                 success: false,
@@ -195,10 +191,9 @@ const permanentlyDeletePassengerProfile = async (passengerId) => {
             };
         }
 
-        // Check if deletion grace period has passed
         if (passenger.deleteRequestedAt) {
             const gracePeriodExpired = Date.now() - passenger.deleteRequestedAt.getTime() >= GRACE_PERIOD_MS;
-            
+
             if (!gracePeriodExpired) {
                 return {
                     success: false,
@@ -212,13 +207,11 @@ const permanentlyDeletePassengerProfile = async (passengerId) => {
             };
         }
 
-        // Update all bookings by this passenger
         await Booking.updateMany(
             { passengerId },
             {
                 $set: {
                     passengerId: null,
-                    // Optionally anonymize passenger data
                     passengerName: 'Deleted User',
                     passengerEmail: null,
                     passengerPhoneNumber: null
@@ -226,7 +219,6 @@ const permanentlyDeletePassengerProfile = async (passengerId) => {
             }
         );
 
-        // Update all reviews given by this passenger
         await Review.updateMany(
             { passengerId },
             {
@@ -237,7 +229,6 @@ const permanentlyDeletePassengerProfile = async (passengerId) => {
             }
         );
 
-        // Delete the passenger profile
         await Passenger.findByIdAndDelete(passengerId);
 
         return {
@@ -262,7 +253,7 @@ const permanentlyDeletePassengerProfile = async (passengerId) => {
 const permanentlyDeleteDriverProfile = async (driverId) => {
     try {
         const driver = await Driver.findById(driverId);
-        
+
         if (!driver) {
             return {
                 success: false,
@@ -270,10 +261,9 @@ const permanentlyDeleteDriverProfile = async (driverId) => {
             };
         }
 
-        // Check if deletion grace period has passed
         if (driver.deleteRequestedAt) {
             const gracePeriodExpired = Date.now() - driver.deleteRequestedAt.getTime() >= GRACE_PERIOD_MS;
-            
+
             if (!gracePeriodExpired) {
                 return {
                     success: false,
@@ -287,7 +277,6 @@ const permanentlyDeleteDriverProfile = async (driverId) => {
             };
         }
 
-        // Update all trips by this driver
         await TripSession.updateMany(
             { driverId },
             {
@@ -298,7 +287,6 @@ const permanentlyDeleteDriverProfile = async (driverId) => {
             }
         );
 
-        // Update all reviews received by this driver
         await Review.updateMany(
             { driverId },
             {
@@ -309,7 +297,6 @@ const permanentlyDeleteDriverProfile = async (driverId) => {
             }
         );
 
-        // Delete the driver profile
         await Driver.findByIdAndDelete(driverId);
 
         return {
@@ -333,8 +320,7 @@ const permanentlyDeleteDriverProfile = async (driverId) => {
 const processExpiredPassengerDeletions = async () => {
     try {
         const cutoffDate = new Date(Date.now() - GRACE_PERIOD_MS);
-        
-        // Find all passengers with expired deletion grace period
+
         const expiredPassengers = await Passenger.find({
             deleteRequestedAt: { $lt: cutoffDate }
         });
@@ -369,8 +355,7 @@ const processExpiredPassengerDeletions = async () => {
 const processExpiredDriverDeletions = async () => {
     try {
         const cutoffDate = new Date(Date.now() - GRACE_PERIOD_MS);
-        
-        // Find all drivers with expired deletion grace period
+
         const expiredDrivers = await Driver.find({
             deleteRequestedAt: { $lt: cutoffDate }
         });
@@ -406,7 +391,7 @@ const processExpiredDriverDeletions = async () => {
 const checkPassengerDeletionStatusOnLogin = async (passengerId) => {
     try {
         const passenger = await Passenger.findById(passengerId);
-        
+
         if (!passenger) {
             return { isDeletionPending: false };
         }
@@ -416,9 +401,8 @@ const checkPassengerDeletionStatusOnLogin = async (passengerId) => {
         }
 
         const timeSinceRequest = Date.now() - passenger.deleteRequestedAt.getTime();
-        
+
         if (timeSinceRequest >= GRACE_PERIOD_MS) {
-            // Grace period expired, delete the profile
             await permanentlyDeletePassengerProfile(passengerId);
             return {
                 isDeletionPending: false,
@@ -426,10 +410,9 @@ const checkPassengerDeletionStatusOnLogin = async (passengerId) => {
                 message: 'Your profile has been permanently deleted'
             };
         } else {
-            // Grace period still active
             const remainingDays = Math.ceil((GRACE_PERIOD_MS - timeSinceRequest) / (24 * 60 * 60 * 1000));
             const deletionDate = new Date(passenger.deleteRequestedAt.getTime() + GRACE_PERIOD_MS);
-            
+
             return {
                 isDeletionPending: true,
                 remainingDays,
@@ -454,7 +437,7 @@ const checkPassengerDeletionStatusOnLogin = async (passengerId) => {
 const checkDriverDeletionStatusOnLogin = async (driverId) => {
     try {
         const driver = await Driver.findById(driverId);
-        
+
         if (!driver) {
             return { isDeletionPending: false };
         }
@@ -464,9 +447,8 @@ const checkDriverDeletionStatusOnLogin = async (driverId) => {
         }
 
         const timeSinceRequest = Date.now() - driver.deleteRequestedAt.getTime();
-        
+
         if (timeSinceRequest >= GRACE_PERIOD_MS) {
-            // Grace period expired, delete the profile
             await permanentlyDeleteDriverProfile(driverId);
             return {
                 isDeletionPending: false,
@@ -474,10 +456,9 @@ const checkDriverDeletionStatusOnLogin = async (driverId) => {
                 message: 'Your profile has been permanently deleted'
             };
         } else {
-            // Grace period still active
             const remainingDays = Math.ceil((GRACE_PERIOD_MS - timeSinceRequest) / (24 * 60 * 60 * 1000));
             const deletionDate = new Date(driver.deleteRequestedAt.getTime() + GRACE_PERIOD_MS);
-            
+
             return {
                 isDeletionPending: true,
                 remainingDays,

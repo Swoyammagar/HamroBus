@@ -34,13 +34,12 @@ export const useDriverLiveLocation = (): UseDriverLiveLocationReturn => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  
+
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     const initSocket = () => {
       try {
-        // Initialize socket connection
         const socket = io(SOCKET_URL, {
           transports: ['websocket'],
           reconnection: true,
@@ -51,27 +50,22 @@ export const useDriverLiveLocation = (): UseDriverLiveLocationReturn => {
         socketRef.current = socket;
 
         socket.on('connect', () => {
-          console.log('✅ Admin socket connected:', socket.id);
           setIsConnected(true);
           setError(null);
-          // Join admin room to receive all driver location updates
           socket.emit('join-admin');
         });
 
         socket.on('disconnect', () => {
-          console.log('❌ Admin socket disconnected');
           setIsConnected(false);
         });
 
         socket.on('connect_error', (err) => {
-          console.error('❌ Socket connection error:', err);
+          console.error(' Socket connection error:', err);
           setIsConnected(false);
           setError('Connection error');
         });
 
-        // Listen to driver location updates
         socket.on('driver:location-update', (data: DriverLocation) => {
-          console.log('📍 Received driver location:', data);
           setLocations((prev) => {
             const newLocations = new Map(prev);
             newLocations.set(data.driverId, {
@@ -125,7 +119,6 @@ export const useDriverLiveLocation = (): UseDriverLiveLocationReturn => {
 
     initSocket();
 
-    // Cleanup on unmount
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
@@ -137,14 +130,12 @@ export const useDriverLiveLocation = (): UseDriverLiveLocationReturn => {
   const joinAdminRoom = useCallback(() => {
     if (socketRef.current && socketRef.current.connected) {
       socketRef.current.emit('join-admin');
-      console.log('📡 Joined admin room');
     }
   }, []);
 
   const leaveAdminRoom = useCallback(() => {
     if (socketRef.current && socketRef.current.connected) {
       socketRef.current.emit('leave-admin');
-      console.log('🛑 Left admin room');
     }
   }, []);
 

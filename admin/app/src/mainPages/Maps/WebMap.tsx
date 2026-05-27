@@ -573,7 +573,12 @@ const WebMap: React.FC<WebMapProps> = ({
                 },
               }}
             >
-              <Popup>Searched Location<br /><small>(Right click to remove)</small></Popup>
+              <Popup>
+                <div>
+                  <div>Searched Location</div>
+                  <small>(Right click to remove)</small>
+                </div>
+              </Popup>
             </Marker>
           )}
 

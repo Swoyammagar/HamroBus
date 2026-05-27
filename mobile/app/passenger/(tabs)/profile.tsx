@@ -18,17 +18,13 @@ const Profile = () => {
   const { profile, setProfile } = usePassenger();
   const { logout } = useAuth();
 
-  // 👇 Replace the inline axios + useState(loading) with your hook
   const { profileData, loading, error, refetch } = usePassengerProfile();
-  
-  // Reward points
+
   const { rewardInfo, loading: rewardLoading, fetchRewardPoints, refetch: refetchRewards } = useRewardPoints();
   const [showRewardHistory, setShowRewardHistory] = React.useState(false);
 
-  // Reviews
   const { stats: reviewStats, fetchStats: fetchReviewStats } = useReviews();
 
-  // Account Deletion
   const {
     isDeletionPending,
     remainingDays,
@@ -41,7 +37,6 @@ const Profile = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const [showDeletionStatus, setShowDeletionStatus] = React.useState(false);
 
-  // Fetch rewards and reviews when profile tab is focused
   useFocusEffect(
     React.useCallback(() => {
       fetchRewardPoints();
@@ -50,7 +45,6 @@ const Profile = () => {
     }, [fetchRewardPoints, fetchReviewStats, checkDeletionStatus])
   );
 
-  // Map hook data into the PassengerProfile shape your UI expects
   React.useEffect(() => {
     if (!profileData) return;
 
@@ -69,7 +63,6 @@ const Profile = () => {
     });
   }, [profileData]);
 
-  // --- handlers unchanged ---
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       {
@@ -114,7 +107,6 @@ const Profile = () => {
     }
   };
 
-  // --- loading / error guards ---
   if (loading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -129,7 +121,7 @@ const Profile = () => {
       <View style={[styles.container, styles.centerContent]}>
         <Ionicons name="alert-circle" size={48} color="#ef4444" />
         <Text style={styles.errorText}>{error ?? 'Failed to load profile'}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={refetch}> 
+        <TouchableOpacity style={styles.retryButton} onPress={refetch}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -146,7 +138,6 @@ const Profile = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Profile Card */}
         <View style={styles.profileCard}>
           {profile.profilePicture ? (
             <Image source={{ uri: profile.profilePicture }} style={styles.profileImage} />
@@ -170,10 +161,9 @@ const Profile = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Reward Points Card */}
         {rewardInfo && (
-          <TouchableOpacity 
-            style={styles.rewardCard} 
+          <TouchableOpacity
+            style={styles.rewardCard}
             onPress={() => setShowRewardHistory(true)}
             activeOpacity={0.7}
           >
@@ -225,7 +215,6 @@ const Profile = () => {
           </TouchableOpacity>
         )}
 
-        {/* Account Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
 
@@ -252,7 +241,6 @@ const Profile = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Support Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Support & Legal</Text>
 
@@ -301,7 +289,6 @@ const Profile = () => {
           </Pressable>
         </View>
 
-        {/* Your Reviews Section */}
         <TouchableOpacity style={styles.section} onPress={handleMyReviews} activeOpacity={0.7}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Your Reviews</Text>
@@ -335,7 +322,6 @@ const Profile = () => {
           )}
         </TouchableOpacity>
 
-        {/* Account Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Information</Text>
 
@@ -380,15 +366,13 @@ const Profile = () => {
           </View>
         )}
 
-        {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color="#ef4444" />
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
 
-        {/* Delete Profile Button */}
-        <TouchableOpacity 
-          style={[styles.deleteButton, isDeletionPending && styles.deleteButtonWarning]} 
+        <TouchableOpacity
+          style={[styles.deleteButton, isDeletionPending && styles.deleteButtonWarning]}
           onPress={() => isDeletionPending ? handleCancelDeletion() : setShowDeleteConfirm(true)}
           disabled={deletionLoading}
         >
@@ -404,7 +388,6 @@ const Profile = () => {
         </View>
       </ScrollView>
 
-      {/* Delete Confirmation Modal */}
       <Modal
         visible={showDeleteConfirm}
         animationType="fade"
@@ -438,14 +421,14 @@ const Profile = () => {
             </View>
 
             <View style={styles.confirmActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.confirmCancel}
                 onPress={() => setShowDeleteConfirm(false)}
               >
                 <Text style={styles.confirmCancelText}>Cancel</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.confirmDelete}
                 onPress={handleDeleteProfile}
                 disabled={deletionLoading}
@@ -461,7 +444,6 @@ const Profile = () => {
         </View>
       </Modal>
 
-      {/* Deletion Status Modal */}
       <Modal
         visible={showDeletionStatus}
         animationType="fade"
@@ -498,14 +480,14 @@ const Profile = () => {
             </View>
 
             <View style={styles.confirmActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.confirmCancel}
                 onPress={() => setShowDeletionStatus(false)}
               >
                 <Text style={styles.confirmCancelText}>Close</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.confirmRestore}
                 onPress={handleCancelDeletion}
                 disabled={deletionLoading}
@@ -521,7 +503,6 @@ const Profile = () => {
         </View>
       </Modal>
 
-      {/* Reward History Modal */}
       <Modal
         visible={showRewardHistory}
         animationType="slide"
@@ -540,7 +521,6 @@ const Profile = () => {
 
             {rewardInfo && (
               <>
-                {/* Stats Summary */}
                 <View style={styles.modalStatsSummary}>
                   <View style={styles.modalStatItem}>
                     <Text style={styles.modalStatLabel}>Current Points</Text>
@@ -556,7 +536,6 @@ const Profile = () => {
                   </View>
                 </View>
 
-                {/* Ban Status Warning */}
                 {rewardInfo.data.isBanned && (
                   <View style={styles.banWarningBox}>
                     <Ionicons name="warning" size={20} color="#ef4444" />
@@ -569,7 +548,6 @@ const Profile = () => {
                   </View>
                 )}
 
-                {/* Cancellation Streak Warning */}
                 {!rewardInfo.data.isBanned && rewardInfo.data.consecutiveCancellations > 0 && (
                   <View style={styles.streakWarningBox}>
                     <Ionicons name="alert-circle" size={20} color="#f59e0b" />
@@ -582,7 +560,6 @@ const Profile = () => {
                   </View>
                 )}
 
-                {/* History List */}
                 <FlatList
                   data={rewardInfo.data.pointsHistory}
                   keyExtractor={(item, idx) => idx.toString()}
@@ -883,7 +860,6 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     marginTop: 4,
   },
-  // Reward Card Styles
   rewardCard: {
     backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     marginHorizontal: 12,
@@ -992,7 +968,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
-  // Modal Styles
   modalContainer: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1140,7 +1115,6 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     marginTop: 12,
   },
-  // Reviews Section Styles
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1186,7 +1160,6 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontStyle: 'italic',
   },
-  // Delete Button Styles
   deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1253,7 +1226,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  // Confirmation Modal Styles
   confirmOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

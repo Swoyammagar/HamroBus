@@ -28,7 +28,7 @@ export interface Route {
 export interface Schedule {
   _id: string;
   routeId?: string;
-  busId: any; // may be populated: { _id, busNumber } or a plain ObjectId string
+  busId: any;
   driverId?: any;
   departureTime?: string;
   arrivalTime?: string;
@@ -70,25 +70,21 @@ export interface StopArrivalsResponse {
 }
 
 export const routeService = {
-  // Get all routes
   getAllRoutes: async (): Promise<Route[]> => {
     const response = await apiClient.get('/passenger/routes');
     return response.data?.routes || response.data || [];
   },
 
-  // Get single route by ID
   getRouteById: async (routeId: string): Promise<Route> => {
     const response = await apiClient.get(`/passenger/routes/${routeId}`);
     return response.data?.route || response.data;
   },
 
-  // Get schedules for a specific route
   getSchedulesByRoute: async (routeId: string): Promise<Schedule[]> => {
     const response = await apiClient.get(`/passenger/routes/${routeId}/schedules`);
     return response.data?.schedules || response.data || [];
   },
 
-  // Get all scheduled arrivals for a selected stop in a route
   getStopArrivalsByStop: async (routeId: string, stopName: string): Promise<StopArrivalsResponse> => {
     const encodedStopName = encodeURIComponent(stopName);
     const response = await apiClient.get(`/routes/${routeId}/stops/${encodedStopName}/arrivals`);

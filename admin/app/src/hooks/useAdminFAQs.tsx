@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type FAQRole = 'driver' | 'passenger';
 
@@ -39,14 +38,12 @@ export type FAQFilters = {
 
 export type ActionResult = { success: boolean; message: string };
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
 
 axios.defaults.withCredentials = true;
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export const useAdminFAQs = () => {
   const [faqs, setFaqs] = useState<FAQRecord[]>([]);
@@ -61,7 +58,6 @@ export const useAdminFAQs = () => {
   const [detailLoading, setDetailLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Fetch all FAQs (admin) ──────────────────────────────────────────────────
   const fetchAllFAQs = useCallback(
     async (filters: FAQFilters = {}): Promise<FAQListResponse | null> => {
       setLoading(true);
@@ -98,7 +94,6 @@ export const useAdminFAQs = () => {
     []
   );
 
-  // ── Fetch single FAQ by ID (admin) ─────────────────────────────────────────
   const getFAQById = useCallback(async (faqId: string): Promise<FAQRecord | null> => {
     setDetailLoading(true);
     setError(null);
@@ -120,7 +115,6 @@ export const useAdminFAQs = () => {
     }
   }, []);
 
-  // ── Delete FAQ (admin) ─────────────────────────────────────────────────────
   const deleteFAQ = useCallback(
     async (faqId: string): Promise<ActionResult> => {
       try {
@@ -129,7 +123,6 @@ export const useAdminFAQs = () => {
           { withCredentials: true }
         );
 
-        // Optimistically remove from local state
         setFaqs((prev) => prev.filter((faq) => faq._id !== faqId));
         setPagination((prev) => ({
           ...prev,
@@ -137,7 +130,6 @@ export const useAdminFAQs = () => {
           pages: Math.ceil(Math.max(0, prev.total - 1) / prev.limit),
         }));
 
-        // Clear selected if it was the deleted one
         setSelectedFAQ((prev) => (prev?._id === faqId ? null : prev));
 
         return { success: true, message: data?.message || 'FAQ deleted successfully' };
@@ -150,7 +142,6 @@ export const useAdminFAQs = () => {
     []
   );
 
-  // ── Fetch FAQs filtered by role ────────────────────────────────────────────
   const fetchFAQsByRole = useCallback(
     async (role: FAQRole, page = 1, limit = 10): Promise<FAQListResponse | null> => {
       return fetchAllFAQs({ role, page, limit });
@@ -158,7 +149,6 @@ export const useAdminFAQs = () => {
     [fetchAllFAQs]
   );
 
-  // ── Paginate ───────────────────────────────────────────────────────────────
   const goToPage = useCallback(
     async (page: number, filters: Omit<FAQFilters, 'page'> = {}) => {
       return fetchAllFAQs({ ...filters, page });
@@ -166,19 +156,15 @@ export const useAdminFAQs = () => {
     [fetchAllFAQs]
   );
 
-  // ── Clear error ────────────────────────────────────────────────────────────
   const clearError = useCallback(() => setError(null), []);
 
-  // ── Clear selected FAQ ─────────────────────────────────────────────────────
   const clearSelectedFAQ = useCallback(() => setSelectedFAQ(null), []);
 
-  // ── Initial load ───────────────────────────────────────────────────────────
   useEffect(() => {
     fetchAllFAQs();
   }, [fetchAllFAQs]);
 
   return {
-    // State
     faqs,
     selectedFAQ,
     pagination,
@@ -186,14 +172,12 @@ export const useAdminFAQs = () => {
     detailLoading,
     error,
 
-    // Actions
     fetchAllFAQs,
     fetchFAQsByRole,
     getFAQById,
     deleteFAQ,
     goToPage,
 
-    // Utilities
     clearError,
     clearSelectedFAQ,
   };

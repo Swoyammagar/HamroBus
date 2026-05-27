@@ -80,15 +80,12 @@ export interface ReviewStatsResponse {
 export const reviewService = {
   getMyReviews: async (page: number = 1, limit: number = 10): Promise<ReviewsListResponse> => {
     try {
-      console.log('[ReviewService] 📝 Fetching reviews. Page:', page, 'Limit:', limit);
       const response = await apiClient.get('/passenger/reviews/my-reviews', {
         params: { page, limit, sortBy: 'createdAt', sortOrder: 'desc' }
       });
-      console.log('[ReviewService] ✅ Reviews fetched successfully');
 
       const raw = response.data;
 
-      // Backend returns { reviews, total, hasMore } with raw mongoose documents
       const rawReviews: any[] = raw.data?.reviews ?? raw.reviews ?? [];
       const total: number = raw.data?.pagination?.totalReviews ?? raw.total ?? rawReviews.length;
       const totalPages = Math.ceil(total / limit) || 1;
@@ -158,9 +155,7 @@ export const reviewService = {
 
   getReviewStats: async (): Promise<ReviewStatsResponse> => {
     try {
-      console.log('[ReviewService] 📊 Fetching review stats...');
       const response = await apiClient.get('/passenger/reviews/stats');
-      console.log('[ReviewService] ✅ Review stats fetched successfully');
       return response.data;
     } catch (error: any) {
       console.error('[ReviewService] ❌ Error fetching review stats status:', error?.response?.status);

@@ -84,17 +84,9 @@ const requestConfig = {
   withCredentials: true,
 };
 
-// ── Driver helpers ────────────────────────────────────────────────────────────
-//
-// The getAllTrips backend controller populates driverId and then manually
-// builds flat fields: driverName (string) and driverProfileImgUrl (string|null)
-// directly on each trip object.  We read those first before falling back to
-// any nested driver object shape.
 
 const resolveDriverName = (trip: any): string => {
-  // 1. Flat field built by the backend controller
   if (trip.driverName && trip.driverName !== 'Unknown Driver') return trip.driverName;
-  // 2. Nested driver / driverId object (other endpoints)
   const d = trip.driver || trip.driverId;
   if (!d) return 'Unknown Driver';
   if (d.name) return d.name;
@@ -103,14 +95,11 @@ const resolveDriverName = (trip: any): string => {
 };
 
 const resolveDriverImage = (trip: any): string | undefined => {
-  // 1. Flat field from controller
   if (trip.driverProfileImgUrl) return trip.driverProfileImgUrl;
-  // 2. Nested object
   const d = trip.driver || trip.driverId;
   return d?.profileImgUrl || d?.profileImage || d?.avatarUrl || undefined;
 };
 
-// ── Normalizers ───────────────────────────────────────────────────────────────
 
 const normalizeTripListItem = (trip: any): TripListItem => ({
   tripId: String(trip.tripId || trip._id || ''),
@@ -140,7 +129,6 @@ const normalizeTripDetails = (trip: any): TripDetails => ({
   ...trip,
   tripId: String(trip.tripId || trip._id || ''),
   driver: {
-    // getTripDetailsById populates a nested driver object
     name: resolveDriverName({ driver: trip.driver }),
     phone: trip.driver?.phone || trip.driver?.phoneNumber || '',
     profileImgUrl: trip.driver?.profileImgUrl || trip.driver?.profileImage || undefined,
@@ -148,7 +136,6 @@ const normalizeTripDetails = (trip: any): TripDetails => ({
   },
 });
 
-// ── API calls ─────────────────────────────────────────────────────────────────
 
 export const getAllTrips = async (filters?: {
   status?: string;

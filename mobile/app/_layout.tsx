@@ -19,10 +19,8 @@ export default function RootLayout() {
       <DriverSignupProvider>
         <PassengerSignupProvider>
           <Stack screenOptions={{ headerShown: false }}>
-            {/* Splash screen - shown first while auth state loads */}
             <Stack.Screen name="pages/splash" options={{ headerShown: false }} />
-            
-            {/* Onboarding/Login pages */}
+
             <Stack.Screen name="pages/mobilelogin" />
             <Stack.Screen name="pages/newPassword" />
             <Stack.Screen name="pages/otpPassword" />
@@ -31,30 +29,26 @@ export default function RootLayout() {
 
             <Stack.Screen name="khalti-return" />
 
-            {/* Shared static legal pages used by passenger and driver flows */}
             <Stack.Screen name="legal/terms" />
             <Stack.Screen name="legal/privacy" />
             <Stack.Screen name="legal/about" />
 
-            {/* Driver screens */}
             <Stack.Screen name="driver" />
 
-            {/* Passenger screens */}
             <Stack.Screen name="passenger/password" />
             <Stack.Screen name="passenger/email" />
             <Stack.Screen name="passenger/signup" />
             <Stack.Screen name="passenger/(tabs)" />
-            
-            {/* Passenger modals and screens */}
-            <Stack.Screen 
+
+            <Stack.Screen
               name="passenger/screens/bus-booking"
               options={{ presentation: "card" }}
             />
-            <Stack.Screen 
+            <Stack.Screen
               name="passenger/screens/review"
               options={{ presentation: "card" }}
             />
-            <Stack.Screen 
+            <Stack.Screen
               name="passenger/screens/profile-edit"
               options={{ presentation: "card" }}
             />

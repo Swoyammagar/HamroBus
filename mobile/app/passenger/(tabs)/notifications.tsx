@@ -196,7 +196,6 @@ const Notifications = () => {
         <Text style={styles.headerSubtitle}>Stay updated with service notifications</Text>
       </View>
 
-      {/* Filter and Actions */}
       <View style={styles.controlsContainer}>
         <View style={styles.filterTabs}>
           <TouchableOpacity
@@ -235,7 +234,6 @@ const Notifications = () => {
         )}
       </View>
 
-      {/* Alerts List */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {loading ? (
           <View style={styles.loadingWrap}>
@@ -271,7 +269,6 @@ const Notifications = () => {
         )}
       </ScrollView>
 
-      {/* Alert Detail Modal */}
       <Modal visible={alertDetailModal} animationType="slide" transparent>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -284,7 +281,6 @@ const Notifications = () => {
 
             {selectedAlert && (
               <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Alert Header */}
                 <View
                   style={[
                     styles.modalHeader,
@@ -311,7 +307,6 @@ const Notifications = () => {
                   </View>
                 </View>
 
-                {/* Alert Details */}
                 <View style={styles.detailsSection}>
                   <View style={styles.detailsContent}>
                     <Text style={styles.detailsLabel}>Message</Text>

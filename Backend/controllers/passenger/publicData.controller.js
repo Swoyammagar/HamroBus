@@ -36,9 +36,6 @@ const getNextServiceDate = ({ dayOfWeek, startTime, endTime, tripSession }) => {
 
   const nowMinutes = today.getHours() * 60 + today.getMinutes();
   const endMinutes = parseTimeToMinutes(endTime);
-  // Only treat completed or cancelled as closed for scheduling availability.
-  // An in-progress trip should still show today's service date (booking allowed
-  // for remaining stops) so we don't skip to next week when status is 'in-progress' or 'on-break'.
   const closedStatuses = ['completed', 'cancelled'];
   const tripAlreadyClosed = tripSession && closedStatuses.includes(String(tripSession.status));
 

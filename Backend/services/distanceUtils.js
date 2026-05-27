@@ -102,7 +102,6 @@ const detectAndUpdateCurrentStop = async (tripSession, driverLat, driverLng, rou
       return { currentStop: null, previousStop: null, changed: false };
     }
 
-    // Get closest stop to current location
     const closestStop = getClosestStop(driverLat, driverLng, route);
     if (!closestStop) {
       return {
@@ -129,9 +128,7 @@ const detectAndUpdateCurrentStop = async (tripSession, driverLat, driverLng, rou
       };
     }
 
-    // Check if this is a new stop (different from current)
     if (newStopName.toLowerCase() === currentStopName.toLowerCase()) {
-      // Same stop, no change
       return {
         currentStop: newStopName,
         previousStop: null,
@@ -139,13 +136,11 @@ const detectAndUpdateCurrentStop = async (tripSession, driverLat, driverLng, rou
       };
     }
 
-    // New stop detected - update trip session
     const previousStop = tripSession.currentStop;
     tripSession.currentStop = newStopName;
     tripSession.previousStop = previousStop || null;
     await tripSession.save();
 
-    console.log(`✅ [STOP UPDATE] Trip ${tripSession._id}: ${previousStop || 'START'} → ${newStopName}`);
 
     return {
       currentStop: newStopName,

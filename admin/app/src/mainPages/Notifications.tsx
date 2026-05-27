@@ -61,7 +61,7 @@ const Notifications = () => {
       if (filter === 'All') return true;
       if (filter === 'Sent') return n.sentBy === 'admin';
       if (filter === 'Received') return n.sentBy !== 'admin';
-      if (filter === 'Drivers') return n.targetAudience === 'drivers';
+      if (filter === 'Drivers') return n.targetAudience === 'specific_user';
       if (filter === 'Passengers') return n.targetAudience === 'passengers';
       return true;
     });
@@ -494,6 +494,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     overflow: 'hidden',
     marginBottom: 12,
+    paddingHorizontal: 8,
   },
   pickerWrapperModal: {
     borderWidth: 1,

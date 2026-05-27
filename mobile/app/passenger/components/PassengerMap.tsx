@@ -222,7 +222,6 @@ export default function PassengerMap({
 
     window.updateDriverLocation = function(driverId, lat, lng, heading, speed, busNumber, driverName, driverProfileImgUrl, tripStatus, isOnBreak, sosActive, sosCategory, isOffline) {
       const key = String(driverId);
-      // If driver is offline, remove marker from the map and stop.
       if (Boolean(isOffline)) {
         try {
           if (driverMarkers[key]) {
@@ -322,7 +321,6 @@ export default function PassengerMap({
               return;
             }
           } catch {
-            // lifecycle message
           }
 
           if (message === 'driverLocationFunctionReady') {

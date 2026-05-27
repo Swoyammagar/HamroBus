@@ -212,7 +212,6 @@ const bookingSchema = new mongoose.Schema(
       type: Date,
       required: false,
     },
-    // ========== NEW: Reward Points Discount Fields ==========
     rewardPointsRedeemed: {
       type: Boolean,
       default: false,
@@ -241,7 +240,6 @@ const bookingSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
-    // ========== END NEW ==========
   },
   {
     timestamps: true,

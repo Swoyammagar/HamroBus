@@ -9,7 +9,7 @@ import {
   StyleSheet,
   Image,
   Dimensions,
-  
+
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { useSearchParams } from "expo-router/build/hooks";
@@ -50,7 +50,7 @@ const SignupOTPVerification: React.FC = () => {
       if (result.success) {
         setSuccess("Email verified successfully!");
         updateSignupData({ email, emailVerified: true });
-        
+
         setTimeout(() => {
           if (role === "driver") {
             router.push(`/driver/signupScreens/signupInfo?email=${encodeURIComponent(email)}`);
@@ -99,19 +99,15 @@ const SignupOTPVerification: React.FC = () => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.container}>
-            {/* Logo */}
             <Image source={mainLogo} style={styles.logo} />
-  
-            {/* Heading */}
+
             <Text style={styles.heading}>
               Verify Your <Text style={styles.highlight}>OTP</Text>
             </Text>
-  
-            {/* Messages */}
+
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             {success ? <Text style={styles.successText}>{success}</Text> : null}
-  
-            {/* OTP Input */}
+
             <Text style={styles.label}>Enter OTP</Text>
             <TextInput
               value={otp}
@@ -123,10 +119,9 @@ const SignupOTPVerification: React.FC = () => {
               maxLength={6}
               onFocus={() => setIsOtpFocused(true)}
               onBlur={() => setIsOtpFocused(false)}
-  
+
             />
-  
-            {/* Verify Button */}
+
             <TouchableOpacity
               onPress={handleVerifyOTP}
               disabled={isLoading}
@@ -138,8 +133,7 @@ const SignupOTPVerification: React.FC = () => {
                 <Text style={styles.buttonText}>Verify OTP</Text>
               )}
             </TouchableOpacity>
-  
-            {/* Resend OTP */}
+
             <View style={styles.resendContainer}>
               <Text style={styles.resendText}>Didn’t receive OTP?</Text>
               <TouchableOpacity onPress={handleResendOTP} disabled={isResending}>
@@ -155,9 +149,9 @@ const SignupOTPVerification: React.FC = () => {
       </>
     );
   };
-  
+
   export default SignupOTPVerification;
-  
+
   const styles = StyleSheet.create({
     scrollContainer: {
       flexGrow: 1,

@@ -11,28 +11,18 @@
     const submitFAQ = async (req, res, io) => {
         try {
             const { name, phoneNumber, email, title, message, role } = req.body;
-            
-            // Debug logging
-            console.log('\n=== FAQ SUBMIT CONTROLLER ===');
-            console.log('req.user full object:', JSON.stringify(req.user, null, 2));
-            console.log('req.user?.id:', req.user?.id);
-            console.log('typeof req.user?.id:', typeof req.user?.id);
-            console.log('req.userId:', req.userId);
-            console.log('req.headers.authorization present:', !!req.headers.authorization);
-            console.log('===========================\n');
-            
+
+
             const userId = req.user?.id; // Captured from authenticatePassenger middleware
 
             if (!userId) {
-                console.log('[FAQ Submit] ERROR: No userId found. req.user:', req.user);
                 return res.status(401).json({
                     success: false,
                     message: 'Authentication required to submit FAQ',
                     debug: { req_user: req.user, userId }
                 });
             }
-            
-            console.log('[FAQ Submit] userId captured:', userId);
+
 
             if (!name || !phoneNumber || !title || !message || !role) {
                 return res.status(400).json({
@@ -61,7 +51,6 @@
 
             const savedFAQ = await newFAQ.save();
 
-            // Notify admin via email
             try {
                 const adminEmails = await getAdminEmailRecipients();
                 if (adminEmails.length > 0) {
@@ -83,7 +72,6 @@
                 console.error('Error sending FAQ email:', emailError.message);
             }
 
-            // Save notification + emit to admin panel
             try {
                 const notification = new Notification({
                     notificationId: `faq-${savedFAQ.faqId}-${Date.now()}`,

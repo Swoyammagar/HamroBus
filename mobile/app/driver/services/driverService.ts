@@ -130,13 +130,11 @@ export interface DriverScheduleSeatMap {
 }
 
 const driverService = {
-    // Get assigned route with schedules
     getAssignedRoute: async () => {
         const response = await apiClient.get('/trips/assigned-route');
         return response.data;
     },
 
-    // Get driver's schedules
     getSchedules: async (days: number = 7) => {
         const response = await apiClient.get('/trips/schedules', {
             params: { days }
@@ -144,7 +142,6 @@ const driverService = {
         return response.data;
     },
 
-    // Get current active trip
     getCurrentTrip: async () => {
         try {
             const response = await apiClient.get('/trips/current');
@@ -157,7 +154,6 @@ const driverService = {
         }
     },
 
-    // Start a trip
     startTrip: async (routeId: string, busId?: string, scheduleId?: string) => {
         const response = await apiClient.post('/trips/start', {
             routeId,
@@ -167,7 +163,6 @@ const driverService = {
         return response.data;
     },
 
-    // End a trip
     endTrip: async (tripId: string) => {
         const response = await apiClient.post('/trips/end', {
             tripId
@@ -175,7 +170,6 @@ const driverService = {
         return response.data;
     },
 
-    // Start a break
     startBreak: async (tripId: string) => {
         const response = await apiClient.post('/trips/break/start', {
             tripId
@@ -183,7 +177,6 @@ const driverService = {
         return response.data;
     },
 
-    // End a break
     endBreak: async (tripId: string) => {
         const response = await apiClient.post('/trips/break/end', {
             tripId
@@ -191,7 +184,6 @@ const driverService = {
         return response.data;
     },
 
-    // Update passenger count at a stop
     updatePassengers: async (
         tripId: string,
         stopId: string,
@@ -207,7 +199,6 @@ const driverService = {
         return response.data;
     },
 
-    // Get trip history
     getTripHistory: async (limit: number = 20, skip: number = 0) => {
         const response = await apiClient.get('/trips/history', {
             params: { limit, skip }
@@ -215,13 +206,11 @@ const driverService = {
         return response.data;
     },
 
-    // Get today's completed trips
     getTodayCompletedTrips: async () => {
         const response = await apiClient.get('/trips/today-completed');
         return response.data;
     },
 
-    // Get seat map for a specific schedule/date (driver view)
     getScheduleSeatMap: async (scheduleId: string, serviceDate: string): Promise<DriverScheduleSeatMap> => {
         const response = await apiClient.get('/trips/schedule-seat-map', {
             params: { scheduleId, serviceDate }

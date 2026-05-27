@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from 'react';
 import driverService, { Route, ScheduleItem } from '../services/driverService';
 import socketService from '../services/socketService';
 
-// Helper to get driver ID from storage
 const getDriverId = async () => {
     const AsyncStorage = require('@react-native-async-storage/async-storage').default;
     const userStr = await AsyncStorage.getItem('user');
@@ -42,18 +41,14 @@ export const useAssignedRoute = (enablePolling: boolean = false) => {
     }, [fetchAssignedRoute]);
 
     useEffect(() => {
-        // Initial fetch
         fetchAssignedRoute();
 
-        // Setup WebSocket connection
         const setupSocket = async () => {
             const driverId = await getDriverId();
             if (driverId) {
                 await socketService.connect(driverId);
-                
-                // Listen for route updates via WebSocket
+
                 const handleRouteUpdate = (updatedData: any) => {
-                    console.log('📍 Route updated via WebSocket, fetching latest data...');
                     fetchAssignedRoute(true); // Fetch silently
                 };
 
@@ -69,11 +64,9 @@ export const useAssignedRoute = (enablePolling: boolean = false) => {
 
         setupSocket();
 
-        // Smart polling: Only poll every 2 minutes as fallback if enabled
         if (enablePolling) {
             const pollInterval = setInterval(() => {
                 if (!socketService.isSocketConnected()) {
-                    console.log('⏰ Fallback polling (socket disconnected)');
                     fetchAssignedRoute(true);
                 }
             }, 120000); // 2 minutes
@@ -140,7 +133,6 @@ export const useCurrentTrip = (enablePolling: boolean = false) => {
                 setError(err.message || 'Failed to fetch current trip');
                 console.error('Error fetching current trip:', err);
             } else {
-                // No active trip is not an error
                 setTrip(null);
             }
         } finally {
@@ -149,28 +141,22 @@ export const useCurrentTrip = (enablePolling: boolean = false) => {
     }, []);
 
     useEffect(() => {
-        // Initial fetch
         fetchCurrentTrip();
 
-        // Setup WebSocket connection
         const setupSocket = async () => {
             const driverId = await getDriverId();
             if (driverId) {
                 await socketService.connect(driverId);
-                
-                // Listen for trip updates via WebSocket
+
                 const handleTripUpdate = (updatedTrip: any) => {
-                    console.log('🚌 Trip updated via WebSocket');
                     setTrip(updatedTrip);
                 };
 
                 const handleTripStarted = (newTrip: any) => {
-                    console.log('🟢 Trip started via WebSocket');
                     setTrip(newTrip);
                 };
 
                 const handleTripEnded = (endedTrip: any) => {
-                    console.log('🔴 Trip ended via WebSocket');
                     setTrip(null);
                 };
 
@@ -188,11 +174,9 @@ export const useCurrentTrip = (enablePolling: boolean = false) => {
 
         setupSocket();
 
-        // Smart polling: Only poll every minute as fallback if enabled
         if (enablePolling) {
             const pollInterval = setInterval(() => {
                 if (!socketService.isSocketConnected()) {
-                    console.log('⏰ Fallback polling for trip (socket disconnected)');
                     fetchCurrentTrip(true);
                 }
             }, 60000); // 1 minute

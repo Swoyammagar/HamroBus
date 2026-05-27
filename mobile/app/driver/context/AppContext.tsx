@@ -6,36 +6,29 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../context/AuthContext';
 
 type DriverContextType = {
-  // Online Status
   isOnline: boolean;
   setIsOnline: (value: boolean) => void;
 
-  // UI State
   menuOpen: boolean;
   setMenuOpen: (value: boolean) => void;
   showSOS: boolean;
   setShowSOS: (value: boolean) => void;
 
-  // Route Data (shared across all screens)
   assignedRoute: Route | null;
   schedules: any[];
   routeLoading: boolean;
   routeError: string | null;
 
-  // Trip Data (shared across all screens)
   currentTrip: TripSession | null;
   tripLoading: boolean;
   tripError: string | null;
-  // Stop Arrivals Data
   stopArrivals: StopArrival[] | null;
   stopArrivalsLoading: boolean;
 
-  // Refresh Functions
   refreshRoute: () => Promise<void>;
   refreshTrip: () => Promise<void>;
   refreshAll: () => Promise<void>;
 
-  // Announcements
   announcement: { show: boolean; message: string; type: 'info' | 'warning' | 'emergency' };
   setAnnouncement: (value: any) => void;
 };
@@ -46,33 +39,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isOnline, setIsOnline] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
-  
-  // Route data - shared across all screens
+
   const [assignedRoute, setAssignedRoute] = useState<Route | null>(null);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
-  
-  // Trip data - shared across all screens
+
   const [currentTrip, setCurrentTrip] = useState<TripSession | null>(null);
   const [tripLoading, setTripLoading] = useState(false);
   const [tripError, setTripError] = useState<string | null>(null);
-    // Stop arrivals data
     const [stopArrivals, setStopArrivals] = useState<StopArrival[] | null>(null);
     const [stopArrivalsLoading, setStopArrivalsLoading] = useState(false);
 
-  
+
   const [announcement, setAnnouncement] = useState({
     show: false,
     message: '',
     type: 'info' as 'info' | 'warning' | 'emergency',
   });
 
-  // Track if WebSocket is initialized
   const socketInitialized = useRef(false);
   const fallbackIntervalRef = useRef<any>(null);
 
-  // Helper to get driver ID
   const getDriverId = async (): Promise<string | null> => {
     try {
       const userStr = await AsyncStorage.getItem('user');
@@ -87,7 +75,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Fetch assigned route (silent = don't show loading)
   const fetchAssignedRoute = useCallback(async (silent = false) => {
     if (!silent) setRouteLoading(true);
     setRouteError(null);
@@ -96,13 +83,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const data = await driverService.getAssignedRoute();
       setAssignedRoute(data.route);
       setSchedules(data.driverSchedules || []);
-      
+
       if (!silent) {
-        console.log('📍 Route fetched:', {
-          id: data.route._id,
-          name: data.route.routeName,
-          stops: data.route.stops?.length || 0
-        });
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Failed to load route';
@@ -115,7 +97,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Fetch current trip (silent = don't show loading)
   const fetchCurrentTrip = useCallback(async (silent = false) => {
     if (!silent) setTripLoading(true);
     setTripError(null);
@@ -124,10 +105,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const trip = await driverService.getCurrentTrip();
       setCurrentTrip(trip);
       if (!silent && trip) {
-        console.log('🚌 Trip fetched:', {
-          id: trip._id,
-          status: trip.status
-        });
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Failed to load trip';
@@ -140,7 +117,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Public refresh functions
   const refreshRoute = useCallback(async () => {
     await fetchAssignedRoute(false);
   }, [fetchAssignedRoute]);
@@ -148,7 +124,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshTrip = useCallback(async () => {
     await fetchCurrentTrip(false);
   }, [fetchCurrentTrip]);
-  
+
   const refreshAll = useCallback(async () => {
     await Promise.all([
       fetchAssignedRoute(false),
@@ -156,7 +132,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ]);
   }, [fetchAssignedRoute, fetchCurrentTrip]);
 
-  // Initialize WebSocket and data fetching on mount
   useEffect(() => {
     let mounted = true;
 
@@ -164,51 +139,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const driverId = await getDriverId();
       if (!driverId || !mounted) return;
 
-      // Initial data fetch
       await Promise.all([
         fetchAssignedRoute(false),
         fetchCurrentTrip(false)
       ]);
 
-      // Setup WebSocket if not already initialized
       if (!socketInitialized.current) {
         socketInitialized.current = true;
-        
-        // Connect socket
-        await socketService.connect(driverId);
-        console.log('✅ WebSocket initialized in AppContext');
 
-        // Listen for route updates
+        await socketService.connect(driverId);
+
         socketService.on('route:updated', (data: any) => {
-          console.log('📍 Route updated via WebSocket');
           fetchAssignedRoute(true); // Silent fetch
         });
 
         socketService.on('schedule:assigned', (data: any) => {
-          console.log('📅 Schedule assigned via WebSocket');
           fetchAssignedRoute(true); // Silent fetch
         });
 
-        // Listen for trip updates
         socketService.on('trip:updated', (data: any) => {
-          console.log('🚌 Trip updated via WebSocket');
           fetchCurrentTrip(true); // Silent fetch
         });
 
         socketService.on('trip:started', (data: any) => {
-          console.log('🟢 Trip started via WebSocket');
           fetchCurrentTrip(true); // Silent fetch
         });
 
         socketService.on('trip:ended', (data: any) => {
-          console.log('🔴 Trip ended via WebSocket');
           fetchCurrentTrip(true); // Silent fetch
         });
 
-        // Fallback polling only if socket disconnected (every 2 minutes)
         fallbackIntervalRef.current = setInterval(() => {
           if (!socketService.isSocketConnected()) {
-            console.log('⏰ Fallback polling (socket disconnected)');
             fetchAssignedRoute(true);
             fetchCurrentTrip(true);
           }
@@ -226,7 +188,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchAssignedRoute, fetchCurrentTrip]);
 
-  // Fetch stop arrivals when trip is in-progress.
   useEffect(() => {
     if (!currentTrip?.scheduleId || !Array.isArray(schedules)) {
       setStopArrivals(null);

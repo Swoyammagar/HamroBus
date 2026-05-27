@@ -30,7 +30,6 @@ import {
 } from "../../components/ui";
 import Pagination from "../../components/ui/Pagination";
 
-// ─── Avatar helpers (mirrored from Drivers) ───────────────────────────────────
 
 const getInitials = (name: string) =>
   (name || "")
@@ -88,7 +87,6 @@ const SmartAvatar: React.FC<{
   );
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const formatDate = (dateStr?: string) => {
   if (!dateStr) return "-";
@@ -110,7 +108,6 @@ const bookingStatusVariant = (
   return "neutral";
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 const Passengers: React.FC = () => {
   const {
@@ -138,7 +135,6 @@ const Passengers: React.FC = () => {
     passengerName: string;
   } | null>(null);
 
-  // ── Search with debounce ───────────────────────────────────────────────────
   useEffect(() => {
     const t = setTimeout(() => {
       if (query.trim()) {
@@ -161,7 +157,6 @@ const Passengers: React.FC = () => {
     }
   };
 
-  // ── Open detail modal ──────────────────────────────────────────────────────
   const openDetail = async (passenger: PassengerSummary) => {
     setModalVisible(true);
     setSelectedDetail(null);
@@ -174,7 +169,6 @@ const Passengers: React.FC = () => {
     setSelectedDetail(null);
   };
 
-  // ── Delete flow ────────────────────────────────────────────────────────────
   const handleDeleteConfirm = async () => {
     if (!confirmAction) return;
     const { passengerId } = confirmAction;
@@ -210,7 +204,6 @@ const Passengers: React.FC = () => {
       [passengers]
   );
 
-  // ── Table columns ──────────────────────────────────────────────────────────
   const columns: TableColumn<PassengerSummary>[] = [
     {
       key: "avatar",
@@ -275,7 +268,6 @@ const Passengers: React.FC = () => {
     },
   ];
 
-  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
       <SearchBar
@@ -315,7 +307,6 @@ const Passengers: React.FC = () => {
         </>
       )}
 
-      {/* ── Passenger Detail Modal ── */}
       <Modal
         visible={modalVisible}
         onClose={closeModal}
@@ -349,7 +340,6 @@ const Passengers: React.FC = () => {
           </View>
         ) : (
           <View style={styles.modalContent}>
-            {/* Header */}
             <View style={styles.passengerHeader}>
               <SmartAvatar
                 uri={selectedDetail.profileImgUrl}
@@ -374,7 +364,6 @@ const Passengers: React.FC = () => {
               </View>
             </View>
 
-            {/* Stats row */}
             <View style={styles.statsRow}>
               {[
                 {
@@ -418,7 +407,6 @@ const Passengers: React.FC = () => {
               ))}
             </View>
 
-            {/* Contact details */}
             <View style={styles.detailsGrid}>
               {[
                 {
@@ -447,7 +435,6 @@ const Passengers: React.FC = () => {
               ))}
             </View>
 
-            {/* Booking history */}
             <View style={styles.sectionCard}>
               <Text style={styles.sectionTitle}>Booking History</Text>
               {selectedDetail.bookingHistory.length === 0 ? (
@@ -484,7 +471,6 @@ const Passengers: React.FC = () => {
               )}
             </View>
 
-            {/* Reviews given */}
             <View style={styles.sectionCard}>
               <Text style={styles.sectionTitle}>Reviews Given</Text>
               {selectedDetail.reviews.length === 0 ? (
@@ -518,7 +504,6 @@ const Passengers: React.FC = () => {
         )}
       </Modal>
 
-      {/* ── Delete Confirm Overlay ── */}
       {confirmAction && (
         <View style={styles.confirmOverlay}>
           <View style={styles.confirmCard}>
@@ -554,7 +539,6 @@ const Passengers: React.FC = () => {
   );
 };
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },

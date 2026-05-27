@@ -28,7 +28,6 @@ const DocumentsScreen = () => {
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
-  // Load profile data on mount
   useEffect(() => {
     loadProfileData();
   }, []);
@@ -68,7 +67,6 @@ const DocumentsScreen = () => {
         const imageUri = result.assets[0].uri;
         setLicenseImage(imageUri);
 
-        // Update profile with new license image
         try {
           await updateProfile({
             licenseImgUrl: imageUri,
@@ -77,7 +75,6 @@ const DocumentsScreen = () => {
           Alert.alert('Success', 'License image updated successfully');
         } catch (error: any) {
           Alert.alert('Error', error.message || 'Failed to update license image');
-          // Revert the image
           await loadProfileData();
         }
       }
@@ -105,13 +102,11 @@ const DocumentsScreen = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Documents</Text>
         <Text style={styles.headerSubtitle}>Manage your license and documents</Text>
       </View>
 
-      {/* Driver Information Card */}
       <View style={[styles.card, shadow.card]}>
         <View style={styles.cardHeader}>
           <Feather name="info" size={20} color={palette.primary} />
@@ -124,7 +119,6 @@ const DocumentsScreen = () => {
         </View>
       </View>
 
-      {/* License Image Section */}
       <View style={[styles.card, shadow.card]}>
         <View style={styles.cardHeader}>
           <Feather name="file-text" size={20} color={palette.primary} />
@@ -184,7 +178,6 @@ const DocumentsScreen = () => {
         )}
       </View>
 
-      {/* Requirements Info Card */}
       <View style={[styles.card, styles.infoCard]}>
         <View style={styles.cardHeader}>
           <Feather name="alert-circle" size={20} color="#f59e0b" />
@@ -205,7 +198,6 @@ const DocumentsScreen = () => {
         </View>
       </View>
 
-      {/* Expanded Image Modal */}
       {expandedImage && (
         <View style={styles.expandedImageContainer}>
           <TouchableOpacity

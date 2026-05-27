@@ -58,7 +58,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let mounted = true;
     validateToken().then((valid) => {
       if (!mounted) return;
-      if (!valid) console.log('[Auth] no valid session on mount');
     });
     return () => { mounted = false; };
   }, []);
@@ -66,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   /**
    * KEY FIX: The interceptor no longer calls /auth/refresh.
    * Your backend middleware already refreshes inline and returns 200.
-   * A 401 here means the refresh token itself is expired — just clear session.
+   * A 401 here means the refresh token itself is expired just clear session.
    */
   useEffect(() => {
     const interceptorId = axios.interceptors.response.use(
@@ -76,7 +75,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const originalRequest = error?.config;
         const url = originalRequest?.url || '';
 
-        // Skip auth endpoints to prevent loops
         const isAuthEndpoint =
           url.includes('/auth/') ||
           url.includes('/admin/login') ||

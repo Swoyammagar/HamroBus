@@ -37,47 +37,27 @@ const authenticateMobileUser = (req, res, next) => {
  * Admin routes
  */
 
-// Send notification to users (admin only)
-// POST /api/notifications/send
-// Body: { title, message, targetAudience: 'all|drivers|passengers' }
 router.post('/send', authenticateAdmin, (req, res) => {
   const io = req.app.get('io');
   sendNotification(req, res, io);
 });
 
-// Get all notifications (admin view)
-// GET /api/notifications
 router.get('/', authenticateAdmin, getAllNotifications);
 
-// Get notification statistics
-// GET /api/notifications/stats
 router.get('/stats', authenticateAdmin, getNotificationStats);
 
 /**
  * User routes (authenticated drivers/passengers)
  */
 
-// Get notifications for current user
-// GET /api/notifications/user/my-notifications?userType=driver|passenger
 router.get('/user/my-notifications', authenticateMobileUser, getUserNotifications);
 
-// Mark notification as read
-// PUT /api/notifications/:notificationId/read
-// Body: { userType: 'Driver|Passenger' }
 router.put('/:notificationId/read', authenticateMobileUser, markAsRead);
 
-// Register Expo push token for authenticated mobile user
-// POST /api/notifications/push-token
-// Body: { userType: 'driver|passenger', pushToken: 'ExpoPushToken[...]' }
 router.post('/push-token', authenticateMobileUser, registerPushToken);
 
-// Remove Expo push token for authenticated mobile user
-// DELETE /api/notifications/push-token
-// Body: { userType: 'driver|passenger', pushToken?: 'ExpoPushToken[...]' }
 router.delete('/push-token', authenticateMobileUser, unregisterPushToken);
 
-// Delete a notification
-// DELETE /api/notifications/:notificationId
 router.delete('/:notificationId', authenticateAdmin, deleteNotification);
 
 module.exports = router;

@@ -12,13 +12,12 @@ class SocketService {
 
   async connect(driverId: string) {
     if (this.socket?.connected) {
-      console.log('✅ Socket already connected');
       return;
     }
 
     try {
       const token = await AsyncStorage.getItem('authToken');
-      
+
       this.socket = io(SOCKET_URL, {
         auth: { token },
         reconnection: true,
@@ -29,9 +28,8 @@ class SocketService {
       });
 
       this.setupEventListeners(driverId);
-      console.log('🔌 Socket connecting to:', SOCKET_URL);
     } catch (error) {
-      console.error('❌ Socket connection error:', error);
+      console.error(' Socket connection error:', error);
     }
   }
 
@@ -41,69 +39,55 @@ class SocketService {
     this.socket.on('connect', () => {
       this.isConnected = true;
       this.reconnectAttempts = 0;
-      console.log('✅ Socket connected:', this.socket?.id);
-      
-      // Join driver-specific room
+
       this.socket?.emit('driver:join', { driverId });
     });
 
     this.socket.on('disconnect', (reason) => {
       this.isConnected = false;
-      console.log('❌ Socket disconnected:', reason);
     });
 
     this.socket.on('connect_error', (error) => {
       this.reconnectAttempts++;
-      console.error('❌ Socket connection error:', error.message);
-      
+      console.error(' Socket connection error:', error.message);
+
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
         console.error('Max reconnection attempts reached');
         this.disconnect();
       }
     });
 
-    // Listen for route/trip updates from backend
     this.socket.on('route:updated', (data) => {
-      console.log('📍 Route updated via WebSocket:', data);
       this.emit('route:updated', data);
     });
 
     this.socket.on('trip:updated', (data) => {
-      console.log('🚌 Trip updated via WebSocket:', data);
       this.emit('trip:updated', data);
     });
 
     this.socket.on('schedule:assigned', (data) => {
-      console.log('📅 Schedule assigned via WebSocket:', data);
       this.emit('schedule:assigned', data);
     });
 
     this.socket.on('trip:started', (data) => {
-      console.log('🟢 Trip started via WebSocket:', data);
       this.emit('trip:started', data);
     });
 
     this.socket.on('trip:ended', (data) => {
-      console.log('🔴 Trip ended via WebSocket:', data);
       this.emit('trip:ended', data);
     });
 
-    // ========== NEW: Listen for real-time seat and booking events ==========
     this.socket.on('seat:booked', (data) => {
-      console.log('🎫 New seat booked:', data);
       this.emit('seat:booked', data);
     });
 
     this.socket.on('booking:created', (data) => {
-      console.log('📝 New booking created:', data);
       this.emit('booking:created', data);
     });
 
     this.socket.on('driver:current-stop', (data) => {
-      console.log('🛑 Current stop updated:', data);
       this.emit('driver:current-stop', data);
     });
-    // ========== END NEW EVENTS ==========
   }
 
   on(event: string, callback: Function) {
@@ -136,7 +120,6 @@ class SocketService {
     });
   }
 
-  // Send driver location to backend
   shareLocation(data: { busId: string; driverId: string; latitude: number; longitude: number; heading?: number; speed?: number }) {
     if (this.socket?.connected) {
       this.socket.emit('driver:share-location', data);
@@ -150,7 +133,6 @@ class SocketService {
       this.socket = null;
       this.isConnected = false;
       this.listeners.clear();
-      console.log('🔌 Socket disconnected and cleaned up');
     }
   }
 

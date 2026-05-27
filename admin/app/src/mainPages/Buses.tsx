@@ -291,7 +291,6 @@ const Buses: React.FC = () => {
         </ScrollView>
       )}
 
-      {/* Edit Modal */}
       <Modal
         visible={modalVisible}
         onClose={() => { setModalVisible(false); setEditingBus(null); }}
@@ -312,7 +311,6 @@ const Buses: React.FC = () => {
         <Picker label="Assigned Route" value={getIdValue(editFields.assignedRouteId)} onSelect={(val) => setEditFields((s) => ({ ...s, assignedRouteId: String(val) || '' }))} options={routeOptions} placeholder="Select route" allowClear onClear={() => setEditFields((s) => ({ ...s, assignedRouteId: '' }))} />
       </Modal>
 
-      {/* Delete Confirm Overlay */}
       {confirmDeleteId && (
         <View style={styles.confirmOverlay}>
           <View style={styles.confirmCard}>

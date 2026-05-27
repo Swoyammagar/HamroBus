@@ -60,10 +60,8 @@ const DriverPasswordReset = () => {
   };
 
   const handleSubmit = async () => {
-    // Clear previous errors
     clearError();
 
-    // Validate form
     if (!validateForm()) {
       return;
     }
@@ -84,7 +82,6 @@ const DriverPasswordReset = () => {
         },
       ]);
     } catch (err: any) {
-      // Error is already set by the hook
       Alert.alert('Error', err.message || 'Failed to change password');
     }
   };
@@ -107,7 +104,6 @@ const DriverPasswordReset = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Info Card */}
         <View style={styles.infoCard}>
           <Feather name="info" size={20} color={palette.primary} />
           <Text style={styles.infoText}>
@@ -115,9 +111,7 @@ const DriverPasswordReset = () => {
           </Text>
         </View>
 
-        {/* Form Section */}
         <View style={styles.formSection}>
-          {/* Current Password */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Current Password *</Text>
             <View
@@ -159,7 +153,6 @@ const DriverPasswordReset = () => {
             )}
           </View>
 
-          {/* New Password */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>New Password *</Text>
             <View
@@ -222,7 +215,6 @@ const DriverPasswordReset = () => {
             )}
           </View>
 
-          {/* Confirm Password */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>Confirm New Password *</Text>
             <View
@@ -269,7 +261,6 @@ const DriverPasswordReset = () => {
               )}
           </View>
 
-          {/* Password Requirements */}
           <View style={styles.requirementsBox}>
             <Text style={styles.requirementsTitle}>Password requirements:</Text>
             <View style={styles.requirementItem}>
@@ -395,7 +386,6 @@ const DriverPasswordReset = () => {
           </View>
         </View>
 
-        {/* Error Alert */}
         {error && (
           <View style={styles.errorAlert}>
             <Feather name="alert-circle" size={20} color="#ef4444" />
@@ -403,7 +393,6 @@ const DriverPasswordReset = () => {
           </View>
         )}
 
-        {/* Action Buttons */}
         <View style={styles.buttonSection}>
           <TouchableOpacity
             style={[styles.button, styles.cancelButton]}

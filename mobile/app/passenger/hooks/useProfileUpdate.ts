@@ -11,7 +11,6 @@ export interface PassengerProfileUpdateInput {
   lastName?: string;
   phoneNumber?: string;
   address?: string;
-  // Accepts local file:// URI or existing https:// URL
   profileImageUri?: string;
 }
 
@@ -72,7 +71,6 @@ export const useProfileUpdate = () => {
         if (input.phoneNumber !== undefined) payload.phoneNumber = input.phoneNumber;
         if (input.address !== undefined) payload.address = input.address;
 
-        // ── Profile image ──────────────────────────────────────────────────
         if (input.profileImageUri) {
           if (isLocalUri(input.profileImageUri)) {
             setUploadProgress('Uploading profile photo…');
@@ -80,7 +78,6 @@ export const useProfileUpdate = () => {
             if (!url) throw { message: 'Profile image upload failed. Please try again.' };
             payload.profileImgUrl = url;
           } else {
-            // Already an https:// Cloudinary URL — no re-upload needed
             payload.profileImgUrl = input.profileImageUri;
           }
         }

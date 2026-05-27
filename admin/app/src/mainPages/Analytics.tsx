@@ -147,7 +147,6 @@ const Analytics = () => {
     });
   }, [reviewQuery, ratingFilter, reviews]);
 
-  // Pagination slices
   const reviewTotalPages = Math.ceil(filteredReviews.length / REVIEWS_PER_PAGE);
   const paginatedReviews = filteredReviews.slice(
     (reviewPage - 1) * REVIEWS_PER_PAGE,

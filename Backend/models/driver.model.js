@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 
 const driverSchema = new mongoose.Schema({
-    // Personal Information
     firstName: {
         type: String,
         required: true
@@ -40,8 +39,7 @@ const driverSchema = new mongoose.Schema({
         type: String,
         required: false
     },
-    
-    // Driver-specific Information
+
     licenseNo: {
         type: String,
         required: true,
@@ -70,8 +68,7 @@ const driverSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    
-    // Authentication & Security
+
     otp: {
         type: String,
         required: false
@@ -109,7 +106,6 @@ const driverSchema = new mongoose.Schema({
         min: 0
     },
 
-    // Profile Deletion
     deleteRequestedAt: {
         type: Date,
         required: false,

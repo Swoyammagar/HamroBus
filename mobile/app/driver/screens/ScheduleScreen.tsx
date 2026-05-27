@@ -16,7 +16,6 @@ type ScheduleItem = {
   notes?: string;
 };
 
-// Generate days dynamically for the week
 const generateWeekDays = () => {
   const days = [];
   const today = new Date();
@@ -26,7 +25,7 @@ const generateWeekDays = () => {
   for (let i = 0; i < 7; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
-    
+
     let label = '';
     if (i === 0) {
       label = 'Today';
@@ -58,7 +57,6 @@ const getDayIndexFromValue = (value?: string) => {
   const normalized = value.trim().toLowerCase();
   const asNumber = Number(normalized);
 
-  // Support day values like "0".."6" if backend ever returns numeric strings.
   if (Number.isInteger(asNumber) && asNumber >= 0 && asNumber <= 6) {
     return asNumber;
   }
@@ -81,19 +79,17 @@ const toMinutes = (timeValue: string) => {
 
 export default function ScheduleScreen() {
   const [selected, setSelected] = useState('0'); // Start with today
-  
-  // ✅ Use shared context instead of individual hooks
-  const { 
-    schedules, 
-    routeLoading, 
-    currentTrip, 
+
+  const {
+    schedules,
+    routeLoading,
+    currentTrip,
     assignedRoute,
-    refreshRoute 
+    refreshRoute
   } = useAppContext();
 
   const [refreshing, setRefreshing] = useState(false);
 
-  // Handle pull-to-refresh
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -132,7 +128,7 @@ export default function ScheduleScreen() {
 
   const calculateWorkingHours = () => {
     if (currentSchedules.length === 0) return '0h';
-    
+
     let totalMinutes = 0;
     currentSchedules.forEach(schedule => {
       const [startHour, startMin] = schedule.startTime.split(':').map(Number);
@@ -157,12 +153,12 @@ export default function ScheduleScreen() {
   }
 
   return (
-    <ScrollView 
-      style={styles.container} 
+    <ScrollView
+      style={styles.container}
       contentContainerStyle={styles.scrollContent}
       refreshControl={
-        <RefreshControl 
-          refreshing={refreshing} 
+        <RefreshControl
+          refreshing={refreshing}
           onRefresh={handleRefresh}
           tintColor={palette.primary}
         />

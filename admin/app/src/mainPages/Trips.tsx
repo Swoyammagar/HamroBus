@@ -16,11 +16,8 @@ import { Feather } from '@expo/vector-icons';
 import { getAllTrips, getTripById, type TripListItem, type TripDetails } from '../services/tripService';
 import Pagination from '@/app/components/ui/Pagination';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const PAGE_SIZE = 10;
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const formatDate = (dateString: string | undefined) => {
   if (!dateString || dateString === 'N/A') return null;
@@ -43,7 +40,13 @@ const formatDisplayDate = (iso: string) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-const todayISO = () => new Date().toISOString().split('T')[0];
+const todayISO = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const getInitials = (name: string) =>
   (name || '').split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase();
@@ -59,7 +62,7 @@ const STATUS_CONFIG: Record<string, { variant: StatusVariant; color: string; bg:
 const getStatusCfg = (s: string) =>
   STATUS_CONFIG[s] ?? { variant: 'warning' as StatusVariant, color: '#d97706', bg: '#fffbeb', label: s, icon: 'alert-circle' };
 
-// ─── Avatar ───────────────────────────────────────────────────────────────────
+
 
 const Avatar: React.FC<{ uri?: string | null; name: string; size: number; color?: string }> = ({
   uri, name, size, color = '#3b82f6',
@@ -73,12 +76,6 @@ const Avatar: React.FC<{ uri?: string | null; name: string; size: number; color?
   );
 };
 
-// ─── Web Date Input ───────────────────────────────────────────────────────────
-//
-// On web (Expo), a TextInput's underlying DOM node is an <input type="text">.
-// We flip it to type="date" via a useEffect DOM mutation so the browser's
-// native date picker pops up — no third-party calendar library needed.
-// On native we fall back to a plain editable text field (swap in DateTimePicker if desired).
 
 const WebDateInput: React.FC<{
   value: string;
@@ -111,7 +108,6 @@ const WebDateInput: React.FC<{
   );
 };
 
-// ─── Date Range Bar ───────────────────────────────────────────────────────────
 
 const DateRangeBar: React.FC<{
   startDate: string;
@@ -139,7 +135,6 @@ const DateRangeBar: React.FC<{
   </View>
 );
 
-// ─── Trip Card ────────────────────────────────────────────────────────────────
 
 const TripCard: React.FC<{ trip: TripListItem; onPress: () => void }> = ({ trip, onPress }) => {
   const cfg = getStatusCfg(trip.status);
@@ -194,7 +189,7 @@ const TripCard: React.FC<{ trip: TripListItem; onPress: () => void }> = ({ trip,
   );
 };
 
-// ─── Timeline Row ─────────────────────────────────────────────────────────────
+
 
 const TimelineRow: React.FC<{ label: string; value: string | null; color: string; isLast?: boolean }> = ({
   label, value, color, isLast,
@@ -211,7 +206,7 @@ const TimelineRow: React.FC<{ label: string; value: string | null; color: string
   </View>
 );
 
-// ─── Occupancy History Row ────────────────────────────────────────────────────
+
 
 const OccupancyHistoryRow: React.FC<{ record: any; index: number; total: number }> = ({ record, index, total }) => {
   const isLastRow = index === total - 1;
@@ -219,7 +214,7 @@ const OccupancyHistoryRow: React.FC<{ record: any; index: number; total: number 
   const isAlighting = record.eventType === 'alighting' || record.passengersAlighted > 0;
   const color = isAlighting ? '#ef4444' : isBoarding ? '#10b981' : '#6b7280';
   const bgColor = isAlighting ? '#fef2f2' : isBoarding ? '#f0fdf4' : '#f3f4f6';
-  
+
   const timestamp = new Date(record.timestamp);
   const time = timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
@@ -235,8 +230,8 @@ const OccupancyHistoryRow: React.FC<{ record: any; index: number; total: number 
           <View style={[styles.occHistBadge, { backgroundColor: bgColor }]}>
             <Feather name={isAlighting ? 'arrow-down-left' : isBoarding ? 'arrow-up-right' : 'minus'} size={12} color={color} />
             <Text style={[styles.occHistBadgeText, { color }]}>
-              {isAlighting && record.passengersAlighted > 0 ? `↓ ${record.passengersAlighted}` : 
-               isBoarding && record.passengersBoarded > 0 ? `↑ ${record.passengersBoarded}` : 
+              {isAlighting && record.passengersAlighted > 0 ? `↓ ${record.passengersAlighted}` :
+               isBoarding && record.passengersBoarded > 0 ? `↑ ${record.passengersBoarded}` :
                'Updated'}
             </Text>
           </View>
@@ -255,7 +250,7 @@ const OccupancyHistoryRow: React.FC<{ record: any; index: number; total: number 
   );
 };
 
-// ─── Booking Row ──────────────────────────────────────────────────────────────
+
 
 const BookingRow: React.FC<{ booking: any; index: number }> = ({ booking, index }) => {
   const payPaid = booking.paymentStatus === 'paid';
@@ -297,7 +292,7 @@ const BookingRow: React.FC<{ booking: any; index: number }> = ({ booking, index 
   );
 };
 
-// ─── Trip Details Modal ───────────────────────────────────────────────────────
+
 
 const TripDetailsModal: React.FC<{
   trip: TripDetails | null;
@@ -444,10 +439,10 @@ const TripDetailsModal: React.FC<{
                   </View>
                   <View style={styles.occHistTimeline}>
                     {trip.occupancyHistory.map((record, idx) => (
-                      <OccupancyHistoryRow 
-                        key={idx} 
-                        record={record} 
-                        index={idx} 
+                      <OccupancyHistoryRow
+                        key={idx}
+                        record={record}
+                        index={idx}
                         total={trip.occupancyHistory!.length}
                       />
                     ))}
@@ -483,7 +478,6 @@ const TripDetailsModal: React.FC<{
   );
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Trips() {
   const [allTrips, setAllTrips] = useState<TripListItem[]>([]);
@@ -496,7 +490,6 @@ export default function Trips() {
   const [selectedTrip, setSelectedTrip] = useState<TripDetails | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
 
-  // ── Fetch: server filters by status + date; we do search + pagination client-side ──
   const fetchTrips = async () => {
     setLoading(true);
     const data = await getAllTrips({
@@ -686,7 +679,6 @@ export default function Trips() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },

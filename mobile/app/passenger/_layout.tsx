@@ -97,7 +97,6 @@ const PassengerShell = () => {
         />
       </Stack>
 
-      {/* PREMIUM PASSENGER TOAST */}
       {currentToast ? (
         <View
           style={styles.toastWrap}
@@ -112,7 +111,6 @@ const PassengerShell = () => {
               },
             ]}
           >
-            {/* LOGO */}
             <View style={styles.leftSection}>
               <Image
                 source={require('../utils/MainLogo.png')}
@@ -121,7 +119,6 @@ const PassengerShell = () => {
               />
             </View>
 
-            {/* CONTENT */}
             <View style={styles.contentSection}>
               <View style={styles.headerRow}>
                 <View style={styles.titleWrap}>

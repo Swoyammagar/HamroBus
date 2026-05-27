@@ -6,8 +6,6 @@ export interface ProfileUpdateError {
   message: string;
 }
 
-// Payload accepted by the hook — image fields accept either
-// a local file URI (file:// or content://) or an already-uploaded https:// URL.
 export interface ProfileUpdateInput {
   firstName?: string;
   lastName?: string;
@@ -31,10 +29,7 @@ export const useDriverProfileUpdate = () => {
   const [phoneCheckError, setPhoneCheckError] = useState<string | null>(null);
   const [licenseCheckError, setLicenseCheckError] = useState<string | null>(null);
 
-  /**
-   * Core update — accepts already-resolved URLs only.
-   * Use `updateProfileWithImages` from outside when you have local URIs.
-   */
+
   const updateProfile = useCallback(async (payload: DriverProfileUpdatePayload) => {
     try {
       setLoading(true);
@@ -53,27 +48,7 @@ export const useDriverProfileUpdate = () => {
     }
   }, []);
 
-  /**
-   * Full update flow that handles image uploads before saving.
-   *
-   * Pass `uploadFn` from `useAuth().uploadImageToCloudinary` at the call site.
-   * Any image field that is a local URI (file://, content://, or bare path)
-   * will be uploaded to Cloudinary first; https:// URLs are passed through as-is.
-   *
-   * Example usage in a screen:
-   *
-   *   const { uploadImageToCloudinary } = useAuth();
-   *   const { updateProfileWithImages } = useDriverProfileUpdate();
-   *
-   *   await updateProfileWithImages(
-   *     {
-   *       firstName: 'Ram',
-   *       profileImageUri: pickedLocalUri,   // local file — will be uploaded
-   *       licenseImageUri: existingHttpsUrl, // already uploaded — passed through
-   *     },
-   *     uploadImageToCloudinary,
-   *   );
-   */
+
   const updateProfileWithImages = useCallback(
     async (
       input: ProfileUpdateInput,
@@ -86,14 +61,12 @@ export const useDriverProfileUpdate = () => {
       try {
         const payload: DriverProfileUpdatePayload = {};
 
-        // Copy plain text fields
         if (input.firstName !== undefined) payload.firstName = input.firstName;
         if (input.lastName !== undefined) payload.lastName = input.lastName;
         if (input.phoneNumber !== undefined) payload.phoneNumber = input.phoneNumber;
         if (input.licenseNo !== undefined) payload.licenseNo = input.licenseNo;
         if (input.address !== undefined) payload.address = input.address;
 
-        // ── Profile image ──────────────────────────────────────────────────
         if (input.profileImageUri) {
           if (isLocalUri(input.profileImageUri)) {
             setUploadProgress('Uploading profile photo…');
@@ -101,12 +74,10 @@ export const useDriverProfileUpdate = () => {
             if (!url) throw { message: 'Profile image upload failed. Please try again.' };
             payload.profileImgUrl = url;
           } else {
-            // Already an https:// Cloudinary URL — no re-upload needed
             payload.profileImgUrl = input.profileImageUri;
           }
         }
 
-        // ── License image ──────────────────────────────────────────────────
         if (input.licenseImageUri) {
           if (isLocalUri(input.licenseImageUri)) {
             setUploadProgress('Uploading license image…');
@@ -201,24 +172,20 @@ export const useDriverProfileUpdate = () => {
   }, []);
 
   return {
-    // Core
     updateProfile,
     updateProfileWithImages,
     loading,
     error,
-    uploadProgress, // e.g. "Uploading profile photo…" — show this in your UI
+    uploadProgress,
 
-    // Phone validation
     checkPhoneAvailability,
     phoneCheckLoading,
     phoneCheckError,
 
-    // License validation
     checkLicenseAvailability,
     licenseCheckLoading,
     licenseCheckError,
 
-    // Standalone validators
     validatePhoneNumber,
     validateLicenseNumber,
 

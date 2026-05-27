@@ -23,12 +23,12 @@ import { palette, spacing, radius, shadow } from '../theme';
 
 const DriverProfileEdit = () => {
   const router = useRouter();
-  const { user, driver, uploadImageToCloudinary, getCurrentUser } = useAuth(); // ← add uploadImageToCloudinary
+  const { user, driver, uploadImageToCloudinary, getCurrentUser } = useAuth();
   const {
-    updateProfileWithImages, // ← was updateProfile
+    updateProfileWithImages,
     loading,
     error,
-    uploadProgress,          // ← new: shows "Uploading profile photo…" etc.
+    uploadProgress,
     phoneCheckLoading,
     phoneCheckError,
     licenseCheckLoading,
@@ -183,16 +183,12 @@ const DriverProfileEdit = () => {
       if (!isLicenseValid) return;
     }
 
-    // Check whether anything actually changed
     const textChanged =
       formData.firstName !== originalFormData.firstName ||
       formData.lastName !== originalFormData.lastName ||
       formData.phoneNumber !== originalFormData.phoneNumber ||
       formData.licenseNo !== originalFormData.licenseNo;
 
-    // profileImageUri / licenseImageUri are local file:// URIs when freshly picked,
-    // or the original https:// URL when unchanged. We detect a new pick by checking
-    // whether the current URI differs from what was loaded from the server.
     const profileImageChanged =
       !!profileImageUri && profileImageUri !== originalFormData.profileImgUrl;
     const licenseImageChanged =
@@ -204,18 +200,12 @@ const DriverProfileEdit = () => {
     }
 
     try {
-      // updateProfileWithImages will:
-      //   1. Upload profileImageUri to Cloudinary if it's a local file:// URI
-      //   2. Upload licenseImageUri to Cloudinary if it's a local file:// URI
-      //   3. Call driverProfileService.updateProfile() with the resolved https:// URLs
       const response = await updateProfileWithImages(
         {
-          // Only send text fields that changed
           ...(formData.firstName !== originalFormData.firstName && { firstName: formData.firstName.trim() }),
           ...(formData.lastName !== originalFormData.lastName && { lastName: formData.lastName.trim() }),
           ...(formData.phoneNumber !== originalFormData.phoneNumber && { phoneNumber: formData.phoneNumber.trim() }),
           ...(formData.licenseNo !== originalFormData.licenseNo && { licenseNo: formData.licenseNo.trim() }),
-          // Pass current URIs — hook detects whether upload is needed
           ...(profileImageChanged && { profileImageUri: profileImageUri! }),
           ...(licenseImageChanged && { licenseImageUri: licenseImageUri! }),
         },
@@ -267,7 +257,6 @@ const DriverProfileEdit = () => {
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 
-          {/* ── Profile Image ── */}
           <View style={styles.imageSection}>
             <Text style={styles.sectionLabel}>Profile Photo</Text>
             <View style={styles.imageContainer}>
@@ -296,7 +285,6 @@ const DriverProfileEdit = () => {
             <Text style={styles.imageHint}>Tap camera to change photo</Text>
           </View>
 
-          {/* ── License Image ── */}
           <View style={styles.imageSection}>
             <Text style={styles.sectionLabel}>License Image</Text>
             <View style={styles.imageContainer}>
@@ -325,7 +313,6 @@ const DriverProfileEdit = () => {
             <Text style={styles.imageHint}>Tap camera to change license photo</Text>
           </View>
 
-          {/* ── Form ── */}
           <View style={styles.formSection}>
 
             <View style={styles.formGroup}>
@@ -416,7 +403,6 @@ const DriverProfileEdit = () => {
             </View>
           </View>
 
-          {/* Upload progress — shown during Cloudinary upload */}
           {loading && uploadProgress && (
             <View style={styles.uploadProgressBar}>
               <ActivityIndicator size="small" color={palette.primary} />

@@ -73,11 +73,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Helper to check if a JWT token is expired
 const isTokenExpired = (token: string): boolean => {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
-    // 10s buffer so we don't fire requests with a token about to expire
     return payload.exp * 1000 < Date.now() + 10_000;
   } catch {
     return true;
@@ -106,7 +104,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           let activeToken = storedToken;
 
           if (isTokenExpired(storedToken)) {
-            console.log('🔄 Token expired on startup, refreshing...');
 
             if (storedRefreshToken) {
               try {
@@ -119,14 +116,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 if (newToken) {
                   await AsyncStorage.setItem('authToken', newToken);
                   activeToken = newToken;
-                  console.log('✅ Token refreshed on startup');
                 }
               } catch (err: any) {
                 const status = err?.response?.status;
-                console.warn('⚠️ Startup refresh failed:', status);
+                console.warn(' Startup refresh failed:', status);
 
                 if (status === 400 || status === 401 || status === 403) {
-                  // Refresh token is invalid/expired, force user to re-login
                   await AsyncStorage.multiRemove([
                     'authToken',
                     'refreshToken',
@@ -134,41 +129,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     'driverProfile',
                     'passengerProfile',
                   ]);
-                  console.log('🚪 Cleared auth data, user must re-login');
                   return; // exit early, don't restore state
                 }
-                // Network/transient error — restore stale token,
-                // interceptor will handle retry when network recovers
-                console.warn('⚠️ Network error during startup refresh, restoring stale token');
+                console.warn(' Network error during startup refresh, restoring stale token');
               }
             } else {
-              // No refresh token at all, clear and force re-login
               await AsyncStorage.multiRemove([
                 'authToken',
                 'user',
                 'driverProfile',
                 'passengerProfile',
               ]);
-              console.log('🚪 No refresh token available, user must re-login');
               return;
             }
           }
 
           setToken(activeToken);
           setUser(JSON.parse(storedUser));
-          console.log('✅ Auth state restored from storage');
         } else {
-          console.log('ℹ️ No auth state in storage');
         }
 
         if (storedDriver) setDriver(JSON.parse(storedDriver));
         if (storedPassenger) setPassenger(JSON.parse(storedPassenger));
 
       } catch (error) {
-        console.error('❌ Error loading auth state:', error);
+        console.error(' Error loading auth state:', error);
       } finally {
-        // isLoading only becomes false AFTER refresh attempt completes
-        // so no screen renders with a stale token
         setIsLoading(false);
       }
     };
@@ -207,7 +193,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const axiosInstance = apiClient.getAxiosInstance();
       const response = await axiosInstance.post(`${endpoint}`, { email, password });
 
-      console.log('✅ Login successful:', JSON.stringify(response.data, null, 2));
 
       const { accessToken, refreshToken, user: userPayload, driver, passenger } = response.data;
 
@@ -235,7 +220,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       return { success: true, user: userPayload, driver, passenger };
     } catch (error: any) {
-      console.error('❌ Login error:', error);
+      console.error(' Login error:', error);
       return {
         success: false,
         message: error.response?.data?.message || error.message || 'Login failed',
@@ -276,7 +261,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       return { success: true, message: response.data.message };
     } catch (error: any) {
-      console.error('❌ Registration error:', error);
+      console.error(' Registration error:', error);
       return {
         success: false,
         message: error?.response?.data?.message || error.message || 'Registration failed',
@@ -300,7 +285,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         try {
           await axios.post(`${API_URL}/auth/logout-mobile`, { refreshToken: storedRefreshToken });
         } catch (error) {
-          console.warn('⚠️ Backend logout notification failed:', error);
+          console.warn(' Backend logout notification failed:', error);
         }
       }
 
@@ -311,9 +296,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setPassenger(null);
       pushRegistrationRef.current = null;
 
-      console.log('✅ User logged out successfully');
     } catch (error) {
-      console.error('❌ Logout error:', error);
+      console.error(' Logout error:', error);
       setToken(null);
       setUser(null);
       setDriver(null);
@@ -326,13 +310,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const activeToken = token || (await AsyncStorage.getItem('authToken'));
       if (!activeToken) {
-        console.log('⚠️ getCurrentUser: No token available, skipping');
         return;
       }
 
       const storedUser = await AsyncStorage.getItem('user');
       if (!storedUser) {
-        console.log('⚠️ getCurrentUser: No stored user data, skipping');
         return;
       }
 
@@ -349,7 +331,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (!endpoint) {
-        console.warn('⚠️ getCurrentUser: Missing role information, skipping');
+        console.warn(' getCurrentUser: Missing role information, skipping');
         return;
       }
 
@@ -363,18 +345,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await AsyncStorage.setItem('user', JSON.stringify(updatedUserData));
       setUser(updatedUserData);
 
-      console.log('✅ getCurrentUser: User data updated successfully');
     } catch (error: any) {
       if (error.response?.status === 401) {
-        console.log('🔄 Token expired, attempting refresh...');
         const refreshed = await refreshToken();
         if (refreshed) {
           return await getCurrentUser();
         }
       } else if (error.request) {
-        console.error('❌ getCurrentUser network error:', error.message);
+        console.error(' getCurrentUser network error:', error.message);
       } else {
-        console.error('❌ getCurrentUser error:', error.message);
+        console.error(' getCurrentUser error:', error.message);
       }
     }
   };
@@ -409,7 +389,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         await AsyncStorage.setItem('authToken', newToken);
         setToken(newToken);
-        console.log('✅ Token refreshed successfully');
         return true;
       } catch (error: any) {
         const status = error?.response?.status;

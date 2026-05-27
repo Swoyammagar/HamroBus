@@ -94,7 +94,6 @@ export default function DashboardOverview() {
 	);
 
 	return (
-		// Outer container fills entire available space — no scrolling
 		<View style={styles.container}>
 			{dashboardError && (
 				<View style={styles.errorBanner}>
@@ -102,7 +101,6 @@ export default function DashboardOverview() {
 				</View>
 			)}
 
-			{/* Stat cards row — fixed height at top */}
 			<View style={[styles.cardsRow, isCompact && styles.cardsRowCompact]}>
 				<Card padding="md" style={statCardStyle}>
 					<Text style={styles.cardTitle}>Total Drivers</Text>
@@ -130,10 +128,8 @@ export default function DashboardOverview() {
 				</Card>
 			</View>
 
-			{/* Main content — flex: 1 so it fills all remaining height */}
 			<View style={[styles.mainRow, !isWide && styles.mainRowStacked]}>
 
-				{/* Map card — flex: 1 to fill height */}
 				<Card padding="md" style={styles.mapCard}>
 					{Platform.OS === 'web' ? (
 						// @ts-ignore
@@ -150,9 +146,7 @@ export default function DashboardOverview() {
 					)}
 				</Card>
 
-				{/* Side column — flex: 0 fixed width, scrollable internally if needed */}
 				<View style={[styles.sideColumn, !isWide && styles.sideColumnStacked]}>
-					{/* Top Drivers */}
 					<Card padding="md" style={widgetCardStyle}>
 						<Text style={styles.widgetTitle}>Top Drivers</Text>
 						{leaderboardLoading && <ActivityIndicator color="#065f46" style={styles.widgetLoader} />}
@@ -173,7 +167,6 @@ export default function DashboardOverview() {
 						))}
 					</Card>
 
-					{/* Latest Notifications */}
 					<Card padding="md" style={widgetCardStyle}>
 						<Text style={styles.widgetTitle}>Latest Notifications</Text>
 						{notificationsLoading && <ActivityIndicator color="#065f46" style={styles.widgetLoader} />}
@@ -207,7 +200,6 @@ export default function DashboardOverview() {
 }
 
 const styles = StyleSheet.create({
-	// flex: 1 + no ScrollView = fills parent height exactly, no white space
 	container: {
 		flex: 1,
 		width: '100%',
@@ -228,14 +220,12 @@ const styles = StyleSheet.create({
 	cardLoader: { alignSelf: 'flex-start', marginTop: 12 },
 	errorBanner: { backgroundColor: '#fee2e2', borderRadius: 8, padding: 12, marginBottom: 12 },
 	errorText: { color: '#dc2626', fontSize: 14, fontWeight: '600' },
-	// flex: 1 here is the key — mainRow takes ALL remaining height after stat cards
 	mainRow: {
 		flex: 1,
 		flexDirection: 'row',
 		gap: 12,
 	},
 	mainRowStacked: { flexDirection: 'column' },
-	// flex: 1 so map card stretches to fill mainRow height
 	mapCard: {
 		flex: 1,
 	},
@@ -248,7 +238,6 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 	},
-	// fixed width sidebar, does not grow
 	sideColumn: {
 		width: 340,
 		gap: 12,

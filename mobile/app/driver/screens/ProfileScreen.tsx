@@ -20,7 +20,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { driverProfileService } from '../services/driverProfileService';
 import { useAccountDeletion } from '../hooks/useAccountDeletion';
 
-// Add above ProfileScreen component:
 const ProfileAvatar: React.FC<{ uri?: string | null; initials: string }> = ({ uri, initials }) => {
   const [failed, setFailed] = useState(false);
   if (uri && !failed) {
@@ -46,7 +45,6 @@ const ProfileScreen = () => {
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [licenseNo, setLicenseNo] = useState<string | null>(null); // local driver info
 
-  // Account Deletion
   const {
     isDeletionPending,
     remainingDays,
@@ -64,7 +62,6 @@ const ProfileScreen = () => {
       getCurrentUser().then(() => setIsLoading(false));
       checkDeletionStatus();
 
-      // Also fetch driver-specific fields (licenseNo) which aren't in the User object
       driverProfileService.getProfile().then((data) => {
         setLicenseNo(data?.driver?.licenseNo || null);
       }).catch(() => {});
@@ -167,7 +164,6 @@ const ProfileScreen = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Profile Card */}
         <View style={styles.profileCard}>
           <View style={styles.avatarWrapper}>
             <ProfileAvatar uri={profileImage} initials={initials} />
@@ -199,7 +195,6 @@ const ProfileScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Account Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
 
@@ -226,7 +221,6 @@ const ProfileScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Shared legal pages are frontend-only and available to both mobile roles. */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Support & Legal</Text>
 
@@ -264,7 +258,6 @@ const ProfileScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Driver Information Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Driver Information</Text>
 
@@ -283,7 +276,6 @@ const ProfileScreen = () => {
           </View>
         </View>
 
-        {/* Recent Reviews Section */}
         <ReviewsSection />
 
         {isDeletionPending && (
@@ -312,15 +304,13 @@ const ProfileScreen = () => {
           </View>
         )}
 
-        {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Feather name="log-out" size={20} color="#ef4444" />
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
 
-        {/* Delete Profile Button */}
-        <TouchableOpacity 
-          style={[styles.deleteButton, isDeletionPending && styles.deleteButtonWarning]} 
+        <TouchableOpacity
+          style={[styles.deleteButton, isDeletionPending && styles.deleteButtonWarning]}
           onPress={() => isDeletionPending ? handleCancelDeletion() : setShowDeleteConfirm(true)}
           disabled={deletionLoading}
         >
@@ -336,7 +326,6 @@ const ProfileScreen = () => {
         </View>
       </ScrollView>
 
-      {/* Delete Confirmation Modal */}
       <Modal
         visible={showDeleteConfirm}
         animationType="fade"
@@ -370,14 +359,14 @@ const ProfileScreen = () => {
             </View>
 
             <View style={styles.confirmActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.confirmCancel}
                 onPress={() => setShowDeleteConfirm(false)}
               >
                 <Text style={styles.confirmCancelText}>Cancel</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.confirmDelete}
                 onPress={handleDeleteProfile}
                 disabled={deletionLoading}
@@ -393,7 +382,6 @@ const ProfileScreen = () => {
         </View>
       </Modal>
 
-      {/* Deletion Status Modal */}
       <Modal
         visible={showDeletionStatus}
         animationType="fade"
@@ -430,14 +418,14 @@ const ProfileScreen = () => {
             </View>
 
             <View style={styles.confirmActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.confirmCancel}
                 onPress={() => setShowDeletionStatus(false)}
               >
                 <Text style={styles.confirmCancelText}>Close</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.confirmRestore}
                 onPress={handleCancelDeletion}
                 disabled={deletionLoading}
@@ -453,7 +441,6 @@ const ProfileScreen = () => {
         </View>
       </Modal>
 
-      {/* Expanded Image Modal */}
       {expandedImage && (
         <View style={styles.expandedImageContainer}>
           <TouchableOpacity
@@ -745,7 +732,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 400,
   },
-  // Delete Button Styles
   deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -811,7 +797,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  // Confirmation Modal Styles
   confirmOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

@@ -14,6 +14,38 @@ const { v4: uuidv4 } = require('uuid');
 const { sendPushToUsers } = require('../services/pushNotificationService');
 
 const normalize = (v) => String(v || '').trim().toLowerCase();
+const NEPAL_TIME_OFFSET_MINUTES = 5 * 60 + 45;
+
+const parseNepalDateBoundary = (value, boundary) => {
+    if (!value || typeof value !== 'string') return null;
+
+    const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!dateOnlyMatch) {
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    const [, yearRaw, monthRaw, dayRaw] = dateOnlyMatch;
+    const year = Number(yearRaw);
+    const monthIndex = Number(monthRaw) - 1;
+    const day = Number(dayRaw);
+    const parsedDateOnly = new Date(Date.UTC(year, monthIndex, day));
+    if (
+        parsedDateOnly.getUTCFullYear() !== year ||
+        parsedDateOnly.getUTCMonth() !== monthIndex ||
+        parsedDateOnly.getUTCDate() !== day
+    ) {
+        return null;
+    }
+
+    const utcStartMs = Date.UTC(year, monthIndex, day) - (NEPAL_TIME_OFFSET_MINUTES * 60 * 1000);
+    const utcMs = boundary === 'end'
+        ? utcStartMs + (24 * 60 * 60 * 1000) - 1
+        : utcStartMs;
+
+    const date = new Date(utcMs);
+    return Number.isNaN(date.getTime()) ? null : date;
+};
 
 const parseScheduledTimeToUtcDate = (timeString, referenceDate = new Date()) => {
     if (!timeString || typeof timeString !== 'string') return null;
@@ -22,10 +54,6 @@ const parseScheduledTimeToUtcDate = (timeString, referenceDate = new Date()) => 
     const minutes = Number(minutesRaw);
     if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
 
-    // Use local date/time components (server local) so that comparing against
-    // actual start time yields expected minute differences. Previously this used
-    // UTC setters which could make the difference zero when server timezone
-    // mismatched schedule expectations.
     const dt = new Date(referenceDate);
     dt.setHours(hours, minutes, 0, 0);
     return dt;
@@ -154,10 +182,8 @@ const emitPassengerBookingStatusEvents = ({ io, trip, changedBookings }) => {
       timestamp: new Date().toISOString(),
     };
 
-    // Personal room (bookings tab listener target)
     io.to('passenger:' + booking.passengerId).emit('booking:status-updated', payload);
 
-    // Extra explicit event for completed flow
     if (booking.status === 'completed') {
       io.to('passenger:' + booking.passengerId).emit('booking:completed', payload);
     }
@@ -178,7 +204,7 @@ const parseQrPayload = (rawQrData) => {
 const getUtcDayRange = (value) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return null;
-    
+
     const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
@@ -186,7 +212,6 @@ const getUtcDayRange = (value) => {
     return { start, end };
 };
 
-// Get driver's assigned route with schedules
 const getAssignedRoute = async (req, res) => {
     const driverId = req.user.id; // From JWT middleware
 
@@ -207,7 +232,6 @@ const getAssignedRoute = async (req, res) => {
         const routeId = driver.assignedBus.assignedRouteId;
         const busId = driver.assignedBus._id;
 
-        // Fetch route separately to ensure schedules are properly populated
         const route = await Route.findById(routeId)
             .populate('assignedBusIds', 'busNumber model')
             .populate('assignedDriverIds', 'firstName lastName')
@@ -218,7 +242,6 @@ const getAssignedRoute = async (req, res) => {
             return res.status(404).json({ message: "Route not found" });
         }
 
-        // Filter schedules for the current driver and bus
         const driverSchedules = (route.schedules || []).filter(
             schedule => {
                 const scheduleDriverId = schedule.driverId?._id?.toString() || schedule.driverId?.toString();
@@ -227,9 +250,6 @@ const getAssignedRoute = async (req, res) => {
             }
         );
 
-        console.log(`getAssignedRoute - Driver: ${driverId}, Bus: ${busId}`);
-        console.log(`Total schedules in route: ${route.schedules?.length || 0}`);
-        console.log(`Filtered driver schedules: ${driverSchedules.length}`);
 
         const responseData = {
             route: route,
@@ -249,7 +269,6 @@ const getAssignedRoute = async (req, res) => {
     }
 };
 
-// Get driver's schedules for a specific date range
 const getDriverSchedules = async (req, res) => {
     const driverId = req.user.id;
     const { days = 7 } = req.query; // Default 7 days
@@ -267,7 +286,6 @@ const getDriverSchedules = async (req, res) => {
         const routeId = driver.assignedBus.assignedRouteId;
         const busId = driver.assignedBus._id;
 
-        // Fetch route separately to ensure schedules are properly populated
         const route = await Route.findById(routeId)
             .populate('schedules.driverId', 'firstName lastName licenseNo')
             .populate('schedules.busId', 'busNumber model');
@@ -276,7 +294,6 @@ const getDriverSchedules = async (req, res) => {
             return res.status(404).json({ message: "Route not found" });
         }
 
-        // Filter schedules for this specific driver and bus
         const driverSchedules = (route.schedules || []).filter(
             schedule => {
                 const scheduleDriverId = schedule.driverId?._id?.toString() || schedule.driverId?.toString();
@@ -285,11 +302,7 @@ const getDriverSchedules = async (req, res) => {
             }
         );
 
-        console.log(`getDriverSchedules - Driver: ${driverId}, Bus: ${busId}`);
-        console.log(`Total schedules in route: ${route.schedules?.length || 0}`);
-        console.log(`Filtered driver schedules: ${driverSchedules.length}`);
 
-        // Get upcoming trip sessions
         const upcomingTrips = await TripSession.find({
             driverId: driverId,
             status: { $in: ['scheduled', 'in-progress', 'on-break'] }
@@ -310,7 +323,6 @@ const getDriverSchedules = async (req, res) => {
     }
 };
 
-// Get current active trip for driver
 const getCurrentTrip = async (req, res) => {
     const driverId = req.user.id;
 
@@ -334,7 +346,6 @@ const getCurrentTrip = async (req, res) => {
     }
 };
 
-// Start a trip
 const startTrip = async (req, res) => {
     const driverId = req.user.id;
     const { routeId, busId, scheduleId } = req.body;
@@ -357,7 +368,6 @@ const startTrip = async (req, res) => {
             }
         }
 
-        // Check if there's already an active trip
         const existingTrip = await TripSession.findOne({
             driverId: driverId,
             status: { $in: ['in-progress', 'on-break'] }
@@ -367,7 +377,6 @@ const startTrip = async (req, res) => {
             return res.status(400).json({ message: "Driver already has an active trip" });
         }
 
-        // If busId not provided, fetch from driver's assigned bus
         let finalBusId = busId;
         if (!finalBusId) {
             const driver = await Driver.findById(driverId).populate('assignedBus', '_id');
@@ -379,7 +388,6 @@ const startTrip = async (req, res) => {
         const actualStartTime = new Date();
         const startDelayMinutes = calculateStartDelayMinutes(scheduleDoc, actualStartTime);
 
-        // Create new trip session
         const newTrip = new TripSession({
             driverId: driverId,
             routeId: routeId,
@@ -395,16 +403,12 @@ const startTrip = async (req, res) => {
 
         await newTrip.save();
 
-        // Populate the trip details
         await newTrip.populate('routeId', 'routeName stops source destination');
         await newTrip.populate('busId', 'busNumber');
 
         const bookingSyncStats = await syncBookingsOnTripStart({ trip: newTrip });
 
-        console.log(`✅ Trip started - Driver: ${driverId}, Bus: ${finalBusId}, Schedule: ${scheduleId}`);
-        console.log(`🎫 Booking sync on trip start - matched: ${bookingSyncStats.matched}, modified: ${bookingSyncStats.modified}`);
 
-        // Emit socket event for real-time updates to specific driver
         const io = req.app.get('io');
         if (io) {
             io.to(`driver:${driverId}`).emit('trip:started', newTrip);
@@ -441,7 +445,6 @@ const startTrip = async (req, res) => {
     }
 };
 
-// End a trip
 const endTrip = async (req, res) => {
     const driverId = req.user.id;
     const { tripId } = req.body;
@@ -467,7 +470,6 @@ const endTrip = async (req, res) => {
 
         const bookingCompletionStats = await completeAllInProgressBookingsForTrip({ trip });
 
-        // Emit socket event to specific driver
         const io = req.app.get('io');
         if (io) {
             io.to(`driver:${driverId}`).emit('trip:ended', trip);
@@ -477,7 +479,6 @@ const endTrip = async (req, res) => {
                 trip,
                 changedBookings: bookingCompletionStats.changedBookings || [],
             });
-            // Reset Bus occupancy so next trip starts fresh
             if (trip.busId) {
                 try {
                     const Bus = require('../models/bus.model');
@@ -506,7 +507,6 @@ const endTrip = async (req, res) => {
     }
 };
 
-// Start a break
 const startBreak = async (req, res) => {
     const driverId = req.user.id;
     const { tripId } = req.body;
@@ -529,7 +529,6 @@ const startBreak = async (req, res) => {
 
         await trip.save();
 
-        // Emit socket event to specific driver
         const io = req.app.get('io');
         if (io) {
             io.to(`driver:${driverId}`).emit('trip:updated', trip);
@@ -551,7 +550,6 @@ const startBreak = async (req, res) => {
     }
 };
 
-// End a break
 const endBreak = async (req, res) => {
     const driverId = req.user.id;
     const { tripId } = req.body;
@@ -567,25 +565,21 @@ const endBreak = async (req, res) => {
             return res.status(404).json({ message: "No active break found" });
         }
 
-        // Calculate break duration
         const lastBreak = trip.breakHistory[trip.breakHistory.length - 1];
         if (lastBreak && !lastBreak.breakEndTime) {
             const breakEndTime = new Date();
             lastBreak.breakEndTime = breakEndTime;
-            
-            // Calculate duration in minutes
+
             const durationMs = breakEndTime - lastBreak.breakStartTime;
             const durationMinutes = Number((durationMs / (1000 * 60)).toFixed(2));
             lastBreak.duration = durationMinutes;
 
-            // Update total break time
             trip.totalBreakTime += durationMinutes;
         }
 
         trip.status = 'in-progress';
         await trip.save();
 
-        // Emit socket event to specific driver
         const io = req.app.get('io');
         if (io) {
             io.to(`driver:${driverId}`).emit('trip:updated', trip);
@@ -607,7 +601,6 @@ const endBreak = async (req, res) => {
     }
 };
 
-// Update passenger count at a stop
 const updatePassengerCount = async (req, res) => {
     const driverId = req.user.id;
     const { tripId, stopId, passengersBoarded, passengersAlighted } = req.body;
@@ -630,11 +623,9 @@ const updatePassengerCount = async (req, res) => {
         const alighted = Number(passengersAlighted || 0);
         const normalizedStopId = typeof stopId === 'string' ? stopId.trim() : '';
 
-        // Update passenger count and prevent negative values.
         const previousOccupancy = trip.passengerCount || 0;
         trip.passengerCount = Math.max(0, previousOccupancy + boarded - alighted);
 
-        // ========== NEW: Track occupancy history for manual boarding/alighting updates ==========
         if (normalizedStopId && (boarded > 0 || alighted > 0)) {
             if (!trip.occupancyHistory) {
                 trip.occupancyHistory = [];
@@ -647,11 +638,8 @@ const updatePassengerCount = async (req, res) => {
                 currentOccupancy: trip.passengerCount,
                 eventType: 'manual-update'
             });
-            console.log(`📊 Occupancy history logged at ${normalizedStopId}: ${boarded} boarded, ${alighted} alighted, current: ${trip.passengerCount}`);
         }
-        // ========== END NEW ==========
 
-        // Mark stop as completed only once (route stops are tracked by stop name).
         if (normalizedStopId) {
             const alreadyCompleted = trip.completedStops?.some(
                 completed => completed.stopId === normalizedStopId
@@ -671,7 +659,6 @@ const updatePassengerCount = async (req, res) => {
 
         await trip.save();
 
-        // Get io instance before using it
         const io = req.app.get('io');
 
         const bookingCompletionStats = normalizedStopId
@@ -679,14 +666,11 @@ const updatePassengerCount = async (req, res) => {
             : { matched: 0, modified: 0 };
 
         if (normalizedStopId) {
-            console.log(`🎫 Booking sync on stop update (${normalizedStopId}) - matched: ${bookingCompletionStats.matched}, modified: ${bookingCompletionStats.modified}`);
         }
 
-        // Emit socket event for real-time updates to specific driver
         if (io) {
             io.to(`driver:${driverId}`).emit('trip:updated', trip);
 
-            // ========== NEW: Emit occupancy update to ALL passengers viewing this bus ==========
             if (trip.busId) {
                 try {
                     const occupancyData = {
@@ -696,11 +680,8 @@ const updatePassengerCount = async (req, res) => {
                         timestamp: new Date().toISOString()
                     };
 
-                    // Emit to bus room so ALL passengers viewing this bus get the update
                     io.to(`bus:${trip.busId}`).emit('trip:occupancy-updated', occupancyData);
-                    console.log(`📊 Occupancy update emitted to all passengers viewing bus ${trip.busId}: count = ${trip.passengerCount}`);
 
-                    // Also emit current stop update if available
                     if (trip.currentStop) {
                         let nextStopName = null;
                         try {
@@ -726,16 +707,13 @@ const updatePassengerCount = async (req, res) => {
                             timestamp: new Date().toISOString()
                         };
                         io.to(`bus:${trip.busId}`).emit('driver:current-stop', stopData);
-                        console.log(`🛑 Current stop update emitted to all passengers viewing bus ${trip.busId}: stop = ${trip.currentStop}`);
                     }
                 } catch (emitError) {
                     console.error('Error emitting updates to bus room:', emitError);
                 }
             }
-            // ========== END NEW ==========
         }
 
-        // ========== NEW: Persist occupancy to Bus DB ==========
         if (trip.busId) {
             try {
                 await Bus.findByIdAndUpdate(
@@ -746,13 +724,10 @@ const updatePassengerCount = async (req, res) => {
                     },
                     { new: true }
                 );
-                console.log(`✅ Occupancy persisted to Bus DB: busId=${trip.busId}, passengers=${trip.passengerCount}`);
             } catch (updateBusError) {
                 console.error('Error persisting occupancy to Bus DB:', updateBusError);
-                // Don't fail the response, just log the error
             }
         }
-        // ========== END NEW ==========
 
         res.status(200).json({
             message: "Passenger count updated",
@@ -766,7 +741,6 @@ const updatePassengerCount = async (req, res) => {
     }
 };
 
-// Get trip history
 const getTripHistory = async (req, res) => {
     const driverId = req.user.id;
     const { limit = 20, skip = 0 } = req.query;
@@ -787,7 +761,6 @@ const getTripHistory = async (req, res) => {
             status: { $in: ['completed', 'cancelled', 'missed'] }
         });
 
-        // Enrich trips with occupancy info
         const enrichedTrips = trips.map(trip => ({
             ...trip.toObject(),
             currentOccupancy: trip.passengerCount || 0,
@@ -806,7 +779,6 @@ const getTripHistory = async (req, res) => {
     }
 };
 
-// Get today's completed trips for a driver
 const getTodayCompletedTrips = async (req, res) => {
     const driverId = req.user.id;
 
@@ -837,7 +809,6 @@ const getTodayCompletedTrips = async (req, res) => {
     }
 };
 
-// Get seat reservations (with passenger basic details) for a specific upcoming schedule occurrence
 const getScheduleSeatMap = async (req, res) => {
     const driverId = req.user.id;
     const { scheduleId, serviceDate } = req.query;
@@ -1045,12 +1016,10 @@ const scanBookingQr = async (req, res) => {
     booking.boardedByDriverId = driverId;
     booking.boardedTripSessionId = activeTrip._id;
 
-    // Optional: move confirmed booking to in-progress when boarded.
     booking.status = 'in-progress';
 
     await booking.save();
 
-    // Optional: increment passenger count by seatCount on first successful boarding.
     activeTrip.passengerCount = Math.max(
       0,
       Number(activeTrip.passengerCount || 0) + Number(booking.seatCount || 0)
@@ -1067,7 +1036,6 @@ const scanBookingQr = async (req, res) => {
         boardedAt: booking.boardedAt,
       });
       io.to(`driver:${driverId}`).emit('trip:updated', activeTrip);
-            // Persist and emit occupancy update to passengers viewing this bus
             if (activeTrip.busId) {
                 try {
                     const Bus = require('../models/bus.model');
@@ -1104,31 +1072,29 @@ const scanBookingQr = async (req, res) => {
   }
 };
 
-// Admin endpoint: Get all trips with passenger bookings and related details
 const getAllTripsWithBookings = async (req, res) => {
   try {
     const { status, routeId, startDate, endDate } = req.query;
-    
-    // Build filter for TripSession
+
     const tripFilter = {};
     if (status) tripFilter.status = status; // 'in-progress', 'completed', 'missed'
     if (routeId) tripFilter.routeId = routeId;
     if (startDate || endDate) {
       const dateRange = {};
-      if (startDate) dateRange.$gte = new Date(startDate);
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        dateRange.$lte = end;
-      }
+      const startBoundary = parseNepalDateBoundary(startDate, 'start');
+      const endBoundary = parseNepalDateBoundary(endDate, 'end');
+      if (startBoundary) dateRange.$gte = startBoundary;
+      if (endBoundary) dateRange.$lte = endBoundary;
 
-      tripFilter.$or = [
-        { startTime: dateRange },
-        { startTime: { $exists: false }, createdAt: dateRange },
-        { startTime: null, createdAt: dateRange },
-      ];
+      if (Object.keys(dateRange).length > 0) {
+        tripFilter.$or = [
+          { startTime: dateRange },
+          { startTime: { $exists: false }, createdAt: dateRange },
+          { startTime: null, createdAt: dateRange },
+        ];
+      }
     }
-    
+
     const trips = await TripSession.find(tripFilter)
       .populate({
         path: 'busId',
@@ -1144,17 +1110,15 @@ const getAllTripsWithBookings = async (req, res) => {
       })
       .sort({ createdAt: -1 })
       .lean();
-    
-    // For each trip, fetch its bookings
+
     const tripsWithBookings = await Promise.all(
       trips.map(async (trip) => {
         const bookings = await Booking.find({ tripSessionId: trip._id })
           .populate('passengerId', 'firstName lastName phoneNumber profileImgUrl')
           .lean();
-        
-        // Calculate actual passenger count by summing seatCount of all bookings
+
         const totalPassengers = bookings.reduce((sum, b) => sum + (b.seatCount || 0), 0);
-        
+
         return {
           tripId: trip._id,
           routeName: trip.routeId?.routeName || ((trip.routeId?.startingStop || '') + ' to ' + (trip.routeId?.endingStop || '')),
@@ -1184,7 +1148,7 @@ const getAllTripsWithBookings = async (req, res) => {
         };
       })
     );
-    
+
     return res.status(200).json({
       success: true,
       data: tripsWithBookings,
@@ -1196,22 +1160,20 @@ const getAllTripsWithBookings = async (req, res) => {
   }
 };
 
-// Admin endpoint: Get detailed info for a specific trip
 const getTripDetailsById = async (req, res) => {
   try {
     const { tripId } = req.params;
-    
+
     const trip = await TripSession.findById(tripId)
       .populate('busId')
       .populate('routeId', 'routeName startingStop endingStop schedules')
       .populate('driverId', 'firstName lastName phoneNumber profileImgUrl licenseImgUrl')
       .lean();
-    
+
     if (!trip) {
       return res.status(404).json({ success: false, message: 'Trip not found' });
     }
-    
-    // Fetch the schedule document from route if available
+
     let schedule = null;
     if (trip.routeId && trip.scheduleId) {
       const Route = require('../models/route.model');
@@ -1220,11 +1182,11 @@ const getTripDetailsById = async (req, res) => {
         schedule = routeDoc.schedules.find(s => String(s._id) === String(trip.scheduleId));
       }
     }
-    
+
     const bookings = await Booking.find({ tripSessionId: tripId })
       .populate('passengerId', 'firstName lastName phoneNumber profileImgUrl')
       .lean();
-    
+
     const tripDetails = {
       tripId: trip._id,
       route: {
@@ -1274,7 +1236,7 @@ const getTripDetailsById = async (req, res) => {
         bookingStatus: b.status,
       }))
     };
-    
+
     return res.status(200).json({
       success: true,
       data: tripDetails

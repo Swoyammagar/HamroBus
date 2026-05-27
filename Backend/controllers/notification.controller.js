@@ -17,7 +17,6 @@ const sendNotification = async (req, res, io) => {
     const { title, message, targetAudience, type = 'info', severity = 'medium' } = req.body;
     const adminId = req.user?.id || req.user?._id;
 
-    // Validation
     if (!title || !message || !targetAudience) {
       return res.status(400).json({
         success: false,
@@ -32,7 +31,6 @@ const sendNotification = async (req, res, io) => {
       });
     }
 
-    // Validate type and severity
     const validTypes = ['alert', 'info', 'maintenance', 'announcement', 'emergency'];
     const validSeverities = ['low', 'medium', 'high', 'critical'];
 
@@ -50,7 +48,6 @@ const sendNotification = async (req, res, io) => {
       });
     }
 
-    // Create notification document
     const notificationId = `notif_${uuidv4()}`;
     const newNotification = new Notification({
       notificationId,
@@ -67,10 +64,8 @@ const sendNotification = async (req, res, io) => {
       status: 'pending'
     });
 
-    // Save to database
     const savedNotification = await newNotification.save();
 
-    // Emit via WebSocket to appropriate audience
     if (io) {
       const notificationPayload = {
         _id: savedNotification._id.toString(),
@@ -86,22 +81,17 @@ const sendNotification = async (req, res, io) => {
         senderDetails: savedNotification.senderDetails
       };
 
-      // Emit to specific room based on target audience
       if (targetAudience === 'all') {
         io.emit('notification:new', notificationPayload);
-        console.log('📢 Notification sent to ALL users');
       } else if (targetAudience === 'drivers') {
         io.to('drivers-room').emit('notification:new', notificationPayload);
         io.to('admin-room').emit('notification:new', notificationPayload);
-        console.log('🚗 Notification sent to DRIVERS');
       } else if (targetAudience === 'passengers') {
         io.to('passengers-room').emit('notification:new', notificationPayload);
         io.to('admin-room').emit('notification:new', notificationPayload);
-        console.log('👥 Notification sent to PASSENGERS');
       }
     }
 
-    // Update status to sent
     savedNotification.status = 'sent';
     await savedNotification.save();
 
@@ -208,7 +198,6 @@ const getAllNotifications = async (req, res) => {
   try {
     const { targetAudience, sentBy, limit = 50, skip = 0 } = req.query;
 
-    // Build filter object
     const filter = {};
     if (targetAudience) filter.targetAudience = targetAudience;
     if (sentBy) filter.sentBy = sentBy;
@@ -257,7 +246,6 @@ const getUserNotifications = async (req, res) => {
       });
     }
 
-    // Get notifications for this specific user type
     const notifications = await Notification.find({
       $or: [
         { targetAudience: 'all' },

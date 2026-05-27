@@ -7,7 +7,6 @@ const nodemailer = require('nodemailer');
 const path = require('path');
 const { accountDeletedEmail } = require('../utils/emailTemplates');
 
-// Configure email transporter (update with your email config)
 const emailTransporter = nodemailer.createTransport({
   service: process.env.EMAIL_SERVICE || 'gmail',
   auth: {
@@ -52,8 +51,8 @@ const sendDeletionNotificationEmail = async (email, name, userType) => {
 const getAllPassengers = async (page = 1, limit = 10, search = '') => {
   try {
     const skip = (page - 1) * limit;
-    const query = search 
-      ? { 
+    const query = search
+      ? {
           $or: [
             { firstName: new RegExp(search, 'i') },
             { lastName: new RegExp(search, 'i') },
@@ -72,7 +71,6 @@ const getAllPassengers = async (page = 1, limit = 10, search = '') => {
 
     const total = await Passenger.countDocuments(query);
 
-    // Fetch booking count and review count for each passenger
     const enrichedPassengers = await Promise.all(
       passengers.map(async (passenger) => {
         const bookingCount = await Booking.countDocuments({ passengerId: passenger._id });
@@ -124,7 +122,6 @@ const getPassengerDetails = async (passengerId) => {
       };
     }
 
-    // Get booking history
     const bookings = await Booking.find({ passengerId })
       .select('_id bookingCode status journeyDate paymentStatus totalAmount createdAt')
       .sort({ createdAt: -1 })
@@ -132,7 +129,6 @@ const getPassengerDetails = async (passengerId) => {
       .lean()
       .exec();
 
-    // Get reviews given by passenger
     const reviews = await Review.find({ passengerId })
       .select('_id driverId driverName rating comment createdAt isEdited')
       .sort({ createdAt: -1 })
@@ -140,7 +136,6 @@ const getPassengerDetails = async (passengerId) => {
       .lean()
       .exec();
 
-    // Get count totals
     const totalBookings = await Booking.countDocuments({ passengerId });
     const totalReviews = await Review.countDocuments({ passengerId });
 
@@ -187,7 +182,6 @@ const adminDeletePassenger = async (passengerId, adminId) => {
     const passengerEmail = passenger.email;
     const passengerName = `${passenger.firstName} ${passenger.lastName}`;
 
-    // Update all bookings by this passenger
     await Booking.updateMany(
       { passengerId },
       {
@@ -200,7 +194,6 @@ const adminDeletePassenger = async (passengerId, adminId) => {
       }
     );
 
-    // Update all reviews given by this passenger
     await Review.updateMany(
       { passengerId },
       {
@@ -211,10 +204,8 @@ const adminDeletePassenger = async (passengerId, adminId) => {
       }
     );
 
-    // Delete the passenger profile
     await Passenger.findByIdAndDelete(passengerId);
 
-    // Send deletion notification email
     const emailResult = await sendDeletionNotificationEmail(passengerEmail, passengerName, 'passenger');
 
     return {
@@ -243,8 +234,8 @@ const adminDeletePassenger = async (passengerId, adminId) => {
 const getAllDrivers = async (page = 1, limit = 10, search = '') => {
   try {
     const skip = (page - 1) * limit;
-    const query = search 
-      ? { 
+    const query = search
+      ? {
           $or: [
             { firstName: new RegExp(search, 'i') },
             { lastName: new RegExp(search, 'i') },
@@ -264,7 +255,6 @@ const getAllDrivers = async (page = 1, limit = 10, search = '') => {
 
     const total = await Driver.countDocuments(query);
 
-    // Fetch trip count and review count for each driver
     const enrichedDrivers = await Promise.all(
       drivers.map(async (driver) => {
         const tripCount = await TripSession.countDocuments({ driverId: driver._id });
@@ -316,7 +306,6 @@ const getDriverDetails = async (driverId) => {
       };
     }
 
-    // Get trip history
     const trips = await TripSession.find({ driverId })
       .select('_id busId routeId status departureTime arrivalTime passengersCount createdAt')
       .sort({ createdAt: -1 })
@@ -324,7 +313,6 @@ const getDriverDetails = async (driverId) => {
       .lean()
       .exec();
 
-    // Get reviews received by driver
     const reviews = await Review.find({ driverId })
       .select('_id passengerName rating comment createdAt isEdited')
       .sort({ createdAt: -1 })
@@ -332,7 +320,6 @@ const getDriverDetails = async (driverId) => {
       .lean()
       .exec();
 
-    // Get count totals
     const totalTrips = await TripSession.countDocuments({ driverId });
     const totalReviews = await Review.countDocuments({ driverId });
 
@@ -378,7 +365,6 @@ const adminDeleteDriver = async (driverId, adminId) => {
     const driverEmail = driver.email;
     const driverName = `${driver.firstName} ${driver.lastName}`;
 
-    // Update all trips by this driver
     await TripSession.updateMany(
       { driverId },
       {
@@ -389,7 +375,6 @@ const adminDeleteDriver = async (driverId, adminId) => {
       }
     );
 
-    // Update all reviews received by this driver
     await Review.updateMany(
       { driverId },
       {
@@ -400,10 +385,8 @@ const adminDeleteDriver = async (driverId, adminId) => {
       }
     );
 
-    // Delete the driver profile
     await Driver.findByIdAndDelete(driverId);
 
-    // Send deletion notification email
     const emailResult = await sendDeletionNotificationEmail(driverEmail, driverName, 'driver');
 
     return {

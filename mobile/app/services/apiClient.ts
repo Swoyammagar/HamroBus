@@ -1,9 +1,9 @@
 /**
  * CENTRALIZED API CLIENT
- * 
+ *
  * This is the single source of truth for all API requests.
  * Both driver and passenger apps use this client.
- * 
+ *
  * Features:
  * - Single axios instance with unified interceptors
  * - Automatic token injection in Authorization header
@@ -58,7 +58,6 @@ class ApiClient {
    * Setup request and response interceptors
    */
   private setupInterceptors(): void {
-    // REQUEST INTERCEPTOR: Add auth token to every request
     this.axiosInstance.interceptors.request.use(
       async (config) => {
         const token = await AsyncStorage.getItem('authToken');
@@ -72,7 +71,6 @@ class ApiClient {
       }
     );
 
-    // RESPONSE INTERCEPTOR: Handle errors and refresh tokens
     this.axiosInstance.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
@@ -81,28 +79,23 @@ class ApiClient {
         const requestUrl = String(originalRequest?.url || '');
         const isRefreshCall = requestUrl.includes('/auth/refresh-mobile');
 
-        // If we got a 401 and this isn't already a retry
         if (status === 401 && !originalRequest._retry && !isRefreshCall) {
           originalRequest._retry = true;
 
           const refreshResult = await this.refreshAccessToken();
-          
+
           if (refreshResult.token) {
-            // Token was successfully refreshed, retry original request
             originalRequest.headers = originalRequest.headers || {};
             originalRequest.headers.Authorization = `Bearer ${refreshResult.token}`;
             return this.axiosInstance(originalRequest);
           }
 
-          // If refresh failed, check if it was due to invalid refresh token
           const invalidStatuses = [400, 401, 403];
           if (refreshResult.status && invalidStatuses.includes(refreshResult.status)) {
-            // Refresh token is invalid/expired, clear auth and redirect to login
             await this.handleAuthFailure();
             return Promise.reject(error);
           }
 
-          // For network/transient failures, don't force logout
           return Promise.reject(error);
         }
 
@@ -115,7 +108,6 @@ class ApiClient {
    * Refresh the access token using the refresh token
    */
   private async refreshAccessToken(): Promise<RefreshResult> {
-    // If a refresh is already in progress, wait for it
     if (this.refreshPromise) {
       return this.refreshPromise;
     }
@@ -138,10 +130,8 @@ class ApiClient {
           return { token: null, status: response.status ?? null };
         }
 
-        // Save new token to storage
         await AsyncStorage.setItem('authToken', newAccessToken);
-        console.log('✅ Access token refreshed successfully');
-        
+
         return { token: newAccessToken, status: response.status ?? null };
       } catch (err: any) {
         const status = err?.response?.status ?? null;
@@ -164,9 +154,7 @@ class ApiClient {
    */
   private async handleAuthFailure(): Promise<void> {
     try {
-      console.log('🔴 Authentication failed - clearing session');
-      
-      // Try to notify backend about logout (best effort)
+
       const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
       if (storedRefreshToken) {
         try {
@@ -174,11 +162,10 @@ class ApiClient {
             refreshToken: storedRefreshToken,
           });
         } catch (err) {
-          console.warn('⚠️ Backend logout notification failed:', err);
+          console.warn('Backend logout notification failed:', err);
         }
       }
 
-      // Clear all auth tokens and data from storage
       await AsyncStorage.multiRemove([
         'authToken',
         'refreshToken',
@@ -187,11 +174,9 @@ class ApiClient {
         'passengerProfile',
       ]);
 
-      // Redirect to login
       router.replace('/pages/mobilelogin');
     } catch (err) {
-      console.error('❌ Error handling auth failure:', err);
-      // Force redirect even if cleanup fails
+      console.error('Error handling auth failure:', err);
       router.replace('/pages/mobilelogin');
     }
   }
@@ -208,9 +193,8 @@ class ApiClient {
         'driverProfile',
         'passengerProfile',
       ]);
-      console.log('✅ Auth data cleared');
     } catch (err) {
-      console.error('❌ Error clearing auth data:', err);
+      console.error('Error clearing auth data:', err);
     }
   }
 
@@ -237,14 +221,12 @@ class ApiClient {
       if (refreshToken) {
         await AsyncStorage.setItem('refreshToken', refreshToken);
       }
-      console.log('✅ Tokens saved to storage');
     } catch (err) {
-      console.error('❌ Error saving tokens:', err);
+      console.error('Error saving tokens:', err);
       throw err;
     }
   }
 }
 
-// Export singleton instance
 export default ApiClient.getInstance();
 export { ApiClient };

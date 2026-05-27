@@ -59,7 +59,6 @@ const GlobalAdminToast = () => {
           },
         ]}
       >
-        {/* LOGO */}
         <View style={styles.leftSection}>
           <Image
             source={require("./utils/MainLogo.png")}
@@ -68,7 +67,6 @@ const GlobalAdminToast = () => {
           />
         </View>
 
-        {/* CONTENT */}
         <View style={styles.contentSection}>
           <View style={styles.headerRow}>
             <View style={styles.titleWrap}>
@@ -104,7 +102,6 @@ const GlobalAdminToast = () => {
   );
 };
 
-// Root Layout
 export default function RootLayout({
   children,
 }: {

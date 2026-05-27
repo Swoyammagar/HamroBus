@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 interface DriverSignupData {
-  // Personal Info
   firstName?: string;
   lastName?: string;
   email?: string;
@@ -11,11 +10,9 @@ interface DriverSignupData {
   profileImage?: string;
   phoneNumber?: string;
   emailVerified?: boolean;
-  // License Info
   licenseNo?: string;
   licenseImage?: string;
-  
-  // Password
+
   password?: string;
 }
 

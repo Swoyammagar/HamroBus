@@ -53,7 +53,6 @@ class PassengerNotificationSocket {
     this.socket?.off('booking:completed', handler);
   }
 
-  // ========== NEW: Seat booking and trip reminder events ==========
   onSeatBooked(handler: (payload: any) => void) {
     this.socket?.on('seat:booked', handler);
   }
@@ -89,15 +88,12 @@ class PassengerNotificationSocket {
   joinBusRoom(busId: string) {
     if (!busId || !this.socket) return;
     this.socket.emit('passenger:join-bus-room', { busId });
-    console.log(`[SOCKET] Joining bus room: ${busId}`);
   }
 
   leaveBusRoom(busId: string) {
     if (!busId || !this.socket) return;
     this.socket.emit('passenger:leave-bus-room', { busId });
-    console.log(`[SOCKET] Leaving bus room: ${busId}`);
   }
-  // ========== END NEW EVENTS ==========
 
   disconnect() {
     if (!this.socket) return;

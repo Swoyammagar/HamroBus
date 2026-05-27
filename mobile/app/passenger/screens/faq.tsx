@@ -60,13 +60,10 @@ export default function FAQScreen() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  // Fetch FAQs when switching to My FAQs tab
   useEffect(() => {
     if (activeTab === 'view' && token) {
-      console.log('Fetching FAQs with token available');
       getUserFAQs();
     } else if (activeTab === 'view' && !token) {
-      console.log('Token not available for FAQ fetch');
     }
   }, [activeTab, token, getUserFAQs]);
 
@@ -144,7 +141,6 @@ export default function FAQScreen() {
           Platform.OS === 'ios' ? 'padding' : undefined
         }
       >
-        {/* Header */}
         <View style={styles.header}>
           <Pressable
             onPress={() => router.back()}
@@ -164,7 +160,6 @@ export default function FAQScreen() {
           <View style={{ width: 24 }} />
         </View>
 
-        {/* Tabs */}
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[
@@ -215,7 +210,6 @@ export default function FAQScreen() {
         >
           {activeTab === 'submit' ? (
             <View style={styles.formContainer}>
-              {/* Error */}
               {(error || hookError) && (
                 <View style={styles.errorBox}>
                   <Ionicons
@@ -230,7 +224,6 @@ export default function FAQScreen() {
                 </View>
               )}
 
-              {/* Info */}
               <View style={styles.infoBox}>
                 <Ionicons
                   name="information-circle"
@@ -245,7 +238,6 @@ export default function FAQScreen() {
                 </Text>
               </View>
 
-              {/* Name */}
               <View style={styles.formGroup}>
                 <Text style={styles.label}>
                   Full Name
@@ -261,7 +253,6 @@ export default function FAQScreen() {
                 />
               </View>
 
-              {/* Phone */}
               <View style={styles.formGroup}>
                 <Text style={styles.label}>
                   Phone Number
@@ -278,7 +269,6 @@ export default function FAQScreen() {
                 />
               </View>
 
-              {/* Email */}
               <View style={styles.formGroup}>
                 <Text style={styles.label}>
                   Email
@@ -295,7 +285,6 @@ export default function FAQScreen() {
                 />
               </View>
 
-              {/* Title */}
               <View style={styles.formGroup}>
                 <Text style={styles.label}>
                   FAQ Title
@@ -311,7 +300,6 @@ export default function FAQScreen() {
                 />
               </View>
 
-              {/* Message */}
               <View style={styles.formGroup}>
                 <Text style={styles.label}>
                   Message
@@ -333,7 +321,6 @@ export default function FAQScreen() {
                 />
               </View>
 
-              {/* Submit Button */}
               <TouchableOpacity
                 style={[
                   styles.submitButton,

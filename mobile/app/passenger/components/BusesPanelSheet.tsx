@@ -32,12 +32,11 @@ const BusesPanelSheet: React.FC<BusesPanelSheetProps> = ({ buses, onClose, onBus
           const busId = String(bus._id || bus.id || `${bus.busNumber}-${index}`);
           const totalCapacity = bus.totalCapacity ?? bus.capacity ?? 0;
           const driverName = bus.driverName || 'Unknown';
-          
-          // Use live occupancy if available, otherwise fallback to static bus data
-          const currentPassengers = liveBusOccupancy[busId] !== undefined 
-            ? liveBusOccupancy[busId] 
+
+          const currentPassengers = liveBusOccupancy[busId] !== undefined
+            ? liveBusOccupancy[busId]
             : (bus.currentPassengers ?? bus.currentOccupancy ?? 0);
-          
+
           const crowdPercentage = totalCapacity > 0 ? Math.round((currentPassengers / totalCapacity) * 100) : 0;
           const crowdLevel = getCrowdLevel(crowdPercentage);
 

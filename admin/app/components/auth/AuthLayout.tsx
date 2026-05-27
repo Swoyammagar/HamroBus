@@ -16,10 +16,8 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
     <ScrollView contentContainerStyle={styles.scrollView}>
       <View style={styles.container}>
         <View style={styles.contentWrapper}>
-          {/* Form Section */}
           <View style={styles.formSection}>{children}</View>
 
-          {/* Illustration Section */}
           {illustration && (
             <View style={styles.illustrationSection}>
               <Image

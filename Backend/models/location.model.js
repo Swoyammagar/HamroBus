@@ -26,7 +26,6 @@ const locationSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Index for efficient queries
 locationSchema.index({ driverId: 1, timestamp: -1 });
 
 module.exports = mongoose.models.Location || mongoose.model("Location", locationSchema);

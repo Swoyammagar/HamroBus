@@ -22,7 +22,7 @@ const Login = () => {
 
   const accentColor = role === 'driver' ? '#2563EB' : '#27AE60';
   const subtleTint = role === 'driver' ? '#E8F0FF' : '#E8F5E9';
-  
+
   const handleLogin = async () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const passwordRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*]).{6,}$/;
@@ -50,7 +50,6 @@ const Login = () => {
         }
         await getCurrentUser();
 
-        // Check deletion status for both passenger and driver
         try {
           if (role === 'driver') {
             const deletionStatus = await driverDeletionService.checkDeletionStatus();
@@ -72,7 +71,6 @@ const Login = () => {
             }
           }
         } catch (deletionError) {
-          // Silently fail - deletion check shouldn't block login
           console.warn('Deletion status check failed:', deletionError);
         }
 
@@ -97,8 +95,7 @@ const Login = () => {
     <Stack.Screen options={{ headerShown: false }} />
       <ScrollView contentContainerStyle={{ flexGrow: 1, backgroundColor: "white", minHeight: SCREEN_HEIGHT }}>
         <View className="flex-1 min-h-screen justify-center items-center p-5" style={{ backgroundColor: "white" }}>
-          
-          {/* Mobile Column Layout */}
+
           <View style={{ width: "100%", marginTop: 30, backgroundColor: "white", padding: 30 }}>
             <View className="items-center mb-6">
               <Image source={MainLogo} resizeMode="contain" style={{ width: 150, height: 70 }} />

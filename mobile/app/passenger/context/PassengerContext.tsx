@@ -350,7 +350,6 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
 
     let active = true;
 
-    // ========== NEW: Hydrate occupancy from backend before socket listeners ==========
     const hydrateOccupancy = async () => {
       try {
         const occupancyData = await Promise.all(
@@ -363,7 +362,6 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
             occupancyMap[data.busId] = data.passengerCount;
           });
           setLiveBusOccupancy((prev) => ({ ...prev, ...occupancyMap }));
-          console.log('✅ Occupancy hydrated from backend:', occupancyMap);
         }
       } catch (error) {
         console.error('Error hydrating occupancy:', error);
@@ -371,7 +369,6 @@ export const PassengerProvider = ({ children }: { children: ReactNode }) => {
     };
 
     hydrateOccupancy();
-    // ========== END NEW ==========
 
     busIds.forEach((busId) => {
       passengerNotificationSocket.joinBusRoom(busId);
@@ -435,5 +432,4 @@ export function usePassengerProfile() {
   return { user, passenger };
 }
 
-// Export types
 export type { Route, Bus };

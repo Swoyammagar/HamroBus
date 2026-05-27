@@ -64,7 +64,6 @@ const saveReadIds = (ids: Set<string>) => {
   try {
     window.localStorage.setItem(READ_STORAGE_KEY, JSON.stringify(Array.from(ids)));
   } catch {
-    // ignore storage errors
   }
 };
 
@@ -240,11 +239,9 @@ export const useAdminNotifications = (auth: { token: string | null; loading: boo
 
   useEffect(() => {
     if (authLoading || !token) return;
-    // Ensure socket connection is active (preferred real-time channel)
     initSosSoundUnlock();
     connectAdminSocket();
     const unsubscribe = onNotificationReceived((incoming: NotificationRecord) => {
-      console.log('🔔 onNotificationReceived callback fired with:', incoming);
       const normalized = normalizeNotification(incoming);
       if (!normalized) {
         console.warn('Received invalid notification payload:', incoming);
@@ -265,9 +262,7 @@ export const useAdminNotifications = (auth: { token: string | null; loading: boo
     });
 
     const unsubscribeSos = onSosAlertReceived((sosPayload: any) => {
-      console.log('🔔 onSosAlertReceived callback fired with:', sosPayload);
       playSosSound();
-      // Create a synthetic notification record for SOS to display in the same UI
       const id = String(sosPayload?.sosRecordId || sosPayload?.notificationId || `sos_${Date.now()}`);
       const toastRecord: NotificationRecord = {
         _id: id,
@@ -297,9 +292,6 @@ export const useAdminNotifications = (auth: { token: string | null; loading: boo
     });
 
     const unsubscribeSosCleared = onSosClearedReceived((payload: any) => {
-      console.log('🔔 onSosClearedReceived fired:', payload);
-      // Update any matching notifications / state to reflect cleared status
-      // We won't remove the record; just mark its status if present.
       setNotifications((prev) => prev.map((n) => (n._id === String(payload?.sosRecordId || '') ? { ...n, status: 'cleared' as any } : n)));
     });
 
@@ -315,9 +307,7 @@ export const useAdminNotifications = (auth: { token: string | null; loading: boo
     };
   }, [authLoading, token]);
 
-  // No polling: rely on socket for real-time updates. Add debug logging to help trace events.
   useEffect(() => {
-    // noop - left intentionally to indicate we rely on socket events only
   }, [authLoading, token]);
 
   const dismissToast = useCallback(() => {

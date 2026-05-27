@@ -173,7 +173,6 @@ const ReviewPage = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Trip Info */}
         <View style={styles.tripInfo}>
           <View style={styles.tripIconContainer}>
             <Ionicons name="bus" size={32} color="#3b82f6" />
@@ -184,7 +183,6 @@ const ReviewPage = () => {
           </View>
         </View>
 
-        {/* Overall Rating */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Overall Rating</Text>
           <Text style={styles.ratingSubtitle}>How was your experience?</Text>
@@ -206,7 +204,6 @@ const ReviewPage = () => {
           </Text>
         </View>
 
-        {/* Category Ratings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Rate Categories</Text>
 
@@ -244,7 +241,6 @@ const ReviewPage = () => {
           ))}
         </View>
 
-        {/* Review Comment */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Your Review</Text>
           <Text style={styles.commentLabel}>
@@ -267,7 +263,6 @@ const ReviewPage = () => {
           </Text>
         </View>
 
-        {/* Tips Section */}
         <View style={styles.tipsSection}>
           <Text style={styles.tipsTitle}>💡 Tips for a helpful review</Text>
           <View style={styles.tipItem}>
@@ -285,7 +280,6 @@ const ReviewPage = () => {
         </View>
       </ScrollView>
 
-      {/* Submit Button */}
       <View style={styles.submitFooter}>
         <TouchableOpacity
           style={[styles.submitButton, loading && styles.submitButtonDisabled]}

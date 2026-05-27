@@ -20,7 +20,6 @@ const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onC
   const [isDeleting, setIsDeleting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info' | 'warning'; title?: string; message: string } | null>(null);
 
-  // Form state
   const [editName, setEditName] = useState('');
   const [editNumber, setEditNumber] = useState('');
   const [editSource, setEditSource] = useState('');
@@ -112,7 +111,6 @@ const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onC
     <Modal visible={visible} transparent={true} animationType="fade">
       <View style={s.overlay}>
         <View style={s.modalContent}>
-          {/* Header */}
           <View style={s.header}>
             <Text style={s.title}>{isEditMode ? 'Edit Route' : 'Route Details'}</Text>
             <Button
@@ -125,71 +123,58 @@ const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onC
             </Button>
           </View>
 
-          {/* Body - Split view for edit mode */}
           {!isEditMode ? (
-            // View Mode
             <ScrollView style={s.body} contentContainerStyle={{ paddingBottom: 16 }}>
-              {/* Route Name */}
               <View style={s.group}>
                 <Text style={s.label}>Route Name</Text>
                 <Text style={s.value}>{route.routeName || 'N/A'}</Text>
               </View>
 
-              {/* Route Number */}
               <View style={s.group}>
                 <Text style={s.label}>Route Number</Text>
                 <Text style={s.value}>{route.routeNumber || 'N/A'}</Text>
               </View>
 
-              {/* Source */}
               <View style={s.group}>
                 <Text style={s.label}>Source</Text>
                 <Text style={s.value}>{route.source || 'N/A'}</Text>
               </View>
 
-              {/* Destination */}
               <View style={s.group}>
                 <Text style={s.label}>Destination</Text>
                 <Text style={s.value}>{route.destination || 'N/A'}</Text>
               </View>
 
-              {/* Distance */}
               <View style={s.group}>
                 <Text style={s.label}>Distance (km)</Text>
                 <Text style={s.value}>{route.distance?.toString() || 'N/A'}</Text>
               </View>
 
-              {/* Estimated Duration */}
               <View style={s.group}>
                 <Text style={s.label}>Est. Duration (hours)</Text>
                 <Text style={s.value}>{route.estimatedDuration?.toString() || 'N/A'}</Text>
               </View>
 
-              {/* Fare Info */}
               <View style={s.group}>
                 <Text style={s.label}>Fare (per passenger)</Text>
                 <Text style={s.value}>Rs. {route.fareInfo?.toString() || 'N/A'}</Text>
               </View>
 
-              {/* First Bus Timing */}
               <View style={s.group}>
                 <Text style={s.label}>First Bus Timing</Text>
                 <Text style={s.value}>{route.firstBusTiming || 'N/A'}</Text>
               </View>
 
-              {/* Last Bus Timing */}
               <View style={s.group}>
                 <Text style={s.label}>Last Bus Timing</Text>
                 <Text style={s.value}>{route.lastBusTiming || 'N/A'}</Text>
               </View>
 
-              {/* Operating Days */}
               <View style={s.group}>
                 <Text style={s.label}>Operating Days</Text>
                 <Text style={s.value}>{route.operatingDays?.join(', ') || 'N/A'}</Text>
               </View>
 
-              {/* Bus Stops */}
               <View style={s.group}>
                 <Text style={s.label}>Bus Stops ({route.stops?.length || 0})</Text>
                 {route.stops?.map((stop, idx) => (
@@ -201,88 +186,77 @@ const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onC
               </View>
             </ScrollView>
           ) : (
-            // Edit Mode - Form View
             <View style={s.editModeContainer}>
               <View style={s.editLeftPane}>
                 <ScrollView contentContainerStyle={{ paddingBottom: 16 }}>
-                  {/* Route Name */}
                   <View style={s.formGroup}>
                     <Text style={s.label}>Route Name</Text>
                     <Input placeholder="e.g., Downtown Express" value={editName} onChangeText={setEditName} />
                   </View>
 
-                  {/* Route Number */}
                   <View style={s.formGroup}>
                     <Text style={s.label}>Route Number</Text>
                     <Input placeholder="e.g., R3" value={editNumber} onChangeText={setEditNumber} />
                   </View>
 
-                  {/* Source */}
                   <View style={s.formGroup}>
                     <Text style={s.label}>Source</Text>
                     <Input placeholder="e.g., Kathmandu Bus Park" value={editSource} onChangeText={setEditSource} />
                   </View>
 
-                  {/* Destination */}
                   <View style={s.formGroup}>
                     <Text style={s.label}>Destination</Text>
                     <Input placeholder="e.g., Bhaktapur" value={editDestination} onChangeText={setEditDestination} />
                   </View>
 
-                  {/* Distance */}
                   <View style={s.formGroup}>
                     <Text style={s.label}>Distance (km)</Text>
-                    <Input 
-                      placeholder="e.g., 50" 
-                      value={editDistance} 
+                    <Input
+                      placeholder="e.g., 50"
+                      value={editDistance}
                       onChangeText={setEditDistance}
                       keyboardType="decimal-pad"
                     />
                   </View>
 
-                  {/* Estimated Duration */}
                   <View style={s.formGroup}>
                     <Text style={s.label}>Estimated Duration (hours)</Text>
-                    <Input 
-                      placeholder="e.g., 2.5" 
-                      value={editEstimatedDuration} 
+                    <Input
+                      placeholder="e.g., 2.5"
+                      value={editEstimatedDuration}
                       onChangeText={setEditEstimatedDuration}
                       keyboardType="decimal-pad"
                     />
                   </View>
 
-                  {/* Fare Info */}
                   <View style={s.formGroup}>
                     <Text style={s.label}>Fare (per passenger)</Text>
-                    <Input 
-                      placeholder="e.g., 300" 
-                      value={editFareInfo} 
+                    <Input
+                      placeholder="e.g., 300"
+                      value={editFareInfo}
                       onChangeText={setEditFareInfo}
                       keyboardType="decimal-pad"
                     />
                   </View>
 
-                  {/* First Bus Timing */}
                   <View style={s.formGroup}>
                     <Text style={s.label}>First Bus Timing</Text>
-                    <Input 
-                      placeholder="e.g., 06:00 AM" 
-                      value={editFirstBusTiming} 
+                    <Input
+                      placeholder="e.g., 06:00 AM"
+                      value={editFirstBusTiming}
                       onChangeText={setEditFirstBusTiming}
                     />
                   </View>
 
-                  {/* Last Bus Timing */}
                   <View style={s.formGroup}>
                     <Text style={s.label}>Last Bus Timing</Text>
-                    <Input 
-                      placeholder="e.g., 08:00 PM" 
-                      value={editLastBusTiming} 
+                    <Input
+                      placeholder="e.g., 08:00 PM"
+                      value={editLastBusTiming}
                       onChangeText={setEditLastBusTiming}
                     />
                   </View>
 
-                  {/* Operating Days */}
                   <View style={s.formGroup}>
                     <Text style={s.label}>Operating Days</Text>
                     <View style={s.daysContainer}>
@@ -306,7 +280,6 @@ const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onC
                     </View>
                   </View>
 
-                  {/* Bus Stops */}
                   <View style={s.formGroup}>
                     <Text style={s.label}>Bus Stops (click on map to add location)</Text>
                     <ScrollView style={{ maxHeight: 220 }} contentContainerStyle={{ paddingBottom: 8 }}>
@@ -329,7 +302,7 @@ const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onC
                           <Button
                             variant="danger"
                             size="sm"
-                            onPress={() => setEditStops(s => 
+                            onPress={() => setEditStops(s =>
                               s.filter((_, i) => i !== idx).map((stop, i) => ({ ...stop, sequence: i + 1 }))
                             )}
                           >
@@ -342,11 +315,10 @@ const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onC
                 </ScrollView>
               </View>
 
-              {/* Map View for editing stops */}
               <View style={s.editRightPane}>
                 <View style={s.mapArea}>
                   {Platform.OS === 'web' ? (
-                    <AddMap 
+                    <AddMap
                       stops={editStops}
                       onMapClick={(lat, lng) =>
                         setEditStops(s => [
@@ -375,7 +347,6 @@ const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onC
             </View>
           )}
 
-          {/* Footer - Actions */}
           <View style={s.footer}>
             {!isEditMode ? (
               <>
@@ -394,10 +365,10 @@ const RouteDetailModal: React.FC<RouteDetailModalProps> = ({ visible, route, onC
                 <Button variant="secondary" onPress={() => setIsEditMode(false)} style={{ flex: 1 }}>
                   Cancel
                 </Button>
-                <Button 
-                  variant="success" 
-                  onPress={handleSave} 
-                  loading={isSubmitting} 
+                <Button
+                  variant="success"
+                  onPress={handleSave}
+                  loading={isSubmitting}
                   disabled={isSubmitting || !editName || !editNumber || !editSource || !editDestination || !editDistance || !editOperatingDays.length || !editStops.length}
                   style={{ flex: 1, marginLeft: 8 }}
                 >
@@ -429,33 +400,28 @@ const s = StyleSheet.create({
   editModeContainer: { flex: 1, flexDirection: 'row', gap: 12, padding: 16 },
   editLeftPane: { width: 380, borderRightWidth: 1, borderRightColor: '#e5e7eb', paddingRight: 16 },
   editRightPane: { flex: 1 },
-  
-  // Form styles
+
   formGroup: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6 },
   value: { fontSize: 14, color: '#4b5563', paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#f3f4f6', borderRadius: 6 },
-  
-  // Days container
+
   daysContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   dayButton: { flex: 0.3, minWidth: 60 },
-  
-  // Stops
+
   stopItemContainer: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginBottom: 10, backgroundColor: '#f9fafb', padding: 10, borderRadius: 6 },
   stopSequence: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', marginTop: 2 },
   stopSequenceText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   stopInputs: { flex: 1 },
-  
-  // View mode display
+
   group: { marginBottom: 16 },
   stopItem: { backgroundColor: '#f9fafb', padding: 10, borderRadius: 6, marginTop: 6, borderLeftWidth: 3, borderLeftColor: '#10b981' },
   stopText: { fontSize: 13, fontWeight: '500', color: '#1f2937' },
   coordText: { fontSize: 11, color: '#6b7280', marginTop: 2 },
   coordinatesText: { fontSize: 12, color: '#6b7280', marginTop: 2, fontFamily: 'monospace' },
-  
-  // Map
+
   mapArea: { flex: 1, borderRadius: 8, overflow: 'hidden', height: '100%', minHeight: 400 },
   mapPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', borderRadius: 8, height: '100%' },
-  
+
   footer: { flexDirection: 'row', padding: 16, borderTopWidth: 1, borderTopColor: '#e5e7eb', gap: 8 },
 });
 

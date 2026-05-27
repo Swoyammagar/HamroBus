@@ -16,18 +16,17 @@ interface Props {
 }
 
 export default function MapScreen({ isOnline, onStatusChange }: Props) {
-  // ✅ Use shared context instead of individual hooks
-  const { 
-    assignedRoute, 
-    routeLoading, 
-    currentTrip, 
+  const {
+    assignedRoute,
+    routeLoading,
+    currentTrip,
     tripLoading,
     schedules,
     stopArrivals
   } = useAppContext();
-  
+
   const { updatePassengers, error: tripError } = useTripActions();
-  
+
   const [passengerCount, setPassengerCount] = useState(0);
   const [tempPassengerCount, setTempPassengerCount] = useState(0);
   const [showStopsPanel, setShowStopsPanel] = useState(false);
@@ -39,11 +38,10 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
   const pendingAutoStopRef = useRef<Set<string>>(new Set());
   const autoCompletedStopsRef = useRef<Set<string>>(new Set());
-  const trackingInProgressRef = useRef(false); // ✅ Prevent duplicate tracking starts
+  const trackingInProgressRef = useRef(false);
 
   const { location, loading, error, startTracking, stopTracking, pauseTrackingForBreak, requestPermission } = useLocation();
 
-  // Update passenger count from current trip
   useEffect(() => {
     const count = currentTrip?.passengerCount || 0;
     setPassengerCount(count);
@@ -76,40 +74,25 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
     return nextStop?.stopName;
   }, [assignedRoute, currentTrip, completedStopSet]);
 
-  // Log route updates for debugging
   useEffect(() => {
     if (assignedRoute) {
-      console.log('🗺️ Route updated:', {
-        id: assignedRoute._id,
-        name: assignedRoute.routeName,
-        stopsCount: assignedRoute.stops?.length || 0
-      });
     }
   }, [assignedRoute]);
 
-  // Request location permission and start tracking
   const requestLocationPermission = useCallback(async () => {
-    // Prevent duplicate tracking attempts
     if (trackingInProgressRef.current) {
-      console.log('Tracking already in progress, skipping duplicate request');
       return;
     }
 
     trackingInProgressRef.current = true;
-    
+
     try {
-      console.log('[Step 1] Requesting location permission...');
       const granted = await requestPermission();
-      console.log('[Step 2] Permission result:', granted);
-      
+
       if (granted) {
-        console.log('[Step 3] Starting location tracking...');
         await startTracking();
-        console.log('[Step 4] Setting isLocationEnabled = true');
         setIsLocationEnabled(true);
-        console.log('[Step 5] Location tracking fully enabled');
       } else {
-        console.log('[Error] Permission denied');
         Alert.alert(
           'Permission Denied',
           'Location permission is required to share your live location with passengers.',
@@ -128,32 +111,26 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
     }
   }, [requestPermission, startTracking, onStatusChange]);
 
-  // Handle online/offline status change - with stable dependencies
   useEffect(() => {
     if (isOnline && currentTrip?.status !== 'on-break' && !isLocationEnabled) {
-      console.log('User went online - starting location tracking');
       requestLocationPermission();
     }
   }, [isOnline, currentTrip?.status, isLocationEnabled, requestLocationPermission]);
 
   useEffect(() => {
     if (isOnline && currentTrip?.status === 'on-break' && isLocationEnabled) {
-      console.log('Trip is on break - pausing location tracking without going offline');
       pauseTrackingForBreak();
       setIsLocationEnabled(false);
     }
   }, [isOnline, currentTrip?.status, isLocationEnabled, pauseTrackingForBreak]);
 
-  // Stop tracking when going offline - separate from start logic
   useEffect(() => {
     if (!isOnline && isLocationEnabled) {
-      console.log('User went offline - stopping location tracking');
       stopTracking();
       setIsLocationEnabled(false);
     }
   }, [isOnline, isLocationEnabled, stopTracking]);
 
-  // Convert stops to bus stops format
   const activeStopIndex = assignedRoute?.stops
     ? assignedRoute.stops.findIndex(stop => !completedStopSet.has(stop.stopName))
     : -1;
@@ -196,7 +173,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
       }))
     : [];
 
-  // Create route polyline from stops
   const routePolyline = assignedRoute?.stops.map(stop => ({
     latitude: stop.latitude,
     longitude: stop.longitude
@@ -219,7 +195,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
     return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   };
 
-  // Auto-complete stops once driver reaches or passes them based on GPS proximity.
   useEffect(() => {
     const autoCompleteStops = async () => {
       if (!isOnline || !currentTrip?._id || !assignedRoute?.stops?.length || !location) {
@@ -243,7 +218,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
         }
       });
 
-      // Ignore when bus is not close enough to any route stop.
       if (nearestIndex < 0 || nearestDistance > 120) {
         return;
       }
@@ -292,16 +266,15 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
       Alert.alert('Error', 'Trip or route data not available');
       return;
     }
-    
+
     try {
       const stopName = getCurrentStopName();
-      
+
       if (!stopName) {
         Alert.alert('Error', 'Could not find current stop');
         return;
       }
-      
-      // Calculate the difference from current count
+
       const oldCount = passengerCount;
       const boarded = Math.max(0, newCount - oldCount); // Passengers getting on
       const alighted = Math.max(0, oldCount - newCount); // Passengers getting off
@@ -309,25 +282,21 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
       if (boarded === 0 && alighted === 0) {
         return;
       }
-      
+
       await updatePassengers(currentTrip._id, stopName, boarded, alighted);
       setPassengerCount(newCount);
       setTempPassengerCount(newCount);
-      // Context will auto-update via WebSocket
     } catch (err) {
       Alert.alert('Error', 'Failed to update passenger count');
       throw err;
     }
   };
 
-  // Handle stop marker press - show detail modal
   const handleStopPress = useCallback((stop: any) => {
-    console.log('🗺️ Stop marker pressed:', stop.name);
     setSelectedStop(stop);
     setShowStopDetail(true);
   }, []);
 
-  // Mark current stop as arrived
   const handleMarkAsArrived = useCallback(async () => {
     if (!currentTrip?._id || !selectedStop?.name) {
       Alert.alert('Error', 'Trip or stop data not available');
@@ -336,9 +305,7 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
 
     try {
       setIsMarkingStop(true);
-      // Update with 0 passengers since this is just marking arrival
       await updatePassengers(currentTrip._id, selectedStop.name, 0, 0);
-      console.log('✅ Stop marked as arrived:', selectedStop.name);
     } catch (err: any) {
       throw err;
     } finally {
@@ -346,7 +313,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
     }
   }, [currentTrip?._id, selectedStop?.name, updatePassengers]);
 
-  // Mark current stop as completed
   const handleMarkAsCompleted = useCallback(async () => {
     if (!currentTrip?._id || !selectedStop?.name) {
       Alert.alert('Error', 'Trip or stop data not available');
@@ -355,14 +321,12 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
 
     try {
       setIsMarkingStop(true);
-      // Mark as completed with current passenger count
       await updatePassengers(
         currentTrip._id,
         selectedStop.name,
         0,
         0
       );
-      console.log('✅ Stop marked as completed:', selectedStop.name);
     } catch (err: any) {
       throw err;
     } finally {
@@ -379,7 +343,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
     );
   }
 
-  // Show loading while location is being tracked
   if (isOnline && loading && !location) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -399,7 +362,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Real-time Map */}
       <OpenStreetMap
         key={`${assignedRoute?._id}-${assignedRoute?.stops?.length}`}
         currentLocation={location}
@@ -409,7 +371,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
         onStopPress={handleStopPress}
       />
 
-      {/* Floating Action Button - Show Stops */}
       {currentTrip && (
         <Pressable
           style={[styles.fab, shadow.card]}
@@ -419,7 +380,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
         </Pressable>
       )}
 
-      {/* Online Status Badge */}
       {isOnline && isLocationEnabled && (
         <View style={[styles.statusBadge, shadow.card]}>
           <View style={styles.statusDot} />
@@ -427,7 +387,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
         </View>
       )}
 
-      {/* Error Alert */}
       {(error || tripError) && isOnline && (
         <View style={[styles.errorBanner, shadow.card]}>
           <Feather name="alert-circle" size={16} color="#DC2626" />
@@ -435,7 +394,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
         </View>
       )}
 
-      {/* Route Stops Panel */}
       {currentTrip && (
         <RouteStopsPanel
           visible={showStopsPanel}
@@ -451,7 +409,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
         />
       )}
 
-      {/* Passenger Log Modal */}
       {currentTrip && assignedRoute && (
         <PassengerLogModal
           visible={showPassengerLog}
@@ -466,7 +423,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
         />
       )}
 
-      {/* Stop Detail Modal - Shows when stop marker is pressed */}
       {currentTrip &&
       <StopDetailModal
         visible={showStopDetail}
@@ -484,7 +440,6 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
   );
 }
 
-// ...existing code...
 
 const styles = StyleSheet.create({
   container: {

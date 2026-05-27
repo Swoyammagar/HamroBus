@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type PassengerSummary = {
   _id: string;
@@ -77,14 +76,12 @@ export type UserFilters = {
 
 export type ActionResult = { success: boolean; message: string };
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE || 'https://hamrobus-auos.onrender.com/api';
 
 axios.defaults.withCredentials = true;
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export const useAdminPassengers = () => {
   const [passengers, setPassengers] = useState<PassengerSummary[]>([]);
@@ -99,7 +96,6 @@ export const useAdminPassengers = () => {
   const [detailLoading, setDetailLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Fetch all passengers ───────────────────────────────────────────────────
   const fetchAllPassengers = useCallback(
     async (filters: UserFilters = {}): Promise<PassengerListResponse | null> => {
       setLoading(true);
@@ -136,7 +132,6 @@ export const useAdminPassengers = () => {
     []
   );
 
-  // ── Fetch single passenger by ID ───────────────────────────────────────────
   const getPassengerById = useCallback(
     async (passengerId: string): Promise<PassengerDetail | null> => {
       setDetailLoading(true);
@@ -161,7 +156,6 @@ export const useAdminPassengers = () => {
     []
   );
 
-  // ── Delete passenger ───────────────────────────────────────────────────────
   const deletePassenger = useCallback(
     async (passengerId: string): Promise<ActionResult> => {
       try {
@@ -188,7 +182,6 @@ export const useAdminPassengers = () => {
     []
   );
 
-  // ── Delete driver ──────────────────────────────────────────────────────────
   const deleteDriver = useCallback(
     async (driverId: string): Promise<ActionResult> => {
       try {
@@ -207,7 +200,6 @@ export const useAdminPassengers = () => {
     []
   );
 
-  // ── Paginate ───────────────────────────────────────────────────────────────
   const goToPage = useCallback(
     async (page: number, filters: Omit<UserFilters, 'page'> = {}) => {
       return fetchAllPassengers({ ...filters, page });
@@ -215,7 +207,6 @@ export const useAdminPassengers = () => {
     [fetchAllPassengers]
   );
 
-  // ── Search ─────────────────────────────────────────────────────────────────
   const searchPassengers = useCallback(
     async (search: string, page = 1, limit = 10) => {
       return fetchAllPassengers({ search, page, limit });
@@ -223,17 +214,14 @@ export const useAdminPassengers = () => {
     [fetchAllPassengers]
   );
 
-  // ── Utilities ──────────────────────────────────────────────────────────────
   const clearError = useCallback(() => setError(null), []);
   const clearSelectedPassenger = useCallback(() => setSelectedPassenger(null), []);
 
-  // ── Initial load ───────────────────────────────────────────────────────────
   useEffect(() => {
     fetchAllPassengers();
   }, [fetchAllPassengers]);
 
   return {
-    // State
     passengers,
     selectedPassenger,
     pagination,
@@ -241,7 +229,6 @@ export const useAdminPassengers = () => {
     detailLoading,
     error,
 
-    // Actions
     fetchAllPassengers,
     getPassengerById,
     deletePassenger,
@@ -249,7 +236,6 @@ export const useAdminPassengers = () => {
     goToPage,
     searchPassengers,
 
-    // Utilities
     clearError,
     clearSelectedPassenger,
   };

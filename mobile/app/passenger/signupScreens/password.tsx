@@ -86,7 +86,6 @@ const onSubmit = async (data: FormValues) => {
     isSuccess = true;
 
   } catch (err: any) {
-    console.log("❌ REGISTER ERROR:", err);
 
     Alert.alert(
       "Registration Failed",
@@ -101,12 +100,11 @@ const onSubmit = async (data: FormValues) => {
       "Registration failed"
     );
 
-    return; // ⛔ STOP HERE
+    return;
   } finally {
     setIsLoading(false);
   }
 
-  // ✅ SUCCESS FLOW (runs ONLY if no error)
   if (isSuccess) {
     Alert.alert(
       "Registration Successful",

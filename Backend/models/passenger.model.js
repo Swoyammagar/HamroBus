@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 
 const passengerSchema = new mongoose.Schema({
-    // Personal Information
     firstName: {
         type: String,
         required: true
@@ -40,8 +39,7 @@ const passengerSchema = new mongoose.Schema({
         type: String,
         required: false
     },
-    
-    // Authentication & Security
+
     otp: {
         type: String,
         required: false
@@ -68,7 +66,6 @@ const passengerSchema = new mongoose.Schema({
         default: false
     },
 
-    // Reward Points System
     rewardPoints: {
         type: Number,
         default: 0,
@@ -124,7 +121,6 @@ const passengerSchema = new mongoose.Schema({
         }
     }],
 
-    // Profile Deletion
     deleteRequestedAt: {
         type: Date,
         required: false,

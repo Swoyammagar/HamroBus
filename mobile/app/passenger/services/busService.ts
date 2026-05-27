@@ -51,25 +51,21 @@ export interface Bus {
 }
 
 export const busService = {
-  // Get all buses
   getAllBuses: async (): Promise<Bus[]> => {
     const response = await apiClient.get('/passenger/buses');
     return response.data?.buses || response.data || [];
   },
 
-  // Get buses by route
   getBusesByRoute: async (routeId: string): Promise<Bus[]> => {
     const response = await apiClient.get(`/passenger/buses/route/${routeId}`);
     return response.data?.buses || response.data || [];
   },
 
-  // Get single bus
   getBusById: async (busId: string): Promise<Bus> => {
     const response = await apiClient.get(`/passenger/buses/${busId}`);
     return response.data?.bus || response.data;
   },
 
-  // Get driver info
   getDriverById: async (driverId: string): Promise<Driver> => {
     const response = await apiClient.get(`/passenger/drivers/${driverId}`);
     return response.data?.driver || response.data;
@@ -80,7 +76,6 @@ export const busService = {
     return response.data?.reviews || response.data || [];
   },
 
-  // Get current occupancy for a specific bus
   getBusOccupancy: async (busId: string): Promise<{ busId: string; passengerCount: number; lastUpdated: string }> => {
     try {
       const response = await apiClient.get(`/bus/${busId}/occupancy`);
@@ -95,7 +90,6 @@ export const busService = {
     }
   },
 
-  // Get current SOS state for a specific bus
   getBusSosState: async (busId: string): Promise<{ busId: string; sosActive: boolean; sosCategory?: string; sosTimestamp?: string }> => {
     try {
       const response = await apiClient.get(`/bus/${busId}/sos-state`);

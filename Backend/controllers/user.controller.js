@@ -10,7 +10,6 @@ const requestPasswordReset = async (req, res) => {
   const { email, role } = req.body;
 
   try {
-    // Find user in appropriate model based on role
     let user;
     if (role === 'driver') {
       user = await Driver.findOne({ email });
@@ -57,7 +56,6 @@ const resetPassword = async (req, res) => {
   const { email, newPassword, role } = req.body;
 
   try {
-    // Find user in appropriate model based on role
     let user;
     if (role === 'driver') {
       user = await Driver.findOne({ email });
@@ -96,7 +94,6 @@ const resetPassword = async (req, res) => {
 const verifyOTPUser = async (req, res) => {
   const { email, otp, role } = req.body;
   try {
-    // Find user in appropriate model based on role
     let user;
     if (role === 'driver') {
       user = await Driver.findOne({ email });
@@ -145,14 +142,10 @@ const verifyOTPUser = async (req, res) => {
   }
 };
 
-/**
- * ✅ Uses TempUser model for email verification during signup
- */
 const requestSignupOTP = async (req, res) => {
   const { email, role } = req.body;
 
   try {
-    // Check if user already exists in the appropriate model
     let existingUser;
     if (role === 'driver') {
       existingUser = await Driver.findOne({ email });
@@ -172,20 +165,16 @@ const requestSignupOTP = async (req, res) => {
       });
     }
 
-    // ✅ Generate and send OTP using TempUser model
     const otp = generateOTP().otp;
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Check if temp user already exists for this email
     let tempUser = await TempUser.findOne({ email });
-    
+
     if (tempUser) {
-      // Update existing temp user
       tempUser.otp = otp;
       tempUser.otpExpiresAt = expiry;
       tempUser.role = role;
     } else {
-      // Create new temp user
       tempUser = new TempUser({
         email,
         otp,
@@ -220,13 +209,9 @@ const requestSignupOTP = async (req, res) => {
   }
 };
 
-/**
- * ✅ Uses TempUser model for verification
- */
 const verifySignupOTP = async (req, res) => {
   const { email, otp } = req.body;
   try {
-    // Look in TempUser collection
     const tempUser = await TempUser.findOne({ email });
     if (!tempUser) {
       return res.status(400).json({
@@ -235,14 +220,14 @@ const verifySignupOTP = async (req, res) => {
         error: 'EMAIL_NOT_FOUND'
       });
     }
-    
+
     if (tempUser.otpExpiresAt < new Date()) {
       return res.status(400).json({
         error: 'OTP_EXPIRED',
         message: "OTP expired"
       });
     }
-    
+
     if (tempUser.otp !== otp) {
       return res.status(400).json({
         status: 'error',
@@ -250,13 +235,10 @@ const verifySignupOTP = async (req, res) => {
         error: 'INVALID_OTP'
       });
     }
-    
-    // ✅ OTP verified - email is verified, user can proceed to registration
-    // We don't create Driver/Passenger here, just mark email as verified
-    
-    // Delete temp user after successful verification
+
+
     await TempUser.deleteOne({ email });
-    
+
     res.status(200).json({
       status: 'success',
       message: "Account verified successfully. Please proceed to complete your registration.",
@@ -273,34 +255,26 @@ const verifySignupOTP = async (req, res) => {
   }
 };
 
-/**
- * ✅ Check if phone number exists across both Driver and Passenger models
- */
+
 const phoneExists = async (req, res) => {
   const { phoneNumber, email } = req.body;
-  console.log("Phone exists route hit:", phoneNumber, "for email:", email);
 
   try {
-    // Check if phone number exists in Driver model
     const driverWithPhone = await Driver.findOne({ phoneNumber });
-    
-    // Check if phone number exists in Passenger model
+
     const passengerWithPhone = await Passenger.findOne({ phoneNumber });
-    
-    // If phone doesn't exist in either model, allow
+
     if (!driverWithPhone && !passengerWithPhone) {
       return res.status(200).json({ exists: false });
     }
-    
-    // If phone belongs to the current user (email matches), allow it
-    if ((driverWithPhone && driverWithPhone.email === email) || 
+
+    if ((driverWithPhone && driverWithPhone.email === email) ||
         (passengerWithPhone && passengerWithPhone.email === email)) {
       return res.status(200).json({ exists: false });
     }
-    
-    // Phone number belongs to a different user - block
+
     return res.status(200).json({ exists: true });
-    
+
   } catch (error) {
     console.error("Error checking phone number existence:", error);
     res.status(500).json({

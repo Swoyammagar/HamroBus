@@ -3,12 +3,10 @@ const path = require("path");
 const fs = require("fs");
 require("dotenv").config();
 
-// Set API Key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const sendEmail = async (email, html, subject, cc = [], bcc = []) => {
   try {
-    // Read and encode image as base64 (for inline logo)
     const logoPath = path.join(__dirname, "hamrobuslogo.png");
     const logoBase64 = fs.readFileSync(logoPath).toString("base64");
 
@@ -31,10 +29,9 @@ const sendEmail = async (email, html, subject, cc = [], bcc = []) => {
     };
 
     const response = await sgMail.send(msg);
-    console.log("✅ Email sent successfully.");
     return { success: true, response };
   } catch (error) {
-    console.error("❌ Email failed to send:");
+    console.error(" Email failed to send:");
     console.error(error.response?.body || error.message);
     return { success: false, error: error.message };
   }

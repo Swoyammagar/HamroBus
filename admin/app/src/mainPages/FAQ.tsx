@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
   Animated,
   Platform,
@@ -16,8 +15,8 @@ import { useAdminFAQs, type FAQRecord, type FAQRole } from "../../context/domain
 import { Tabs } from "@/app/components/ui/Tabs";
 import Pagination from "@/app/components/ui/Pagination";
 import { Modal } from "@/app/components/ui/Modal";
+import { SearchBar } from "../../components/ui";
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 const RolePill: React.FC<{
   label: string;
@@ -97,7 +96,6 @@ const FAQCard: React.FC<{
         { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
       ]}
     >
-      {/* Left accent bar */}
       <View style={[styles.cardAccent, { backgroundColor: roleColor }]} />
 
       <TouchableOpacity
@@ -105,7 +103,6 @@ const FAQCard: React.FC<{
         onPress={() => onOpen(faq)}
         activeOpacity={0.85}
       >
-        {/* Top row */}
         <View style={styles.cardTopRow}>
           <View style={[styles.roleTag, { backgroundColor: `${roleColor}18`, borderColor: `${roleColor}40` }]}>
             <Feather name={roleIcon} size={11} color={roleColor} />
@@ -114,22 +111,18 @@ const FAQCard: React.FC<{
           <Text style={styles.cardDate}>{formatDate(faq.createdAt)}</Text>
         </View>
 
-        {/* Title */}
         <Text style={styles.cardTitle} numberOfLines={2}>
           {faq.title || "Untitled FAQ"}
         </Text>
 
-        {/* Message */}
         {faq.message ? (
           <Text style={styles.cardMessage} numberOfLines={3}>
             {faq.message}
           </Text>
         ) : null}
 
-        {/* Divider */}
         <View style={styles.cardDivider} />
 
-        {/* Footer */}
         <View style={styles.cardFooter}>
           <View style={styles.cardUserInfo}>
             <View style={styles.avatarCircle}>
@@ -191,7 +184,6 @@ const EmptyState: React.FC<{ role: string; query: string }> = ({ role, query }) 
   </View>
 );
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
 
 const FAQsPage: React.FC = () => {
   const {
@@ -212,7 +204,6 @@ const FAQsPage: React.FC = () => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [selectedFAQ, setSelectedFAQ] = useState<FAQRecord | null>(null);
 
-  // Counts per role for pill badges
   const driverCount = faqs.filter((f) => f.role === "driver").length;
   const passengerCount = faqs.filter((f) => f.role === "passenger").length;
 
@@ -227,7 +218,6 @@ const FAQsPage: React.FC = () => {
     });
   };
 
-  // Refetch on screen focus
   useFocusEffect(
     useCallback(() => {
       if (activeRole === "all") {
@@ -269,7 +259,6 @@ const FAQsPage: React.FC = () => {
     [deleteFAQ]
   );
 
-  // Client-side search filter
   const filteredFAQs = query.trim()
     ? faqs.filter((faq) => {
         const q = query.toLowerCase();
@@ -282,9 +271,16 @@ const FAQsPage: React.FC = () => {
       })
     : faqs;
 
+  const handleRefresh = useCallback(() => {
+    if (activeRole === "all") {
+      fetchAllFAQs({ page: pagination.page });
+    } else {
+      fetchFAQsByRole(activeRole, pagination.page);
+    }
+  }, [activeRole, pagination.page, fetchAllFAQs, fetchFAQsByRole]);
+
   return (
     <View style={styles.container}>
-      {/* ── Header ── */}
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>FAQ Submissions</Text>
@@ -293,18 +289,8 @@ const FAQsPage: React.FC = () => {
             {pagination.pages || 1}
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={() =>
-            activeRole === "all"
-              ? fetchAllFAQs({ page: pagination.page })
-              : fetchFAQsByRole(activeRole, pagination.page)
-          }
-          style={styles.refreshBtn}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.refreshBtnText}>Refresh</Text>
-        </TouchableOpacity>
       </View>
+
       <View className="ml-5">
         <Tabs
           tabs={[
@@ -316,23 +302,18 @@ const FAQsPage: React.FC = () => {
         onTabChange={(key) => handleRoleChange(key as 'all' | FAQRole)}
       />
       </View>
-      <View style={styles.searchRow}>
-        <Feather name="search" size={15} color="#94a3b8" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
+
+      <View style={styles.searchBarWrapper}>
+        <SearchBar
           value={query}
           onChangeText={setQuery}
           placeholder="Search by title, message, name or email…"
-          placeholderTextColor="#94a3b8"
+          onClear={() => setQuery("")}
+          showRefresh
+          onRefresh={handleRefresh}
         />
-        {query.length > 0 && (
-          <TouchableOpacity onPress={() => setQuery("")} activeOpacity={0.7}>
-            <Feather name="x" size={15} color="#94a3b8" />
-          </TouchableOpacity>
-        )}
       </View>
 
-      {/* ── Error Banner ── */}
       {error && (
         <View style={styles.errorBanner}>
           <Feather name="alert-circle" size={14} color="#b91c1c" />
@@ -343,7 +324,6 @@ const FAQsPage: React.FC = () => {
         </View>
       )}
 
-      {/* ── Content ── */}
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color="#0d9488" />
@@ -369,7 +349,6 @@ const FAQsPage: React.FC = () => {
                 />
               ))}
 
-              {/* ── Pagination ── */}
               {!query && (
                 <Pagination
                   currentPage={pagination.page}
@@ -382,7 +361,6 @@ const FAQsPage: React.FC = () => {
         </ScrollView>
       )}
 
-      {/* ── Delete Confirmation Overlay ── */}
       {confirmDeleteId && (
         <View style={styles.confirmOverlay}>
           <View style={styles.confirmCard}>
@@ -465,18 +443,13 @@ const FAQsPage: React.FC = () => {
   );
 };
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
 
-  // Header
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 14,
@@ -500,7 +473,6 @@ const styles = StyleSheet.create({
     borderColor: "#0d9488",
   },
 
-  // Pills
   pillRow: {
     flexDirection: "row",
     gap: 8,
@@ -546,30 +518,6 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
 
-  // Search
-  searchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 20,
-    marginBottom: 16,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === "ios" ? 11 : 8,
-    gap: 8,
-  },
-  searchIcon: {
-    marginRight: 2,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: "#1e293b",
-  },
-
-  // Error
   errorBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -588,7 +536,6 @@ const styles = StyleSheet.create({
     color: "#b91c1c",
   },
 
-  // Loading
   loadingWrap: {
     flex: 1,
     alignItems: "center",
@@ -600,14 +547,12 @@ const styles = StyleSheet.create({
     color: "#64748b",
   },
 
-  // Scroll
   scrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 32,
     gap: 12,
   },
 
-  // Card
   card: {
     flexDirection: "row",
     backgroundColor: "#fff",
@@ -719,6 +664,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#fecaca",
   },
+
   detailModal: {
     maxHeight: "75%",
   },
@@ -755,7 +701,6 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
 
-  // Empty
   emptyWrap: {
     alignItems: "center",
     justifyContent: "center",
@@ -785,7 +730,6 @@ const styles = StyleSheet.create({
     maxWidth: 260,
   },
 
-  // Pagination
   paginationRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -825,10 +769,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
 
-  // Delete confirm overlay
   confirmOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15,23,42,0.55)',
+    backgroundColor: "rgba(15,23,42,0.55)",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 100,
@@ -898,11 +841,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#fff",
   },
-  refreshBtnText:{
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#0d9488",
-  }
+  searchBarWrapper: {
+    paddingHorizontal: 20,
+    marginBottom: 4,
+  },
 });
 
 export default FAQsPage;

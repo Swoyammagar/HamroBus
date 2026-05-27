@@ -270,7 +270,6 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {})
     return { matched: 0, modified: 0 };
   }
 
-  // Find bookings that should be completed at this reached stop
   const bookingsToComplete = await Booking.find({
     routeId: trip.routeId,
     busId: trip.busId,
@@ -304,14 +303,12 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {})
   );
   await releaseSeatLocksForBookings(bookingsToComplete.map((booking) => booking._id));
 
-  // Decrement trip passenger count and persist Bus occupancy
   try {
     const tripDoc = await TripSession.findById(trip._id);
     if (tripDoc) {
       const previousOccupancy = Number(tripDoc.passengerCount || 0);
       tripDoc.passengerCount = Math.max(0, previousOccupancy - seatsFreed);
-      
-      // ========== NEW: Add to occupancy history ==========
+
       if (!tripDoc.occupancyHistory) {
         tripDoc.occupancyHistory = [];
       }
@@ -324,10 +321,8 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {})
         currentOccupancy: tripDoc.passengerCount,
         eventType: 'alighting'
       });
-      // ========== END NEW ==========
-      
+
       await tripDoc.save();
-      console.log(`📍 Occupancy history logged at ${reachedStopName}: ${seatsFreed} alighted, current occupancy: ${tripDoc.passengerCount}`);
     }
 
     if (trip.busId) {
@@ -336,7 +331,6 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {})
         busDoc.currentPassengers = Math.max(0, Number(busDoc.currentPassengers || 0) - seatsFreed);
         await busDoc.save();
 
-        // Emit occupancy update to passengers viewing this bus
         if (io) {
           io.to(`bus:${String(trip.busId)}`).emit('trip:occupancy-updated', {
             tripId: String(trip._id),
@@ -351,7 +345,6 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {})
     console.error('Error updating counts after completing bookings:', err);
   }
 
-  // Notify individual passengers about completion
   if (io) {
     for (const b of bookingsToComplete) {
       const payload = {
@@ -370,16 +363,13 @@ const completeBookingsByReachedStop = async ({ trip, reachedStopName, io } = {})
         io.to(`passenger:${String(b.passengerId)}`).emit('booking:status-updated', payload);
         io.to(`passenger:${String(b.passengerId)}`).emit('booking:completed', payload);
 
-        // ========== NEW: Award reward points ==========
         try {
           const rewardResult = await awardPoints(String(b.passengerId), String(b._id));
           if (rewardResult.success) {
-            console.log(`🎁 Rewards awarded to passenger ${b.passengerId}: ${rewardResult.message}`);
           }
         } catch (err) {
           console.error(`Failed to award points to passenger ${b.passengerId}:`, err);
         }
-        // ========== END NEW ==========
       }
     }
   }
@@ -443,28 +433,23 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
     completedAt: transitionTime,
   }));
 
-  // ========== NEW: Award reward points to each passenger ==========
   for (const booking of changedBookings) {
     if (booking.passengerId) {
       try {
         const rewardResult = await awardPoints(String(booking.passengerId), String(booking.bookingId));
         if (rewardResult.success) {
-          console.log(`🎁 Rewards awarded to passenger ${booking.passengerId} on trip end: ${rewardResult.message}`);
         }
       } catch (err) {
         console.error(`Failed to award points to passenger ${booking.passengerId} on trip end:`, err);
       }
     }
   }
-  // ========== END NEW ==========
 
-  // ========== NEW: Decrease occupancy when trip ends ==========
   const passengersCompleted = result.modifiedCount || 0;
   if (passengersCompleted > 0) {
     try {
       const io = getIoInstance();
 
-      // Update trip session passenger count
       const tripDoc = await TripSession.findById(trip._id);
       if (tripDoc) {
         const previousOccupancy = Number(tripDoc.passengerCount || 0);
@@ -484,17 +469,14 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
         });
 
         await tripDoc.save();
-        console.log(`🏁 Trip ended - Occupancy decreased: ${passengersCompleted} passengers alighted. Current: ${tripDoc.passengerCount}`);
       }
 
-      // Update bus current passengers
       if (trip.busId) {
         const busDoc = await Bus.findById(trip.busId).select('currentPassengers');
         if (busDoc) {
           busDoc.currentPassengers = Math.max(0, Number(busDoc.currentPassengers || 0) - passengersCompleted);
           await busDoc.save();
 
-          // Emit occupancy update to passengers and driver viewing this bus
           if (io) {
             io.to(`bus:${String(trip.busId)}`).emit('trip:occupancy-updated', {
               tripId: String(trip._id),
@@ -505,7 +487,6 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
               timestamp: new Date().toISOString(),
             });
 
-            console.log(`📲 Occupancy update emitted for bus ${trip.busId}: ${busDoc.currentPassengers} passengers remaining`);
           }
         }
       }
@@ -513,9 +494,7 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
       console.error('Error updating occupancy on trip end:', err);
     }
   }
-  // ========== END NEW ==========
 
-  // ========== NEW: Handle no-show bookings (confirmed but never boarded) ==========
   const noShowFilter = {
     routeId: trip.routeId,
     busId: trip.busId,
@@ -558,9 +537,7 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
 
     changedBookings.push(...noShowBookings);
 
-    console.log(`⚠️ No-show bookings marked as cancelled for trip ${trip._id}: ${noShowResult.modifiedCount} bookings`);
 
-    // ========== NEW: Send no-show notifications to passengers ==========
     try {
       const io = getIoInstance();
       const Bus_doc = await Bus.findById(trip.busId).select('busNumber').lean();
@@ -569,7 +546,6 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
       for (const noShowBooking of noShowBookings) {
         if (noShowBooking.passengerId) {
           try {
-            // Fetch passenger details
             const passengerDoc = await Passenger.findById(noShowBooking.passengerId)
               .select('firstName lastName email')
               .lean();
@@ -581,9 +557,8 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
               const source = Route_doc?.source || 'Unknown';
               const destination = Route_doc?.destination || 'Unknown';
 
-              // Create database notification
               const notifMessage = `You missed your trip on ${busNumber} from ${source} to ${destination}. Your booking (${noShowBooking.bookingCode}) has been cancelled.`;
-              
+
               const noShowNotif = await Notification.create({
                 notificationId: `notif_${uuidv4()}`,
                 title: 'You Missed Your Trip',
@@ -596,7 +571,6 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
                 severity: 'medium',
               });
 
-              // Emit via socket.io to passenger
               if (io) {
                 io.to(`passenger:${String(noShowBooking.passengerId)}`).emit('trip:missed', {
                   _id: String(noShowNotif._id),
@@ -612,7 +586,6 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
                   createdAt: new Date(),
                 });
 
-                console.log(`📲 No-show notification sent to passenger ${noShowBooking.passengerId}: ${noShowBooking.bookingCode}`);
               }
 
               sendPushToUsers({
@@ -633,17 +606,13 @@ const completeAllInProgressBookingsForTrip = async ({ trip }) => {
             }
           } catch (notifErr) {
             console.error(`Failed to send no-show notification to passenger ${noShowBooking.passengerId}:`, notifErr);
-            // Don't fail the entire process if one notification fails
           }
         }
       }
     } catch (notifError) {
       console.error('Error sending no-show notifications:', notifError);
-      // Don't fail the booking cancellation if notifications fail
     }
-    // ========== END NEW ==========
   }
-  // ========== END NEW ==========
 
   return {
     matched: result.matchedCount || 0,
@@ -709,7 +678,7 @@ const getTodayDateInTimezoneAsUtcMidnight = () => {
 const isPastScheduleEndTime = (endTimeStr) => {
   const scheduleEndMinutes = timeStringToMinutes(endTimeStr);
   const currentMinutes = getCurrentTimeInMinutes();
-  
+
   if (scheduleEndMinutes === null) return false;
   return currentMinutes >= scheduleEndMinutes;
 };
@@ -723,18 +692,15 @@ const cancelMissedTripBookings = async ({ routeId, busId, scheduleId, serviceDat
     return { matched: 0, modified: 0, reason: 'Missing required parameters', changedBookings: [] };
   }
 
-  // Normalize the service date
   const normalizedServiceDate = normalizeDateOnly(serviceDate);
   if (!normalizedServiceDate) {
     return { matched: 0, modified: 0, reason: 'Invalid service date', changedBookings: [] };
   }
 
-  // Check if the schedule's end time has passed
   if (!isPastScheduleEndTime(endTime)) {
     return { matched: 0, modified: 0, reason: 'Schedule end time not yet reached', changedBookings: [] };
   }
 
-  // Check if trip was already started (even if later)
   const tripSessionExists = await TripSession.findOne({
     routeId,
     busId,
@@ -766,7 +732,6 @@ const cancelMissedTripBookings = async ({ routeId, busId, scheduleId, serviceDat
     return { matched: 0, modified: 0, reason: 'No confirmed bookings', changedBookings: [] };
   }
 
-  // Cancel confirmed bookings for this trip
   const result = await Booking.updateMany(
     filter,
     {
@@ -849,9 +814,8 @@ const processMissedTripsForToday = async ({io}) => {
 
     const dayName = getNowInTimezoneParts().weekday;
 
-    // Find all schedules for today that haven't had a trip started
     const schedules = await Route.find({}, 'routeName routeNumber schedules').lean();
-    
+
     let totalProcessed = 0;
     let totalCancelled = 0;
     const errors = [];
@@ -863,7 +827,6 @@ const processMissedTripsForToday = async ({io}) => {
         try {
           if (schedule.dayOfWeek !== dayName) continue;
 
-          // Only process if end time has passed
           if (!isPastScheduleEndTime(schedule.endTime)) continue;
 
           const result = await cancelMissedTripBookings({
@@ -893,9 +856,6 @@ const processMissedTripsForToday = async ({io}) => {
 
               totalProcessed++;
               totalCancelled += result.modified;
-              console.log(
-                `📋 Missed trip processed - Route: ${route._id}, Schedule: ${schedule._id}, Cancelled: ${result.modified}`
-              );
             }
           }
         } catch (error) {

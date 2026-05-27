@@ -42,12 +42,10 @@ export default function RouteStopsPanel({
       <View style={styles.backdrop}>
         <Pressable style={styles.backdrop} onPress={onClose} />
         <View style={[styles.panel, shadow.card]}>
-          {/* Handle */}
           <View style={styles.handleContainer}>
             <View style={styles.handle} />
           </View>
 
-          {/* Header */}
           <View style={styles.header}>
             <View style={styles.titleSection}>
               <Text style={styles.title}>Route Stops</Text>
@@ -68,7 +66,6 @@ export default function RouteStopsPanel({
             </Pressable>
           </View>
 
-          {/* Passenger Card */}
           <Pressable style={[styles.passengerCard, shadow.card]} onPress={onOpenPassengerLog}>
             <View style={styles.passengerRow}>
               <View>
@@ -88,7 +85,6 @@ export default function RouteStopsPanel({
             </View>
           </Pressable>
 
-          {/* Stops List */}
           <Text style={styles.stopsTitle}>Upcoming Stops</Text>
           <ScrollView style={styles.stopsList} showsVerticalScrollIndicator={false}>
             {busStops.map((stop) => (
@@ -136,7 +132,6 @@ export default function RouteStopsPanel({
             ))}
           </ScrollView>
 
-          {/* Close Button */}
           <Pressable style={styles.closeButton} onPress={onClose}>
             <Text style={styles.closeButtonText}>Close</Text>
           </Pressable>

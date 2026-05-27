@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { 
-    registerPassenger, 
-    loginPassenger, 
+const {
+    registerPassenger,
+    loginPassenger,
     getPassengerProfile,
     updatePassengerProfile,
     changePassengerPassword,
@@ -40,7 +40,6 @@ const {
   getMyReviews,
 } = require('../controllers/passenger/review.controller');
 
-// Public routes
 router.post('/register', registerPassenger);
 router.post('/login', loginPassenger);
 router.get('/check-phone-availability', checkPhoneNumberAvailability);
@@ -55,7 +54,6 @@ router.get('/drivers/:driverId', getPublicDriverById);
 router.get('/drivers/:driverId/reviews', getPublicDriverLatestReviews);
 router.get('/payments/khalti-return', khaltiReturnBridge);
 
-// Protected routes (require authentication)
 router.get('/profile', authenticatePassenger, getPassengerProfile);
 router.put('/profile', authenticatePassenger, updatePassengerProfile);
 router.post('/change-password', authenticatePassenger, changePassengerPassword);
@@ -71,15 +69,12 @@ router.get('/bookings/reviewable', authenticatePassenger, getMyReviewableBooking
 router.post('/bookings/:bookingId/review', authenticatePassenger, createBookingReview);
 router.get('/reviews/me', authenticatePassenger, getMyReviews);
 
-// Reward Points Routes
 router.get('/rewards/points', authenticatePassenger, getRewardPoints);
 router.post('/rewards/redeem', authenticatePassenger, redeemPointsForDiscount);
 
-// Review Routes
 router.get('/reviews/my-reviews', authenticatePassenger, getMyReviews);
 router.get('/reviews/stats', authenticatePassenger, getMyReviewStats);
 
-// Profile Deletion Routes
 router.post('/profile/request-delete', authenticatePassenger, requestDeleteProfile);
 router.post('/profile/cancel-delete', authenticatePassenger, cancelDeleteProfile);
 router.get('/profile/deletion-status', authenticatePassenger, checkDeletionStatus);

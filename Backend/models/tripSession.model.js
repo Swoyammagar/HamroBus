@@ -63,7 +63,6 @@ const tripSessionSchema = new mongoose.Schema({
         default: 0
     },
     completedStops: [{
-        // Route stops do not have ObjectIds; track by stop name.
         stopId: {
             type: String,
             trim: true
@@ -73,13 +72,11 @@ const tripSessionSchema = new mongoose.Schema({
         passengersAlighted: Number
     }],
     currentStop: {
-        // Store current stop name to match route stop structure.
         type: String,
         trim: true,
         required: false
     },
     previousStop: {
-        // Track the previous stop for UI display of stop progression
         type: String,
         trim: true,
         required: false

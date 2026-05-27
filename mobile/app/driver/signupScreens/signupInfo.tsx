@@ -36,7 +36,7 @@ const PersonalInfo = () => {
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
 
-  
+
   const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm<SignupInfoForm>({
     defaultValues: {
       firstName: signupData.firstName || "",
@@ -48,7 +48,7 @@ const PersonalInfo = () => {
       profileImage: signupData.profileImage || null,
     },
   });
-  
+
   const profileImage = watch("profileImage");
 
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
@@ -117,7 +117,6 @@ const PersonalInfo = () => {
           <Text className="text-2xl font-medium text-[#27AE60] ml-2">Information</Text>
         </View>
 
-        {/* Photo */}
         <TouchableOpacity style={styles.photoContainer} onPress={handlePickImage}>
           {profileImage ? (
             <Image source={{ uri: profileImage }} style={styles.photo} />
@@ -142,7 +141,7 @@ const PersonalInfo = () => {
           )}
         />
                 {errors.firstName && <Text style={styles.errorText}>{errors.firstName.message}</Text>}
-        
+
                 <Text className="font-medium text-[#333] mb-1">Last Name: </Text>
                 <Controller
                   control={control}
@@ -158,12 +157,12 @@ const PersonalInfo = () => {
                   )}
                 />
                 {errors.lastName && <Text style={styles.errorText}>{errors.lastName.message}</Text>}
-        
+
         <Text className="font-medium text-[#333]  mb-1">Phone Number: </Text>
         <Controller
           control={control}
           name="phoneNumber"
-          rules={{ 
+          rules={{
             required: "Phone number is required",
             pattern: {
               value: /^[0-9]{10}$/,
@@ -180,7 +179,7 @@ const PersonalInfo = () => {
             />
           )}
           {...errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber.message}</Text>}
-        
+
         />
         <Text className="font-medium text-[#333]  mb-1">Gender: </Text>
         <Controller
@@ -209,7 +208,7 @@ const PersonalInfo = () => {
           )}
         />
         {errors.gender && <Text style={styles.errorText}>{errors.gender.message}</Text>}
-        
+
         <Text className="font-medium text-[#333] mb-1">Date of Birth: </Text>
         <Controller
           control={control}
@@ -249,7 +248,7 @@ const PersonalInfo = () => {
 
         {errors.dob && <Text style={styles.errorText}>{errors.dob.message}</Text>}
 
-        
+
         <Text className="font-medium text-[#333]  mb-1">Address: </Text>
         <Controller
           control={control}

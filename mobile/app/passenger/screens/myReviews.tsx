@@ -151,7 +151,6 @@ const MyReviewsPage = () => {
         <View style={{ width: 28 }} />
       </View>
 
-      {/* Stats Card */}
       {stats && (
         <View style={styles.statsCard}>
           <View style={styles.statItem}>
@@ -174,7 +173,6 @@ const MyReviewsPage = () => {
         </View>
       )}
 
-      {/* Reviews List */}
       <FlatList
         data={reviews}
         renderItem={renderReviewCard}
@@ -190,7 +188,6 @@ const MyReviewsPage = () => {
         }
       />
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <View style={styles.paginationContainer}>
           <TouchableOpacity

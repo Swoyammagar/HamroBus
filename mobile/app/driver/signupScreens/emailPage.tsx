@@ -19,9 +19,8 @@ const DriverPhone = () => {
    const onSubmit = async (data: { email: string }) => {
       setIsSubmitting(true);
       setError("");
-      
+
       try {
-        // Request OTP for signup
         const result = await requestSignupOTP(data.email, 'driver');
         if (result.success) {
           updateSignupData({ email: data.email });
@@ -47,7 +46,6 @@ const DriverPhone = () => {
 
         <Text style={{ fontWeight: '500', color: '#333', marginBottom: 8 }}>Your email address:</Text>
 
-        {/* Mobile Number Input */}
         <Controller
           control={control}
           name="email"
@@ -76,7 +74,6 @@ const DriverPhone = () => {
           <Text style={{ color: 'red', marginBottom: 20 }}>{error}</Text>
         )}
 
-        {/* Next Button */}
         <TouchableOpacity
                   style={[styles.nextButton, isSubmitting && styles.disabledButton]}
                   onPress={handleSubmit(onSubmit)}
@@ -89,7 +86,6 @@ const DriverPhone = () => {
                   )}
           </TouchableOpacity>
 
-        {/* Info Sections */}
         <View style={styles.infoContainer}>
           <View style={styles.infoBox}>
             <Text style={styles.icon}>🛡️</Text>

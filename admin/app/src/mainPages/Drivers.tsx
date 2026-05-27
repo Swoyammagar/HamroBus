@@ -14,7 +14,7 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import { useDriver, type DriverRecord } from "../../context/domains";
-import { useAdminPassengers } from "../../context/domains"; // ← for deleteDriver
+import { useAdminPassengers } from "../../context/domains";
 import {
   Tabs,
   SearchBar,
@@ -71,7 +71,6 @@ type AdminReviewSummary = {
   distribution: Record<string, number>;
 };
 
-// ─── Initials Avatar ──────────────────────────────────────────────────────────
 
 const getInitials = (name: string) =>
   (name || "")
@@ -134,7 +133,6 @@ const SmartAvatar: React.FC<{
   );
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const renderStars = (rating: number) => {
   const n = Math.max(0, Math.min(5, Math.round(rating)));
@@ -155,7 +153,6 @@ const formatReviewTime = (dateValue?: string) => {
   return isNaN(d.getTime()) ? "Unknown date" : d.toLocaleDateString();
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 const Drivers: React.FC = () => {
   const {
@@ -170,7 +167,6 @@ const Drivers: React.FC = () => {
     getDriverReviewInsights,
   } = useDriver();
 
-  // Pull deleteDriver from the passengers hook (it lives there per your codebase)
   const { deleteDriver } = useAdminPassengers();
 
   const [activeTab, setActiveTab] = useState<"all" | "requests">("all");
@@ -183,7 +179,6 @@ const Drivers: React.FC = () => {
   const [editingDriver, setEditingDriver] = useState<DisplayDriver | null>(null);
   const [processingDriverId, setProcessingDriverId] = useState<string | null>(null);
 
-  // ── Updated: type now includes 'delete' ──
   const [confirmAction, setConfirmAction] = useState<{
     type: "approve" | "reject" | "delete";
     driverId: string;
@@ -294,7 +289,6 @@ const Drivers: React.FC = () => {
   const confirmDelete = (driverId: string, driverName: string) =>
     setConfirmAction({ type: "delete", driverId, driverName });
 
-  // ── Updated: routes to delete handler too ──
   const handleConfirmAction = async () => {
     if (!confirmAction) return;
     const { type, driverId } = confirmAction;
@@ -312,7 +306,6 @@ const Drivers: React.FC = () => {
     setReviewsError(null);
   };
 
-  // ── Table columns ──
 
   const driverColumns: TableColumn<DisplayDriver>[] = [
     {
@@ -349,7 +342,7 @@ const Drivers: React.FC = () => {
     {
       key: "actions",
       header: "Actions",
-      width: 160,                          // ← wider to fit both buttons
+      width: 160,
       render: (item) => (
         <View style={styles.actionButtons}>
           <Button
@@ -466,7 +459,6 @@ const Drivers: React.FC = () => {
     }
   };
 
-  // ── New delete handler ──
   const handleDelete = async (driverId: string) => {
     try {
       setProcessingDriverId(driverId);
@@ -479,7 +471,6 @@ const Drivers: React.FC = () => {
         );
       }
       if (result.success) {
-        // Close modal if the deleted driver was open
         if (editingDriver?.driverId === driverId) closeModal();
         fetchAllDrivers();
       }
@@ -498,7 +489,6 @@ const Drivers: React.FC = () => {
     }, [])
   );
 
-  // ── Confirm overlay helpers ──
   const confirmIconName = () => {
     if (!confirmAction) return "alert-circle";
     if (confirmAction.type === "approve") return "check-circle";
@@ -657,7 +647,6 @@ const Drivers: React.FC = () => {
         </>
       )}
 
-      {/* ── Driver Detail Modal ── */}
       <Modal
         visible={modalVisible}
         onClose={closeModal}
@@ -674,7 +663,6 @@ const Drivers: React.FC = () => {
             >
               Refresh Reviews
             </Button>
-            {/* Delete button inside modal footer */}
             {editingDriver && (
               <Button
                 onPress={() =>
@@ -692,7 +680,6 @@ const Drivers: React.FC = () => {
         }
       >
         <View style={styles.modalContent}>
-          {/* Header with avatar */}
           <View style={styles.driverHeader}>
             <SmartAvatar
               uri={editingDriver?.profileImgUrl}
@@ -728,7 +715,6 @@ const Drivers: React.FC = () => {
             </View>
           </View>
 
-          {/* Details grid */}
           <View style={styles.detailsGrid}>
             {[
               {
@@ -762,7 +748,6 @@ const Drivers: React.FC = () => {
             ))}
           </View>
 
-          {/* License image */}
           {editingDriver?.licenseImgUrl ? (
             <View style={styles.licenseSection}>
               <Text style={styles.sectionTitle}>Driver License</Text>
@@ -789,7 +774,6 @@ const Drivers: React.FC = () => {
             </View>
           )}
 
-          {/* Review insights */}
           <View style={styles.reviewsBlock}>
             <Text style={styles.sectionTitle}>Review Insights</Text>
             {reviewsLoading ? (
@@ -913,7 +897,6 @@ const Drivers: React.FC = () => {
         </View>
       </Modal>
 
-      {/* ── Approve / Reject / Delete Confirm Overlay ── */}
       {confirmAction && (
         <View style={styles.confirmOverlay}>
           <View style={styles.confirmCard}>
@@ -957,7 +940,6 @@ const Drivers: React.FC = () => {
         </View>
       )}
 
-      {/* ── License Image Fullscreen Viewer ── */}
       <RNModal
         visible={licenseImageViewerVisible}
         transparent

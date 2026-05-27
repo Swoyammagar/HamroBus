@@ -69,10 +69,8 @@ const ProfileEdit = () => {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [phoneValidated, setPhoneValidated] = useState(true);
 
-  // Separate state for the image preview URI — may be local file:// or remote https://
   const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(defaultProfileImage || null);
 
-  // Update form when profile data arrives
   useEffect(() => {
     const userData = profileData?.user;
     const updatedData = {
@@ -138,7 +136,6 @@ const ProfileEdit = () => {
       });
 
       if (!result.canceled && result.assets[0]) {
-        // Only update the preview — actual upload happens in handleSubmit
         setImagePreviewUri(result.assets[0].uri);
       }
     } catch (err) {
@@ -160,7 +157,6 @@ const ProfileEdit = () => {
       formData.lastName !== originalFormData.lastName ||
       formData.phoneNumber !== originalFormData.phoneNumber;
 
-    // Image changed = current preview URI differs from the original server URL
     const imageChanged =
       !!imagePreviewUri && imagePreviewUri !== originalFormData.profileImgUrl;
 
@@ -175,8 +171,6 @@ const ProfileEdit = () => {
           ...(formData.firstName !== originalFormData.firstName && { firstName: formData.firstName.trim() }),
           ...(formData.lastName !== originalFormData.lastName && { lastName: formData.lastName.trim() }),
           ...(formData.phoneNumber !== originalFormData.phoneNumber && { phoneNumber: formData.phoneNumber.trim() }),
-          // Pass the URI — hook uploads to Cloudinary if it's a local file://,
-          // passes through as-is if it's already an https:// URL
           ...(imageChanged && { profileImageUri: imagePreviewUri! }),
         },
         uploadImageToCloudinary,
@@ -225,7 +219,6 @@ const ProfileEdit = () => {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={24} color="#1f2937" />
@@ -239,7 +232,6 @@ const ProfileEdit = () => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Profile Image */}
           <View style={styles.imageSection}>
             <View style={styles.imageContainer}>
               {imagePreviewUri ? (
@@ -260,9 +252,7 @@ const ProfileEdit = () => {
             <Text style={styles.imageHint}>Tap camera to change photo</Text>
           </View>
 
-          {/* Form */}
           <View style={styles.formSection}>
-            {/* First Name */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>First Name *</Text>
               <View style={[styles.inputContainer, formErrors.firstName && styles.inputContainerError]}>
@@ -278,7 +268,6 @@ const ProfileEdit = () => {
               {formErrors.firstName && <Text style={styles.errorText}>{formErrors.firstName}</Text>}
             </View>
 
-            {/* Last Name */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>Last Name *</Text>
               <View style={[styles.inputContainer, formErrors.lastName && styles.inputContainerError]}>
@@ -294,7 +283,6 @@ const ProfileEdit = () => {
               {formErrors.lastName && <Text style={styles.errorText}>{formErrors.lastName}</Text>}
             </View>
 
-            {/* Phone */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>Phone Number *</Text>
               <View style={[styles.inputContainer, formErrors.phoneNumber && styles.inputContainerError]}>
@@ -316,7 +304,6 @@ const ProfileEdit = () => {
               )}
             </View>
 
-            {/* Email read-only */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>Email (Read-only)</Text>
               <View style={[styles.inputContainer, styles.inputDisabled]}>
@@ -330,7 +317,6 @@ const ProfileEdit = () => {
             </View>
           </View>
 
-          {/* Upload progress banner */}
           {loading && uploadProgress && (
             <View style={styles.uploadProgressBar}>
               <ActivityIndicator size="small" color="#3b82f6" />
@@ -338,7 +324,6 @@ const ProfileEdit = () => {
             </View>
           )}
 
-          {/* Error */}
           {error && (
             <View style={styles.errorAlert}>
               <Ionicons name="alert-circle" size={20} color="#ef4444" />
@@ -346,7 +331,6 @@ const ProfileEdit = () => {
             </View>
           )}
 
-          {/* Buttons */}
           <View style={styles.buttonSection}>
             <TouchableOpacity
               style={[styles.button, styles.cancelButton]}

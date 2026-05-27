@@ -27,7 +27,6 @@ const sendSosAlert = async (req, res) => {
 
     const notificationId = uuidv4();
 
-    // Build notification doc
     const title = `Emergency SOS: ${String(category).toUpperCase()}`;
     const message = details || `${title} reported by driver.`;
     const payload = {
@@ -61,13 +60,9 @@ const sendSosAlert = async (req, res) => {
 
     await notification.save();
 
-    // Persist SOS document for admin history
     try {
       const bus = await Bus.findById(busId).select('busNumber').lean();
-      console.log('DEBUG SOS - req.user:', JSON.stringify(req.user, null, 2));
-      console.log('DEBUG SOS - firstName:', req.user?.firstName, 'lastName:', req.user?.lastName, 'profileImg:', req.user?.profileImgUrl);
       const driverFullName = `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || 'Unknown Driver';
-      console.log('DEBUG SOS - driverFullName:', driverFullName);
       const sosDoc = new Sos({
         sosId: `sos_${uuidv4()}`,
         driverId,
@@ -84,7 +79,6 @@ const sendSosAlert = async (req, res) => {
         },
       });
       await sosDoc.save();
-      // include DB id in payload
       if (sosDoc && sosDoc._id) payload.sosRecordId = sosDoc._id.toString();
     } catch (err) {
       console.warn('Could not persist SOS document:', err?.message || err);
@@ -92,7 +86,6 @@ const sendSosAlert = async (req, res) => {
 
     const io = req.app.get('io');
 
-    // Update Bus state: last known location + sosActive
     try {
       const busUpdate = { sosActive: true, sosCategory: category, sosTimestamp: new Date() };
       if (latitude && longitude) {
@@ -107,12 +100,9 @@ const sendSosAlert = async (req, res) => {
       console.warn('Could not update bus SOS state:', err.message || err);
     }
 
-    // Emit immediate event to admin room so admin panel can play SOS sound and show marker
     if (io) {
-      // Primary SOS alert event (triggers sound)
       io.to('admin-room').emit('sos:alert', payload);
-      
-      // Also send as notification:new so it appears in notifications list
+
       io.to('admin-room').emit('notification:new', {
         _id: notification._id.toString(),
         notificationId: notification.notificationId,
@@ -125,9 +115,7 @@ const sendSosAlert = async (req, res) => {
         createdAt: notification.createdAt,
       });
 
-      // Also inform all passengers viewing the bus so their maps show red marker
       io.to(`bus:${busId}`).emit('driver:sos', payload);
-      // Inform the driver that SOS was registered immediately
       io.to('driver:' + driverId).emit('sos:alert', payload);
     }
 
@@ -183,7 +171,6 @@ const clearSos = async (req, res) => {
 
     await Bus.findByIdAndUpdate(busId, { $set: { sosActive: false, sosCategory: null, sosTimestamp: null } });
 
-    // Mark SOS documents as cleared (latest active for this bus/driver/trip)
     try {
       const filter = { busId, status: 'active' };
       if (driverId) filter.driverId = driverId;
@@ -199,8 +186,7 @@ const clearSos = async (req, res) => {
 
     if (io) {
       io.to('admin-room').emit('sos:cleared', payload);
-      
-      // Create and emit a notification for SOS cleared
+
       const clearedNotification = new Notification({
         notificationId: `notif_${uuidv4()}`,
         title: 'Emergency SOS Cleared',
@@ -212,7 +198,7 @@ const clearSos = async (req, res) => {
         severity: 'high'
       });
       await clearedNotification.save();
-      
+
       io.to('admin-room').emit('notification:new', {
         _id: clearedNotification._id.toString(),
         notificationId: clearedNotification.notificationId,
@@ -226,7 +212,6 @@ const clearSos = async (req, res) => {
       });
 
       io.to(`bus:${busId}`).emit('driver:sos-cleared', payload);
-      // Inform the driver that SOS was cleared
       io.to('driver:' + driverId).emit('sos:cleared', payload);
     }
 

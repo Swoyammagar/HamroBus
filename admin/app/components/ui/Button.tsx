@@ -70,8 +70,7 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.6,
   },
-  
-  // Variants
+
   primary: {
     backgroundColor: '#27AE60',
   },
@@ -89,8 +88,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#27AE60',
   },
-  
-  // Sizes
+
   sm: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -103,8 +101,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 16,
   },
-  
-  // Text styles
+
   text: {
     fontWeight: '500',
   },

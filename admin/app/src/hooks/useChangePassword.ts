@@ -24,7 +24,6 @@ export const useChangePassword = () => {
       setSuccess(false);
 
       try {
-        // Validate passwords on client side
         if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
           const err = 'All password fields are required';
           setError(err);

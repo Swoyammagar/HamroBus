@@ -1,6 +1,5 @@
 const Passenger = require('../models/passenger.model');
 
-// Configuration Constants
 const POINTS_PER_COMPLETED_TRIP = 50; // Points awarded per completed trip
 const POINTS_DEDUCTION_ON_CANCEL = 25; // Points deducted per cancellation
 const CANCELLATION_BAN_THRESHOLD = 5; // Number of consecutive cancellations before ban
@@ -21,14 +20,11 @@ const awardPoints = async (passengerId, tripId) => {
       return { success: false, message: 'Passenger not found' };
     }
 
-    // Award points
     passenger.rewardPoints += POINTS_PER_COMPLETED_TRIP;
     passenger.totalPointsEarned += POINTS_PER_COMPLETED_TRIP;
 
-    // Reset cancellation streak on successful trip
     passenger.consecutiveCancellations = 0;
 
-    // Add to points history
     passenger.pointsHistory.push({
       tripId,
       action: 'earned',
@@ -39,7 +35,6 @@ const awardPoints = async (passengerId, tripId) => {
 
     await passenger.save();
 
-    console.log(`✅ Points awarded to passenger ${passengerId}: +${POINTS_PER_COMPLETED_TRIP} (Total: ${passenger.rewardPoints})`);
 
     return {
       success: true,
@@ -65,14 +60,11 @@ const deductPoints = async (passengerId, bookingId) => {
       return { success: false, message: 'Passenger not found' };
     }
 
-    // Deduct points (min 0)
     const pointsToDeduct = Math.min(passenger.rewardPoints, POINTS_DEDUCTION_ON_CANCEL);
     passenger.rewardPoints -= pointsToDeduct;
 
-    // Increment cancellation streak
     passenger.consecutiveCancellations += 1;
 
-    // Add to points history
     passenger.pointsHistory.push({
       bookingId,
       action: 'deducted',
@@ -81,7 +73,6 @@ const deductPoints = async (passengerId, bookingId) => {
       timestamp: new Date(),
     });
 
-    // Check if passenger should be banned (5 consecutive cancellations)
     let isBanned = false;
     let banUntil = null;
 
@@ -90,12 +81,10 @@ const deductPoints = async (passengerId, bookingId) => {
       passenger.banUntil = banUntil;
       isBanned = true;
 
-      console.log(`🚫 Passenger ${passengerId} banned until ${banUntil} (${CANCELLATION_BAN_THRESHOLD} consecutive cancellations)`);
     }
 
     await passenger.save();
 
-    console.log(`❌ Points deducted from passenger ${passengerId}: -${pointsToDeduct} (Total: ${passenger.rewardPoints})`);
 
     return {
       success: true,
@@ -131,7 +120,6 @@ const checkBanStatus = async (passengerId) => {
     const isBanned = passenger.banUntil > now;
 
     if (!isBanned) {
-      // Ban has expired, clear it
       passenger.banUntil = null;
       passenger.consecutiveCancellations = 0;
       await passenger.save();
@@ -165,7 +153,6 @@ const redeemPoints = async (passengerId, bookingAmount) => {
       return { success: false, message: 'Passenger not found' };
     }
 
-    // Check if passenger has enough points
     if (passenger.rewardPoints < POINTS_FOR_DISCOUNT_THRESHOLD) {
       return {
         success: false,
@@ -175,17 +162,13 @@ const redeemPoints = async (passengerId, bookingAmount) => {
       };
     }
 
-    // Calculate discount
     const discountAmount = (bookingAmount * DISCOUNT_PERCENTAGE) / 100;
 
-    // Deduct points
     passenger.rewardPoints -= POINTS_FOR_DISCOUNT_THRESHOLD;
     passenger.totalPointsRedeemed += POINTS_FOR_DISCOUNT_THRESHOLD;
 
-    // Generate discount code
     const discountCode = `HAMRO-${Date.now()}-${passengerId.slice(-6).toUpperCase()}`;
 
-    // Add to points history
     passenger.pointsHistory.push({
       action: 'redeemed',
       points: POINTS_FOR_DISCOUNT_THRESHOLD,
@@ -195,7 +178,6 @@ const redeemPoints = async (passengerId, bookingAmount) => {
 
     await passenger.save();
 
-    console.log(`🎁 Passenger ${passengerId} redeemed ${POINTS_FOR_DISCOUNT_THRESHOLD} points for ${DISCOUNT_PERCENTAGE}% discount`);
 
     return {
       success: true,
@@ -257,7 +239,6 @@ module.exports = {
   checkBanStatus,
   redeemPoints,
   getRewardInfo,
-  // Exported constants for frontend use
   POINTS_PER_COMPLETED_TRIP,
   POINTS_DEDUCTION_ON_CANCEL,
   POINTS_FOR_DISCOUNT_THRESHOLD,

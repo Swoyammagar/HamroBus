@@ -15,12 +15,10 @@ const initializeAdmin = async () => {
       });
 
       await newAdmin.save();
-      console.log("✅ Admin created from .env on startup.");
     } else {
-      console.log("ℹ️ Admin already exists, skipping creation.");
     }
   } catch (error) {
-    console.error("❌ Error initializing admin:", error);
+    console.error(" Error initializing admin:", error);
   }
 };
 

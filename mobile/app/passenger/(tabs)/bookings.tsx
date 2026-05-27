@@ -55,12 +55,9 @@ const MyBookings = () => {
 
   const getBusLabel = (busRef: unknown): string => {
   if (busRef == null) return 'Bus';
-  // It's already been resolved to a busNumber string by mapApiBookingToContext
   if (typeof busRef === 'string') {
-    // Could be a bus number like "BA KHA 0512" or a raw ID fallback
     return busRef.length > 0 ? `Bus ${busRef}` : 'Bus';
   }
-  // Fallback for raw API objects (e.g. in mapContextBookingToResponse path)
   if (typeof busRef === 'object') {
     const rec = busRef as { busNumber?: string; _id?: string; id?: string };
     if (rec.busNumber) return `Bus ${rec.busNumber}`;
@@ -71,7 +68,6 @@ const MyBookings = () => {
 };
 
  const mapApiBookingToContext = (b: BookingResponse): Booking => {
-  // Extract busNumber before normalizing busId to a string
   const busNumberResolved =
     b.busNumber ||
     (typeof b.busId === 'object' && b.busId !== null
@@ -137,7 +133,6 @@ const MyBookings = () => {
     busNumber: booking.busNumber,
   });
 
-  // Fetch bookings on tab focus
   useFocusEffect(
     React.useCallback(() => {
       fetchBookings();
@@ -291,8 +286,7 @@ const MyBookings = () => {
             setCancelling(true);
             try {
               const response = await bookingService.cancelBooking(booking.id, 'Cancelled by passenger');
-              
-              // Check for ban status from response
+
               if (response.isBanned && response.banUntil) {
                 setRewardNotification({
                   visible: true,
@@ -301,7 +295,6 @@ const MyBookings = () => {
                   details: response,
                 });
               } else if (response.rewardPoints !== undefined) {
-                // Show reward deduction message
                 setRewardNotification({
                   visible: true,
                   type: 'cancelled',
@@ -312,15 +305,14 @@ const MyBookings = () => {
 
               updateBooking(booking.id, { status: 'cancelled' });
               setBookingDetailModal(false);
-              
-              // Show success alert
+
               Alert.alert(
                 'Success',
-                response.warning 
+                response.warning
                   ? `Your booking has been cancelled.\n\n⚠️ ${response.warning}`
                   : 'Your booking has been cancelled.'
               );
-              
+
               await fetchBookings(); // Refresh the list
             } catch (err: any) {
               const message = err?.response?.data?.message || 'Failed to cancel booking';
@@ -473,7 +465,6 @@ const MyBookings = () => {
         <Text style={styles.headerSubtitle}>Manage your bus bookings</Text>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabsContainer}>
         {(['upcoming', 'completed', 'cancelled'] as const).map((tab) => (
           <TouchableOpacity
@@ -516,7 +507,6 @@ const MyBookings = () => {
         ))}
       </View>
 
-      {/* Bookings List */}
       {loading && bookings.length === 0 ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#3b82f6" />
@@ -646,7 +636,6 @@ const MyBookings = () => {
         onCancel={handleCancelBookingAPI}
       />
 
-      {/* Reward Notification Modal */}
       <Modal
         visible={rewardNotification?.visible || false}
         transparent={true}
@@ -1181,7 +1170,6 @@ qrHint: {
     fontWeight: '700',
     fontSize: 13,
   },
-  // Reward Notification Styles
   rewardNotificationOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

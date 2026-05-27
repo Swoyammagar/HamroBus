@@ -57,8 +57,6 @@ export default function RootNavigator({ isOnline, onSOS }: RootNavigatorProps) {
 
       setUnreadCount(unread);
     } catch (error) {
-      // Avoid noisy runtime logs when backend is temporarily unavailable.
-      // Badge will still update from socket events and on next successful refresh.
     }
   }, [currentDriverId]);
 
@@ -76,12 +74,9 @@ export default function RootNavigator({ isOnline, onSOS }: RootNavigatorProps) {
 
   useEffect(() => {
     const unsubscribe = subscribeNotificationReadChange(() => {
-      // Keep badge responsive even when the backend call fails.
       setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
 
-      // Best-effort sync with backend; if offline, keep local state and retry on focus.
       refreshUnreadCount().catch(() => {
-        // no-op
       });
     });
 

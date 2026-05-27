@@ -45,21 +45,17 @@ const BusBooking = () => {
   const [bookingComplete, setBookingComplete] = useState(false);
   const [generatedBooking, setGeneratedBooking] = useState<Booking | null>(null);
   const [resolutionAttempted, setResolutionAttempted] = useState(false);
-  // Schedule & availability state
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
   const [serviceDate, setServiceDate] = useState<string>('');
-  // ========== NEW: Reward Points State ==========
   const [rewardPoints, setRewardPoints] = useState<number>(0);
   const [useRewardPoints, setUseRewardPoints] = useState<boolean>(false);
   const [discountAmount, setDiscountAmount] = useState<number>(0);
-  // ========== END NEW ==========
   const [availabilityData, setAvailabilityData] = useState<SeatAvailabilityResponse | null>(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [schedulesLoading, setSchedulesLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const paymentInFlightRef = useRef(false);
-  // Track current stop for mid-trip booking validation
   const [currentStop, setCurrentStop] = useState<string | null>(null);
 
   useEffect(() => {
@@ -98,7 +94,6 @@ const BusBooking = () => {
     setResolutionAttempted(true);
   }, [busId, routeId, selectedBus, buses, selectedRoute, routes]);
 
-  // ========== NEW: Fetch Reward Points ==========
   useEffect(() => {
     const fetchRewardPoints = async () => {
       try {
@@ -113,46 +108,37 @@ const BusBooking = () => {
 
     fetchRewardPoints();
   }, []);
-  // ========== END NEW ==========
 
-  // Helper: get next occurrence of a weekday as "YYYY-MM-DD"
-  // If today matches the weekday and schedule end time hasn't passed, show today
-  // Otherwise show next occurrence of that weekday
   const getNextOccurrenceOfDay = (dayName: string, scheduleEndTime?: string): string => {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const targetDay = days.indexOf(dayName);
     if (targetDay < 0) return new Date().toISOString().split('T')[0];
-    
+
     const today = new Date();
     const todayDay = today.getDay();
-    
-    // If today matches the schedule day, check if trip is still active
+
     if (todayDay === targetDay) {
       if (scheduleEndTime) {
         const [endHours, endMinutes] = scheduleEndTime.split(':').map(Number);
         const endTimeMinutes = endHours * 60 + endMinutes;
         const nowMinutes = today.getHours() * 60 + today.getMinutes();
-        
+
         if (nowMinutes < endTimeMinutes) {
-          // Trip is still active today, show today
           return today.toISOString().split('T')[0];
         }
       }
-      
-      // Trip has ended or no end time, show next week (7 days from now)
+
       const nextWeek = new Date(today);
       nextWeek.setDate(nextWeek.getDate() + 7);
       return nextWeek.toISOString().split('T')[0];
     }
-    
-    // Today doesn't match target day, calculate next occurrence
+
     const daysUntil = (targetDay - todayDay + 7) % 7;
     const result = new Date(today);
     result.setDate(result.getDate() + daysUntil);
     return result.toISOString().split('T')[0];
   };
 
-  // Load schedules for the resolved route, filtered to the current bus
   useEffect(() => {
     if (!route) return;
     const rid = String(route._id || route.id || '');
@@ -179,16 +165,13 @@ const BusBooking = () => {
       .finally(() => setSchedulesLoading(false));
   }, [route, bus]);
 
-  // Derive service date when schedule is selected
   useEffect(() => {
     if (!selectedSchedule) return;
     setServiceDate(selectedSchedule.nextServiceDate || getNextOccurrenceOfDay(selectedSchedule.dayOfWeek, selectedSchedule.endTime));
-    // Clear seats when schedule changes so stale selections are removed
     setSelectedSeats([]);
     setAvailabilityData(null);
   }, [selectedSchedule]);
 
-  // Fetch real seat availability whenever schedule + bus + route + serviceDate are ready
   useEffect(() => {
     if (!selectedSchedule || !route || !bus || !serviceDate) return;
     const rid = String(route._id || route.id || '');
@@ -204,60 +187,47 @@ const BusBooking = () => {
       .finally(() => setAvailabilityLoading(false));
   }, [selectedSchedule, route, bus, serviceDate]);
 
-  // ========== REAL-TIME SEAT AVAILABILITY REFRESH ==========
-  // Listen for new bookings and refresh seat availability if booking screen is active
   useEffect(() => {
     if (!selectedSchedule || !route || !bus) {
       return;
     }
 
     const handleSeatBooked = (data: any) => {
-      console.log('🎫 [SEAT BOOKED - PASSENGER] New booking detected:', data);
-      
-      // Refresh seat availability if this is for the current trip
+
       if (String(data.scheduleId) === String(selectedSchedule._id) && String(data.busId) === String(bus._id)) {
-        console.log('🔄 Refreshing seat availability due to new booking');
-        
-        // Refresh availability data
+
         if (route && serviceDate) {
           const rid = String(route._id || route.id || '');
           const bid = String(bus._id || bus.id || '');
           const sid = String(selectedSchedule._id || '');
-          
+
           bookingService
             .checkSeatAvailability({ routeId: rid, busId: bid, scheduleId: sid, serviceDate })
             .then((data) => setAvailabilityData(data))
             .catch((err) => console.warn('Error refreshing seat availability:', err));
         }
-        
-        // Show notification
+
         Alert.alert('Seat Update', `Seats ${data.seatNumbers.join(', ')} just got booked!`);
       }
     };
 
     const handleTripReminder = (data: any) => {
-      console.log('🚌 [TRIP REMINDER] Reminder received:', data);
-      
-      // Show trip reminder with delay info if applicable
+
       const delayText = data.actualDelay > 0 ? `\n\nNote: Trip started ${data.actualDelay} minute(s) late.` : '';
       const message = `Your trip to ${data.destinationStop} is now running. Expected arrival: ${data.eta}.${delayText}\n\nBooking: ${data.bookingCode}`;
-      
+
       Alert.alert('Trip Started', message);
     };
 
-    // Register listeners using passengerNotificationSocket
     passengerNotificationSocket.onSeatBooked(handleSeatBooked);
     passengerNotificationSocket.onTripReminder(handleTripReminder);
 
     return () => {
-      // Unregister listeners
       passengerNotificationSocket.offSeatBooked(handleSeatBooked);
       passengerNotificationSocket.offTripReminder(handleTripReminder);
     };
   }, [selectedSchedule?._id, bus?._id, route, serviceDate]);
-  // ========== END REAL-TIME SEAT AVAILABILITY REFRESH ==========
 
-  // ========== LISTEN FOR CURRENT STOP UPDATES ==========
   useEffect(() => {
     if (!bus) {
       setCurrentStop(null);
@@ -267,14 +237,11 @@ const BusBooking = () => {
     const busId = String(bus._id || bus.id || '');
     if (!busId) return;
 
-    // Join bus room to receive stop updates
     passengerNotificationSocket.joinBusRoom(busId);
 
     const handleCurrentStopUpdate = (data: any) => {
       if (String(data.busId) === busId && data.currentStop) {
         setCurrentStop(data.currentStop);
-        console.log('🛑 [BUS BOOKING] Current stop updated:', data.currentStop);
-        // When current stop updates (stop completed), refresh seat availability
         if (selectedSchedule && route && serviceDate) {
           const rid = String(route._id || route.id || '');
           const bid = String(bus._id || bus.id || '');
@@ -294,7 +261,6 @@ const BusBooking = () => {
       passengerNotificationSocket.leaveBusRoom(busId);
     };
   }, [bus]);
-  // ========== END CURRENT STOP TRACKING ==========
 
   const bookingPrice = route?.fareInfo ?? 150;
 
@@ -369,23 +335,21 @@ const BusBooking = () => {
       return false;
     }
 
-    // Mid-trip booking validation: check if bus has already passed boarding stop
     if (currentStop && route?.stops) {
       const boardingStopNormalized = String(selectedBoardingStop.name || '').trim().toLowerCase();
       const currentStopNormalized = String(currentStop).trim().toLowerCase();
-      
+
       const boardingStopObj = route.stops.find(
         (s) => String(s.name || '').trim().toLowerCase() === boardingStopNormalized
       );
       const currentStopObj = route.stops.find(
         (s) => String(s.name || '').trim().toLowerCase() === currentStopNormalized
       );
-      
+
       if (boardingStopObj && currentStopObj) {
         const boardingSequence = boardingStopObj.order ?? 0;
         const currentSequence = currentStopObj.order ?? 0;
-        
-        // If bus is already past the boarding stop, prevent booking
+
         if (currentSequence > boardingSequence) {
           Alert.alert(
             'Stop Already Passed',
@@ -554,11 +518,9 @@ const BusBooking = () => {
   };
 
   const handleDownloadTicket = async () => {
-    // PDF generation is handled inside BookingSuccessTicket so the UI QR is reused.
   };
 
   const handleViewTicket = () => {
-    // PDF sharing is handled inside BookingSuccessTicket.
   };
 
   if (!bus || !route) {
@@ -624,7 +586,6 @@ const BusBooking = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Schedule Selection */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Select Schedule</Text>
 
@@ -668,7 +629,6 @@ const BusBooking = () => {
           )}
         </View>
 
-        {/* Route Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Route Information</Text>
 
@@ -709,7 +669,6 @@ const BusBooking = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Seat Selection */}
         <View style={styles.section}>
           <View style={styles.seatsHeader}>
             <Text style={styles.sectionTitle}>Select Seats</Text>
@@ -841,7 +800,6 @@ const BusBooking = () => {
           </View>
         </View>
 
-        {/* Price Summary */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Price Summary</Text>
 
@@ -860,7 +818,6 @@ const BusBooking = () => {
               </View>
             )}
 
-            {/* ========== NEW: Reward Points Section ========== */}
             {rewardPoints >= 500 && (
               <View>
                 <View style={styles.priceDivider} />
@@ -900,7 +857,6 @@ const BusBooking = () => {
                 </View>
               </View>
             )}
-            {/* ========== END NEW ========== */}
 
             <View style={styles.priceDivider} />
             {useRewardPoints && discountAmount > 0 && (
@@ -922,7 +878,6 @@ const BusBooking = () => {
         </View>
       </ScrollView>
 
-      {/* Book Button */}
       <View style={styles.bookingFooter}>
         <TouchableOpacity
           style={[styles.bookingButton, loading && styles.bookingButtonDisabled]}
@@ -1216,7 +1171,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#3b82f6',
   },
-  // ========== NEW: Reward Points Styles ==========
   rewardPointsCard: {
     backgroundColor: '#fef3c7',
     borderRadius: 8,
@@ -1261,7 +1215,6 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginLeft: 8,
   },
-  // ========== END NEW ==========
   priceDivider: {
     height: 1,
     backgroundColor: '#d1d5db',
@@ -1511,7 +1464,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
-  // Schedule selection styles
   scheduleList: {
     paddingBottom: 4,
     gap: 8,

@@ -17,21 +17,16 @@ const { detectAndUpdateCurrentStop } = require('./services/distanceUtils');
 const { setIoInstance } = require('./services/ioManager');
 const { setupAccountDeletionCron } = require('./utils/accountDeletionCron');
 
-// Create HTTP server
 const server = http.createServer(app);
 
-// Setup Socket.io with CORS
 const io = new Server(server, {
   cors: {
     origin: ['https://hamrobus-auos.onrender.com','https://hamro-bus.vercel.app', 'http://localhost:8081', 'http://localhost:8082', 'http://localhost:3000', 'http://192.168.1.72:8081', 'http://10.0.2.2:8081'],
-      // include Expo web dev server (default port 19006)
-      // and local dev host variants
       origin: ['https://hamrobus-auos.onrender.com','https://hamro-bus.vercel.app', 'http://localhost:8081', 'http://localhost:8082', 'http://localhost:3000', 'http://localhost:19006', 'http://127.0.0.1:19006', 'http://192.168.1.72:8081', 'http://10.0.2.2:8081'],
     credentials: true,
   },
 });
 
-// Register io instance globally for use in controllers
 setIoInstance(io);
 
 const normalizeBusIds = (busIds) => {
@@ -71,60 +66,42 @@ const getDriverRealtimeMeta = async ({ driverId, busId }) => {
   };
 };
 
-// Socket.io connection handler
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-  
-  // Admin room
+
   socket.on('join-admin', () => {
     socket.join('admin-room');
-    console.log('👨‍💼 Admin joined admin-room, socket:', socket.id);
-    
-    // Get all rooms for this socket
+
     const rooms = Array.from(socket.rooms);
-    console.log('📋 Current rooms for this socket:', rooms);
   });
-  
-  // ===================== NOTIFICATION ROOMS =====================
-  // Driver joins notification room
+
   socket.on('driver:join-notifications', ({ driverId }) => {
     socket.data.driverId = driverId;
     socket.join('drivers-room');
-    console.log(`🚗 Driver ${driverId} joined drivers-room for notifications`);
   });
 
-  // Passenger joins notification room
   socket.on('passenger:join-notifications', ({ passengerId }) => {
     socket.data.passengerId = passengerId;
     socket.join('passengers-room');
     socket.join('passenger:' + passengerId); // personal room for booking status events
-    console.log(`👥 Passenger ${passengerId} joined passengers-room for notifications`);
   });
 
-  // ===================== END NOTIFICATION ROOMS =====================
-  
-  // Driver joins their specific room
+
   socket.on('driver:join', ({ driverId }) => {
     socket.data.driverId = driverId;
     socket.join(`driver:${driverId}`);
-    console.log(`🚗 Driver ${driverId} joined room`);
   });
-  
-  // Driver location broadcasting
+
   socket.on('driver:share-location', async (data) => {
     const { busId, driverId, latitude, longitude, heading, speed } = data;
     socket.data.driverId = driverId;
     socket.data.busId = busId;
-    console.log(`📍 Driver ${driverId} location:`, { latitude, longitude });
-    
+
     let locationPayload;
     let stopUpdate = null;
-    
+
     try {
-      // Get driver metadata for location payload
       const meta = await getDriverRealtimeMeta({ driverId, busId });
       if (meta.isOnBreak) {
-        console.log(`Ignoring live location from driver ${driverId} during break`);
         return;
       }
 
@@ -143,10 +120,8 @@ io.on('connection', (socket) => {
         timestamp: new Date().toISOString(),
       };
 
-      // ========== REAL-TIME STOP TRACKING ==========
       if (meta.tripStatus === 'in-progress') {
         try {
-          // Fetch active trip session
           const activeTrip = await TripSession.findOne({
             driverId,
             status: 'in-progress',
@@ -154,7 +129,6 @@ io.on('connection', (socket) => {
             .sort({ updatedAt: -1 });
 
           if (activeTrip) {
-            // Fetch route and schedule for stop detection
             const [routeDoc, scheduleDoc] = await Promise.all([
               Route.findById(activeTrip.routeId).lean(),
               activeTrip.scheduleId
@@ -172,7 +146,6 @@ io.on('connection', (socket) => {
             ]);
 
             if (routeDoc) {
-              // Detect if driver reached a new stop
               const stopDetection = await detectAndUpdateCurrentStop(
                 activeTrip,
                 latitude,
@@ -194,7 +167,6 @@ io.on('connection', (socket) => {
                   timestamp: new Date().toISOString(),
                 };
 
-                console.log(`🛑 [STOP CHANGED] Emitting driver:current-stop:`, stopUpdate);
               }
             }
           }
@@ -202,7 +174,6 @@ io.on('connection', (socket) => {
           console.error('Error detecting stop update:', error);
         }
       }
-      // ========== END STOP TRACKING ==========
     } catch (error) {
       console.error('Error enriching driver realtime metadata:', error);
       locationPayload = {
@@ -217,16 +188,11 @@ io.on('connection', (socket) => {
         timestamp: new Date().toISOString(),
       };
     }
-    
-    // Broadcast location to all passengers tracking this bus
-    io.to(`bus:${busId}`).emit('driver:location-update', locationPayload);
-    console.log(`✅ Broadcast to bus:${busId}`);
-    
-    // Also broadcast to admin room for real-time monitoring
-    io.to('admin-room').emit('driver:location-update', locationPayload);
-    console.log('✅ Broadcast to admin-room');
 
-    // Persist last known location to Bus document so admin/panel can show last location even if driver goes offline
+    io.to(`bus:${busId}`).emit('driver:location-update', locationPayload);
+
+    io.to('admin-room').emit('driver:location-update', locationPayload);
+
     try {
       if (busId) {
         await Bus.findByIdAndUpdate(busId, {
@@ -245,11 +211,9 @@ io.on('connection', (socket) => {
       console.warn('Failed to persist lastKnownLocation for bus:', err.message || err);
     }
 
-    // If stop changed, emit to admin and bus rooms
     if (stopUpdate) {
       io.to('admin-room').emit('driver:current-stop', stopUpdate);
       io.to(`bus:${busId}`).emit('driver:current-stop', stopUpdate);
-      console.log(`✅ Broadcast driver:current-stop to admin-room and bus:${busId}`);
     }
   });
 
@@ -285,21 +249,15 @@ io.on('connection', (socket) => {
 
     if (busId) {
       io.to(`bus:${busId}`).emit('driver:location-offline', offlinePayload);
-      console.log(`🛑 Broadcast offline to bus:${busId}`);
     }
 
     io.to('admin-room').emit('driver:location-offline', offlinePayload);
-    console.log('🛑 Broadcast offline to admin-room');
   });
-  
-  // Passenger tracking
+
   socket.on('passenger:track-bus', ({ busId }) => {
     socket.join(`bus:${busId}`);
-    console.log(`🚌 [PASSENGER] Socket ${socket.id} joined bus:${busId} room`);
-    
-    // Get all rooms this socket is in
+
     const rooms = Array.from(socket.rooms);
-    console.log(`📋 [PASSENGER] Socket ${socket.id} is now in rooms:`, rooms);
   });
 
   socket.on('passenger:track-buses', ({ busIds }) => {
@@ -308,14 +266,11 @@ io.on('connection', (socket) => {
       socket.join(`bus:${busId}`);
     });
 
-    console.log(`🚌 [PASSENGER] Socket ${socket.id} joined ${normalizedBusIds.length} bus rooms`);
     const rooms = Array.from(socket.rooms);
-    console.log(`📋 [PASSENGER] Socket ${socket.id} is now in rooms:`, rooms);
   });
-  
+
   socket.on('passenger:stop-tracking', ({ busId }) => {
     socket.leave(`bus:${busId}`);
-    console.log(`🛑 [PASSENGER] Socket ${socket.id} left bus:${busId} room`);
   });
 
   socket.on('passenger:stop-tracking-buses', ({ busIds }) => {
@@ -323,27 +278,21 @@ io.on('connection', (socket) => {
     normalizedBusIds.forEach((busId) => {
       socket.leave(`bus:${busId}`);
     });
-    console.log(`🛑 [PASSENGER] Socket ${socket.id} left ${normalizedBusIds.length} bus rooms`);
   });
 
-  // ========== NEW: Handle bus room join/leave for occupancy updates ==========
   socket.on('passenger:join-bus-room', ({ busId }) => {
     if (!busId) return;
     socket.join(`bus:${busId}`);
-    console.log(`✅ [PASSENGER] Socket ${socket.id} joined bus:${busId} room for real-time occupancy`);
   });
 
   socket.on('passenger:leave-bus-room', ({ busId }) => {
     if (!busId) return;
     socket.leave(`bus:${busId}`);
-    console.log(`✅ [PASSENGER] Socket ${socket.id} left bus:${busId} room`);
   });
-  // ========== END NEW ==========
-  
+
   socket.on('disconnect', () => {
     const { driverId, busId, passengerId} = socket.data || {};
-    
-    // Handle driver disconnect
+
     if (driverId) {
       const offlinePayload = {
         driverId,
@@ -356,19 +305,14 @@ io.on('connection', (socket) => {
       }
 
       io.to('admin-room').emit('driver:location-offline', offlinePayload);
-      console.log(`🛑 Driver ${driverId} disconnected, emitted offline`);
     }
 
-    // Handle passenger disconnect
     if (passengerId) {
-      console.log(`🛑 Passenger ${passengerId} disconnected`);
     }
 
-    console.log('Client disconnected:', socket.id);
   });
 });
 
-// Make io accessible to routes
 app.set('io', io);
 
 app.use(
@@ -398,9 +342,6 @@ const startMissedTripScheduler = () => {
     try {
       const result = await processMissedTripsForToday({io});
       if ((result?.totalCancelled || 0) > 0) {
-        console.log(
-          `🕒 Missed-trip check: cancelled ${result.totalCancelled} booking(s) across ${result.processed} schedule(s)`
-        );
       }
     } catch (error) {
       console.error('Missed-trip scheduler error:', error);
@@ -409,22 +350,18 @@ const startMissedTripScheduler = () => {
     }
   };
 
-  // Run once shortly after startup, then on interval.
   setTimeout(runMissedTripCheck, 15 * 1000);
   setInterval(runMissedTripCheck, intervalMs);
-  console.log(`🕒 Missed-trip scheduler started (every ${intervalMinutes} minute(s))`);
 };
 
-// Initialize database and drop old indexes
 const startServer = async () => {
   await connectDB();
   await dropOldBusIndex();
   await initializeAdmin();
   startMissedTripScheduler();
-  
+
   const PORT = process.env.PORT || 5000;
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running at http://localhost:${PORT}`);
     setupAccountDeletionCron();
   });
 };

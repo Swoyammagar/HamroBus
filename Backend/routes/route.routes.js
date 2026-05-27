@@ -14,13 +14,11 @@ const {
     deleteSchedule
 } = require("../controllers/admin/route.controller");
 
-// Public read
 router.get("/", getAllRoutes);
 router.get("/:routeId", getRouteById);
 router.get("/:routeId/schedules", getRouteSchedules);
 router.get("/:routeId/stops/:stopName/arrivals", getRouteStopArrivals);
 
-// Admin write
 router.post("/", authenticateAdmin, createRoute);
 router.put("/:routeId", authenticateAdmin, updateRoute);
 router.delete("/:routeId", authenticateAdmin, deleteRoute);

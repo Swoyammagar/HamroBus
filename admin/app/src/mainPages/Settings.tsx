@@ -88,7 +88,6 @@ const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
   return (
     <View style={styles.container}>
     <ScrollView style={styles.scrollContainer}>
-      {/* Profile Update Section */}
       <View style={styles.section}>
         <Pressable
           style={styles.sectionButton}
@@ -202,9 +201,8 @@ const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
         )}
       </View>
 
-      {/* Password Change Section */}
       <View style={styles.section}>
-        <Pressable 
+        <Pressable
           style={styles.sectionButton}
           onPress={() => {
             setShowPasswordForm(!showPasswordForm);
@@ -221,16 +219,15 @@ const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
               <Text style={styles.sectionButtonSubtitle}>Update your admin password</Text>
             </View>
           </View>
-          <Feather 
-            name={showPasswordForm ? 'chevron-up' : 'chevron-down'} 
-            size={24} 
-            color="#999" 
+          <Feather
+            name={showPasswordForm ? 'chevron-up' : 'chevron-down'}
+            size={24}
+            color="#999"
           />
         </Pressable>
 
         {showPasswordForm && (
           <View style={styles.form}>
-            {/* Current Password */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>Current Password</Text>
               <View style={styles.inputContainer}>
@@ -243,16 +240,15 @@ const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
                   editable={!loading}
                 />
                 <Pressable onPress={() => setShowCurrent(!showCurrent)}>
-                  <Feather 
-                    name={showCurrent ? 'eye' : 'eye-off'} 
-                    size={20} 
-                    color="#999" 
+                  <Feather
+                    name={showCurrent ? 'eye' : 'eye-off'}
+                    size={20}
+                    color="#999"
                   />
                 </Pressable>
               </View>
             </View>
 
-            {/* New Password */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>New Password</Text>
               <View style={styles.inputContainer}>
@@ -265,16 +261,15 @@ const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
                   editable={!loading}
                 />
                 <Pressable onPress={() => setShowNew(!showNew)}>
-                  <Feather 
-                    name={showNew ? 'eye' : 'eye-off'} 
-                    size={20} 
-                    color="#999" 
+                  <Feather
+                    name={showNew ? 'eye' : 'eye-off'}
+                    size={20}
+                    color="#999"
                   />
                 </Pressable>
               </View>
             </View>
 
-            {/* Confirm Password */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>Confirm Password</Text>
               <View style={styles.inputContainer}>
@@ -287,16 +282,15 @@ const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
                   editable={!loading}
                 />
                 <Pressable onPress={() => setShowConfirm(!showConfirm)}>
-                  <Feather 
-                    name={showConfirm ? 'eye' : 'eye-off'} 
-                    size={20} 
-                    color="#999" 
+                  <Feather
+                    name={showConfirm ? 'eye' : 'eye-off'}
+                    size={20}
+                    color="#999"
                   />
                 </Pressable>
               </View>
             </View>
 
-            {/* Error Message */}
             {error && (
               <View style={styles.errorAlert}>
                 <Feather name="alert-circle" size={18} color="#ef4444" />
@@ -304,7 +298,6 @@ const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
               </View>
             )}
 
-            {/* Success Message */}
             {success && (
               <View style={styles.successAlert}>
                 <Feather name="check-circle" size={18} color="#22c55e" />
@@ -312,7 +305,6 @@ const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
               </View>
             )}
 
-            {/* Action Buttons */}
             <View style={styles.buttonGroup}>
               <Pressable
                 style={[styles.button, styles.cancelButton]}
@@ -344,7 +336,6 @@ const Settings: React.FC<SettingsProps> = ({ onOpenLegal }) => {
         )}
       </View>
 
-      {/* Frontend-only static legal documents for admin review and support use. */}
       <View style={styles.section}>
         <Pressable style={styles.sectionButton} onPress={onOpenLegal}>
           <View style={styles.sectionButtonContent}>

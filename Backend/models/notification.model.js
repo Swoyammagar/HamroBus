@@ -109,7 +109,6 @@ const notificationSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Index for frequently queried fields
 notificationSchema.index({ targetAudience: 1, createdAt: -1 });
 notificationSchema.index({ 'readBy.userId': 1 });
 notificationSchema.index({ status: 1 });

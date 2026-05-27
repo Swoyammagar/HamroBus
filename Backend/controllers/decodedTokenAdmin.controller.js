@@ -6,9 +6,8 @@ const Admin = require("../models/admin.model");
  */
 const currentUser = async (req, res) => {
   try {
-    // Use req.user from middleware (already verified)
     const userId = req.user.id;
-    
+
     const admin = await Admin.findById(userId).select('-password -otp -refreshToken');
 
     if (!admin) {
@@ -25,7 +24,7 @@ const currentUser = async (req, res) => {
         fullname: admin.fullname,
         email: admin.email,
         phone: admin.phone,
-        role: admin.role, // ✅ Include role in response
+        role: admin.role,
         isVerified: admin.isVerified
       }
     });

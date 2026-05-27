@@ -36,7 +36,6 @@ export const useDriverPasswordChange = () => {
         setError(null);
         setSuccess(false);
 
-        // Validate inputs
         if (!currentPassword) {
           throw { message: 'Current password is required', field: 'currentPassword' };
         }
@@ -49,23 +48,19 @@ export const useDriverPasswordChange = () => {
           throw { message: 'Confirm password is required', field: 'confirmPassword' };
         }
 
-        // Validate password strength
         const validation = validatePassword(newPassword);
         if (!validation.minLength) {
           throw { message: 'Password must be at least 8 characters', field: 'newPassword' };
         }
 
-        // Check if passwords match
         if (newPassword !== confirmPassword) {
           throw { message: 'Passwords do not match', field: 'confirmPassword' };
         }
 
-        // Check if new password is different from current password
         if (currentPassword === newPassword) {
           throw { message: 'New password must be different from current password', field: 'newPassword' };
         }
 
-        // Call API
         const response = await driverProfileService.changePassword(
           currentPassword,
           newPassword,

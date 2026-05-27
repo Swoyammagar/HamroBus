@@ -20,8 +20,6 @@ interface LicenseForm {
   licenseImage: string | null;
 }
 
-// Accepts common Nepal license entries such as 01-06-12345678, BAG-01-1234567,
-// and older numeric records while rejecting short or symbol-heavy input.
 const validateNepalLicenseNumber = (value: string) => {
   const normalized = value.trim().toUpperCase();
   const compact = normalized.replace(/[\s\-/.]/g, "");
@@ -50,14 +48,14 @@ const validateNepalLicenseNumber = (value: string) => {
 
 const License = () => {
   const { signupData, updateSignupData } = useDriverSignup();
-  
+
   const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm<LicenseForm>({
     defaultValues: {
       licenseNo: signupData.licenseNo || "",
       licenseImage: signupData.licenseImage || null,
     },
   });
-  
+
   const licenseImage = watch("licenseImage");
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
@@ -72,8 +70,8 @@ const License = () => {
       setValue("licenseImage", result.assets[0].uri);
     }
   };
-  
-    
+
+
   const onSubmit = (data: LicenseForm) => {
     if (!data.licenseImage) {
       alert("Please upload a license image.");
@@ -127,9 +125,8 @@ const License = () => {
           {errors.licenseNo && <Text style={styles.errorText}>{errors.licenseNo.message}</Text>}
 
 
-          {/* License Image Upload */}
           <TouchableOpacity style={styles.imagePicker} onPress={handlePickImage}>
-            
+
             {licenseImage ? (
                 <View style={styles.imageWrapper}>
                   <Image
@@ -266,4 +263,4 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 });
-  
+

@@ -57,7 +57,6 @@ export default function PassengerLogModal({
     >
       <View style={styles.backdrop}>
         <View style={[styles.card, shadow.card]}>
-          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Log Passengers</Text>
             <Pressable onPress={onClose}>
@@ -65,7 +64,6 @@ export default function PassengerLogModal({
             </Pressable>
           </View>
 
-          {/* Counter Section */}
           <View style={styles.section}>
             <Text style={styles.label}>Current Count</Text>
             <View style={styles.counterRow}>
@@ -87,7 +85,6 @@ export default function PassengerLogModal({
             </View>
           </View>
 
-          {/* Capacity Info */}
           <View style={styles.capacityInfo}>
             <View style={styles.capacityRow}>
               <Text style={styles.capacityLabel}>Capacity</Text>
@@ -101,7 +98,6 @@ export default function PassengerLogModal({
             </Text>
           </View>
 
-          {/* Quick Add Buttons */}
           <View style={styles.section}>
             <Text style={styles.label}>Quick Add</Text>
             <View style={styles.quickAddRow}>
@@ -123,16 +119,15 @@ export default function PassengerLogModal({
             </View>
           </View>
 
-          {/* Action Buttons */}
           <View style={styles.buttonRow}>
-            <Pressable 
-              style={styles.cancelButton} 
+            <Pressable
+              style={styles.cancelButton}
               onPress={onClose}
               disabled={isLoading}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </Pressable>
-            <Pressable 
+            <Pressable
               style={[styles.confirmButton, isLoading && { opacity: 0.6 }]}
               onPress={handleConfirm}
               disabled={isLoading}

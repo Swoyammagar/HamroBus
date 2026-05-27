@@ -7,7 +7,6 @@ export const useDriverFAQ = () => {
   const [error, setError] = useState<string | null>(null);
   const [faqs, setFaqs] = useState<any[]>([]);
 
-  // ✅ DRIVER SUBMIT FAQ
   const submitFAQ = useCallback(
     async (
       name: string,
@@ -64,7 +63,6 @@ export const useDriverFAQ = () => {
     []
   );
 
-  // ✅ DRIVER GET FAQs (FIXED ROUTE)
   const getUserFAQs = useCallback(
     async (page = 1, limit = 10) => {
       setLoading(true);

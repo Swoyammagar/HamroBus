@@ -29,7 +29,6 @@ export const useRewardPoints = () => {
     try {
       const result = await RewardService.redeemPoints(bookingAmount);
       if (result.success && rewardInfo) {
-        // Update local state with new points
         setRewardInfo({
           ...rewardInfo,
           data: {

@@ -3,6 +3,11 @@ const Admin = require("../models/admin.model");
 const {
   generateToken,
   verifyRefreshToken,
+  decodeRefreshToken,
+  hasAdminRefreshToken,
+  removeAdminRefreshToken,
+  addAdminRefreshToken,
+  pruneExpiredAdminRefreshTokens,
 } = require("../utils/authutils");
 const { authCookieOptions } = require("../utils/cookieOptions");
 
@@ -69,7 +74,6 @@ async function authenticateAdmin(req, res, next) {
           });
         }
 
-        console.log("⚠️ Access token expired. Attempting refresh...");
       }
     }
 
@@ -94,6 +98,16 @@ async function authenticateAdmin(req, res, next) {
     const refreshPayload = verifyRefreshToken(refreshToken);
 
     if (!refreshPayload) {
+      const decoded = decodeRefreshToken(refreshToken);
+      if (decoded?.id) {
+        const adminWithToken = await Admin.findById(decoded.id).select("+refreshToken +refreshTokens");
+        if (adminWithToken && hasAdminRefreshToken(adminWithToken, refreshToken)) {
+          removeAdminRefreshToken(adminWithToken, refreshToken);
+          pruneExpiredAdminRefreshTokens(adminWithToken);
+          await adminWithToken.save();
+        }
+      }
+
       return res.status(401).json({
         error: "Refresh token invalid or expired",
         message: "Please login again",
@@ -103,7 +117,7 @@ async function authenticateAdmin(req, res, next) {
     /**
      * Fetch admin
      */
-    admin = await Admin.findById(refreshPayload.id);
+    admin = await Admin.findById(refreshPayload.id).select("+refreshToken +refreshTokens");
 
     if (!admin) {
       return res.status(401).json({
@@ -113,17 +127,20 @@ async function authenticateAdmin(req, res, next) {
     }
 
     /**
-     * Verify stored refresh token matches
+     * Verify refresh token belongs to one active admin session
      */
-    if (
-      admin.refreshToken &&
-      admin.refreshToken !== refreshToken
-    ) {
+    if (!hasAdminRefreshToken(admin, refreshToken)) {
       return res.status(401).json({
-        error: "Refresh token mismatch",
+        error: "Refresh token not recognized",
         message: "Please login again",
       });
     }
+
+    pruneExpiredAdminRefreshTokens(admin);
+    if (admin.refreshToken === refreshToken) {
+      addAdminRefreshToken(admin, refreshToken);
+    }
+    await admin.save();
 
     /**
      * Generate new access token
@@ -133,7 +150,6 @@ async function authenticateAdmin(req, res, next) {
     res.cookie("access_token", newAccessToken, authCookieOptions(15 * 60 * 1000));
     res.cookie("refresh_token", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
-    console.log("✅ Access token refreshed");
 
     /**
      * Attach user

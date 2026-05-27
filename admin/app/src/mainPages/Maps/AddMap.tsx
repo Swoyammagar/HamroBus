@@ -86,7 +86,7 @@ const AddMap: React.FC<AddMapProps> = ({
     Marker,
     Popup,
     useMapEvents,
-    useMap, // ← added
+    useMap,
   } = leaflet;
 
   const center =
@@ -104,7 +104,6 @@ const AddMap: React.FC<AddMapProps> = ({
     return null;
   };
 
-  // ← NEW: captures map instance into mapRef via useMap hook
   const MapRefCapture = () => {
     const map = useMap();
     mapRef.current = map;
@@ -113,7 +112,6 @@ const AddMap: React.FC<AddMapProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Search Bar */}
       <div style={s.searchContainer}>
         <input
           type="text"
@@ -133,7 +131,7 @@ const AddMap: React.FC<AddMapProps> = ({
                   const lat = parseFloat(result.lat);
                   const lon = parseFloat(result.lon);
 
-                  mapRef.current?.flyTo([lat, lon], 15); // ← now works correctly
+                  mapRef.current?.flyTo([lat, lon], 15);
                   setSearchMarker([lat, lon]);
                   setSearchResults([]);
                   setSearchQuery(result.display_name);
@@ -154,7 +152,7 @@ const AddMap: React.FC<AddMapProps> = ({
           zoom={13}
           style={{ height: "100%", width: "100%", cursor: "crosshair" }}
         >
-          <MapRefCapture /> {/* ← added */}
+          <MapRefCapture />
           <MapClickHandler />
 
           <TileLayer
@@ -185,7 +183,6 @@ const AddMap: React.FC<AddMapProps> = ({
             </Marker>
           ))}
 
-          {/* ← right-click on search marker now removes it */}
           {searchMarker && (
             <Marker
               position={searchMarker}

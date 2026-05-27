@@ -1,10 +1,10 @@
 /**
  * SPLASH SCREEN
- * 
+ *
  * This component is rendered FIRST on app launch.
  * It waits for auth state to be restored from AsyncStorage BEFORE
  * rendering the login screen or app navigation.
- * 
+ *
  * This prevents the race condition where login is shown before tokens are restored.
  */
 
@@ -19,22 +19,16 @@ export default function SplashScreen() {
   const { isLoading, token, user, driver, passenger } = useAuth();
 
   useEffect(() => {
-    // Once auth loading is complete, determine where to navigate
     if (!isLoading) {
       if (token && user) {
-        // User has valid token and user data, navigate to app
         if (driver?.id) {
-          // User is a driver
           router.replace('/driver/app');
         } else if (passenger?.id) {
-          // User is a passenger
           router.replace('/passenger/(tabs)/home');
         } else {
-          // User data exists but no driver/passenger profile, navigate to login
           router.replace('/pages/mobilelogin');
         }
       } else {
-        // No auth data, navigate to login
         router.replace('/pages/mobilelogin');
       }
     }

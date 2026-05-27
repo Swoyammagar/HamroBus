@@ -15,8 +15,7 @@ const Preference: React.FC = () => {
         <View className="flex-1 min-h-screen bg-[#f9f9f9] items-center py-10">
           <View className="w-full mt-6 flex-col lg:flex-row items-center justify-between max-w-[1200px]">
 
-            {/* Left Side */}
-            
+
                 <View style={{ marginBottom: 40, justifyContent: "center", alignItems: "center" }}>
                     <Image
                         source={mainLogo}
@@ -24,7 +23,6 @@ const Preference: React.FC = () => {
                     />
                 </View>
 
-              {/* Heading */}
                 <View className="flex-row mb-4 justify-center">
                     <Text className="text-3xl font-medium text-black">Choose Your</Text>
                     <Text className="text-3xl font-medium text-[#27AE60] ml-2">Preference</Text>
@@ -36,10 +34,10 @@ const Preference: React.FC = () => {
                     <TouchableOpacity className="bg-[#27AE60] rounded-lg py-3">
                         <Text className="text-white text-center text-base font-medium" onPress={()=>router.push("/driver/signupScreens/emailPage")}>Sign Up as Driver</Text>
                     </TouchableOpacity>
-                </View>   
+                </View>
             </View>
           </View>
-       
+
       </>
     );
 }

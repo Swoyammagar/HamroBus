@@ -1,10 +1,30 @@
 const Admin = require('../models/admin.model');
 const Driver = require('../models/driver.model');
 const Passenger = require('../models/passenger.model');
-const { generateToken, generateRefreshToken, verifyRefreshToken } = require('../utils/authutils');
+const {
+  generateToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+  decodeRefreshToken,
+  hasAdminRefreshToken,
+  addAdminRefreshToken,
+  removeAdminRefreshToken,
+  pruneExpiredAdminRefreshTokens,
+} = require('../utils/authutils');
 const { authCookieOptions, clearAuthCookieOptions } = require('../utils/cookieOptions');
 
-// Accepts a refresh token and issues a new access token
+const removeUnusableAdminRefreshToken = async (refreshToken) => {
+  const decoded = decodeRefreshToken(refreshToken);
+  if (!decoded?.id) return;
+
+  const admin = await Admin.findById(decoded.id).select('+refreshToken +refreshTokens');
+  if (!admin || !hasAdminRefreshToken(admin, refreshToken)) return;
+
+  removeAdminRefreshToken(admin, refreshToken);
+  pruneExpiredAdminRefreshTokens(admin);
+  await admin.save();
+};
+
 const refreshAccessToken = async (req, res) => {
   try {
     const refreshToken = req.cookies.refresh_token;
@@ -16,35 +36,44 @@ const refreshAccessToken = async (req, res) => {
     const payload = verifyRefreshToken(refreshToken);
     if (!payload) {
       console.warn('[Auth] Invalid refresh token');
+      await removeUnusableAdminRefreshToken(refreshToken);
       return res.status(401).json({ message: 'Invalid refresh token' });
     }
 
-    // Check admins, drivers, and passengers for the token
     const userId = payload.id;
-    let user = await Admin.findById(userId);
+    let user = await Admin.findById(userId).select('+refreshToken +refreshTokens');
     if (!user) user = await Driver.findById(userId);
     if (!user) user = await Passenger.findById(userId);
-    
+
     if (!user) {
       console.warn(`[Auth] User not found for ID: ${userId}`);
       return res.status(401).json({ message: 'User not found' });
     }
 
-    // Allow refresh if:
-    // 1. Token in DB matches OR
-    // 2. No token in DB (for backward compatibility with users who logged in before this fix)
-    if (user.refreshToken && user.refreshToken !== refreshToken) {
+    const isAdmin = user.constructor.modelName === 'Admin';
+    if (isAdmin) {
+      if (!hasAdminRefreshToken(user, refreshToken)) {
+        console.warn(`[Auth] Refresh token not recognized for admin ${userId}`);
+        return res.status(401).json({ message: 'Refresh token not recognized' });
+      }
+    } else if (user.refreshToken && user.refreshToken !== refreshToken) {
       console.warn(`[Auth] Refresh token mismatch for user ${userId}`);
       return res.status(401).json({ message: 'Refresh token mismatch' });
     }
 
-    // Issue new access token
     const accessToken = generateToken(user);
-    
-    // Set new access token in httpOnly cookie
+    let nextRefreshToken = refreshToken;
+    if (isAdmin) {
+      nextRefreshToken = generateRefreshToken(user);
+      pruneExpiredAdminRefreshTokens(user);
+      removeAdminRefreshToken(user, refreshToken);
+      addAdminRefreshToken(user, nextRefreshToken);
+      await user.save();
+    }
+
     res.cookie('access_token', accessToken, authCookieOptions(15 * 60 * 1000));
-    res.cookie('refresh_token', refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
-    
+    res.cookie('refresh_token', nextRefreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
+
     res.status(200).json({ success: true, message: 'Token refreshed' });
   } catch (error) {
     console.error('[Auth] Refresh token error:', error);
@@ -52,31 +81,34 @@ const refreshAccessToken = async (req, res) => {
   }
 };
 
-// Logout: clear stored refresh token and cookies
 const logout = async (req, res) => {
   const refreshToken = req.cookies.refresh_token;
   if (refreshToken) {
     const payload = verifyRefreshToken(refreshToken);
-    if (payload) {
+    if (!payload) {
+      await removeUnusableAdminRefreshToken(refreshToken);
+    } else {
       const userId = payload.id;
-      let user = await Admin.findById(userId);
+      let user = await Admin.findById(userId).select('+refreshToken +refreshTokens');
       if (!user) user = await Driver.findById(userId);
       if (!user) user = await Passenger.findById(userId);
       if (user) {
-        user.refreshToken = null;
+        if (user.constructor.modelName === 'Admin') {
+          removeAdminRefreshToken(user, refreshToken);
+        } else {
+          user.refreshToken = null;
+        }
         await user.save();
       }
     }
   }
-  
-  // Clear cookies
+
   res.clearCookie('access_token', clearAuthCookieOptions());
   res.clearCookie('refresh_token', clearAuthCookieOptions());
-  
+
   res.status(200).json({ message: 'Logged out' });
 };
 
-// ✅ NEW: Mobile-specific refresh token (receives token in body, returns JSON)
 const refreshAccessTokenMobile = async (req, res) => {
   try {
     const { refreshToken } = req.body;
@@ -86,24 +118,43 @@ const refreshAccessTokenMobile = async (req, res) => {
 
     const payload = verifyRefreshToken(refreshToken);
     if (!payload) {
+      await removeUnusableAdminRefreshToken(refreshToken);
       return res.status(403).json({ success: false, message: 'Invalid refresh token' });
     }
 
     const userId = payload.id;
-    let user = await Admin.findById(userId);
+    let user = await Admin.findById(userId).select('+refreshToken +refreshTokens');
     if (!user) user = await Driver.findById(userId);
     if (!user) user = await Passenger.findById(userId);
 
-    if (!user || user.refreshToken !== refreshToken) {
+    if (!user) {
       return res.status(403).json({ success: false, message: 'Refresh token not recognized' });
     }
 
-    // Issue new access token
+    const isAdmin = user.constructor.modelName === 'Admin';
+    if (isAdmin) {
+      if (!hasAdminRefreshToken(user, refreshToken)) {
+        return res.status(403).json({ success: false, message: 'Refresh token not recognized' });
+      }
+    } else if (user.refreshToken !== refreshToken) {
+      return res.status(403).json({ success: false, message: 'Refresh token not recognized' });
+    }
+
     const accessToken = generateToken(user);
-    res.status(200).json({ 
-      success: true, 
+    let nextRefreshToken = refreshToken;
+    if (isAdmin) {
+      nextRefreshToken = generateRefreshToken(user);
+      pruneExpiredAdminRefreshTokens(user);
+      removeAdminRefreshToken(user, refreshToken);
+      addAdminRefreshToken(user, nextRefreshToken);
+      await user.save();
+    }
+
+    res.status(200).json({
+      success: true,
       accessToken,
-      message: 'Token refreshed' 
+      refreshToken: nextRefreshToken,
+      message: 'Token refreshed'
     });
   } catch (error) {
     console.error('Mobile token refresh error:', error);
@@ -111,47 +162,50 @@ const refreshAccessTokenMobile = async (req, res) => {
   }
 };
 
-// ✅ NEW: Mobile-specific logout (receives token in body)
 const logoutMobile = async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    
+
     if (!refreshToken) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Refresh token required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Refresh token required'
       });
     }
 
     const payload = verifyRefreshToken(refreshToken);
     if (!payload) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Invalid refresh token' 
+      await removeUnusableAdminRefreshToken(refreshToken);
+      return res.status(403).json({
+        success: false,
+        message: 'Invalid refresh token'
       });
     }
 
     const userId = payload.id;
-    let user = await Admin.findById(userId);
+    let user = await Admin.findById(userId).select('+refreshToken +refreshTokens');
     if (!user) user = await Driver.findById(userId);
     if (!user) user = await Passenger.findById(userId);
 
     if (user) {
-      // Clear the refresh token from database
-      user.refreshToken = null;
+      if (user.constructor.modelName === 'Admin') {
+        removeAdminRefreshToken(user, refreshToken);
+      } else {
+        user.refreshToken = null;
+      }
       await user.save();
     }
 
-    res.status(200).json({ 
-      success: true, 
-      message: 'Logged out successfully' 
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully'
     });
 
   } catch (error) {
     console.error('Mobile logout error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Logout failed' 
+    res.status(500).json({
+      success: false,
+      message: 'Logout failed'
     });
   }
 };

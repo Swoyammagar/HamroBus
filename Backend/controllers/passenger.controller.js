@@ -13,24 +13,20 @@ const registerPassenger = async (req, res) => {
             return res.status(400).json({ message: "Missing required fields" });
         }
 
-        // Check if email already exists
         const existingPassenger = await Passenger.findOne({ email });
         if (existingPassenger) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 message: "Passenger with this email already exists"
             });
         }
 
-        // Check if phone number already exists
         const existingPhone = await Passenger.findOne({ phoneNumber });
         if (existingPhone) {
             return res.status(400).json({ message: "Phone number already in use" });
         }
 
-        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create new passenger
         const newPassenger = new Passenger({
             firstName,
             lastName,
@@ -67,28 +63,23 @@ const registerPassenger = async (req, res) => {
     }
 };
 
-// Passenger Login
 const loginPassenger = async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        // Find passenger by email
         const passenger = await Passenger.findOne({ email });
         if (!passenger) {
             return res.status(404).json({ message: "Passenger not found" });
         }
 
-        // Verify password
         const isPasswordValid = await bcrypt.compare(password, passenger.password);
         if (!isPasswordValid) {
             return res.status(401).json({ message: "Invalid password" });
         }
 
-        // Generate tokens
         const accessToken = generateToken(passenger);
         const refreshToken = generateRefreshToken(passenger);
 
-        // Save refresh token
         passenger.refreshToken = refreshToken;
         await passenger.save();
 
@@ -115,7 +106,6 @@ const loginPassenger = async (req, res) => {
     }
 };
 
-// Get Passenger Profile
 const getPassengerProfile = async (req, res) => {
     const passengerId = req.user.id; // From JWT middleware
 
@@ -151,7 +141,6 @@ const getPassengerProfile = async (req, res) => {
     }
 };
 
-// Update Passenger Profile (firstName, lastName, phoneNumber, profileImgUrl)
 const updatePassengerProfile = async (req, res) => {
     const passengerId = req.user.id; // From JWT middleware
     const { firstName, lastName, address, phoneNumber, profileImgUrl } = req.body;
@@ -162,26 +151,22 @@ const updatePassengerProfile = async (req, res) => {
             return res.status(404).json({ message: "Passenger not found" });
         }
 
-        // Validate and update firstName
         if (firstName !== undefined && firstName !== null && firstName.trim() !== '') {
             passenger.firstName = firstName.trim();
         } else if (firstName === '') {
             return res.status(400).json({ message: "First name cannot be empty" });
         }
 
-        // Validate and update lastName
         if (lastName !== undefined && lastName !== null && lastName.trim() !== '') {
             passenger.lastName = lastName.trim();
         } else if (lastName === '') {
             return res.status(400).json({ message: "Last name cannot be empty" });
         }
 
-        // Update address
         if (address !== undefined) {
             passenger.address = address || '';
         }
 
-        // Validate and update phone number
         if (phoneNumber) {
             const isUnique = await isPhoneNumberUnique(Passenger, phoneNumber, passengerId);
             if (!isUnique) {
@@ -190,7 +175,6 @@ const updatePassengerProfile = async (req, res) => {
             passenger.phoneNumber = phoneNumber;
         }
 
-        // Update profile image
         if (profileImgUrl !== undefined) {
             passenger.profileImgUrl = profileImgUrl || '';
         }
@@ -229,7 +213,6 @@ const changePassengerPassword = async (req, res) => {
     const { currentPassword, newPassword, confirmPassword } = req.body;
 
     try {
-        // Validate input
         if (!currentPassword || !newPassword || !confirmPassword) {
             return res.status(400).json({ message: "Current password, new password, and confirmation are required" });
         }
@@ -246,19 +229,16 @@ const changePassengerPassword = async (req, res) => {
             return res.status(400).json({ message: "New password must be different from current password" });
         }
 
-        // Find passenger
         const passenger = await Passenger.findById(passengerId);
         if (!passenger) {
             return res.status(404).json({ message: "Passenger not found" });
         }
 
-        // Verify current password
         const isPasswordValid = await comparePassword(currentPassword, passenger.password);
         if (!isPasswordValid) {
             return res.status(401).json({ message: "Current password is incorrect" });
         }
 
-        // Hash and save new password
         const hashedPassword = await hashPassword(newPassword);
         passenger.password = hashedPassword;
         await passenger.save();
@@ -374,9 +354,9 @@ const getMyReviews = async (req, res) => {
         const passengerId = req.user?.id || req.body?.passengerId;
 
         if (!passengerId) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: "Passenger ID is required" 
+                message: "Passenger ID is required"
             });
         }
 
@@ -403,9 +383,9 @@ const getMyReviews = async (req, res) => {
         });
     } catch (error) {
         console.error("Error getting passenger reviews:", error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
-            message: "Internal server error" 
+            message: "Internal server error"
         });
     }
 };
@@ -418,9 +398,9 @@ const getMyReviewStats = async (req, res) => {
         const passengerId = req.user?.id || req.body?.passengerId;
 
         if (!passengerId) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: "Passenger ID is required" 
+                message: "Passenger ID is required"
             });
         }
 
@@ -437,9 +417,9 @@ const getMyReviewStats = async (req, res) => {
         });
     } catch (error) {
         console.error("Error getting review stats:", error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
-            message: "Internal server error" 
+            message: "Internal server error"
         });
     }
 };
@@ -452,9 +432,9 @@ const requestDeleteProfile = async (req, res) => {
         const passengerId = req.user?.id || req.body?.passengerId;
 
         if (!passengerId) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: "Passenger ID is required" 
+                message: "Passenger ID is required"
             });
         }
 
@@ -471,9 +451,9 @@ const requestDeleteProfile = async (req, res) => {
         });
     } catch (error) {
         console.error("Error requesting profile deletion:", error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
-            message: "Internal server error" 
+            message: "Internal server error"
         });
     }
 };
@@ -486,9 +466,9 @@ const cancelDeleteProfile = async (req, res) => {
         const passengerId = req.user?.id || req.body?.passengerId;
 
         if (!passengerId) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: "Passenger ID is required" 
+                message: "Passenger ID is required"
             });
         }
 
@@ -504,9 +484,9 @@ const cancelDeleteProfile = async (req, res) => {
         });
     } catch (error) {
         console.error("Error cancelling profile deletion:", error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
-            message: "Internal server error" 
+            message: "Internal server error"
         });
     }
 };
@@ -519,9 +499,9 @@ const checkDeletionStatus = async (req, res) => {
         const passengerId = req.user?.id || req.body?.passengerId;
 
         if (!passengerId) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: "Passenger ID is required" 
+                message: "Passenger ID is required"
             });
         }
 
@@ -533,9 +513,9 @@ const checkDeletionStatus = async (req, res) => {
         });
     } catch (error) {
         console.error("Error checking deletion status:", error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
-            message: "Internal server error" 
+            message: "Internal server error"
         });
     }
 };

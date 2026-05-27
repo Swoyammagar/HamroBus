@@ -88,19 +88,15 @@ const VerifyOTP: React.FC = () => {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.container}>
-          {/* Logo */}
           <Image source={mainLogo} style={styles.logo} />
 
-          {/* Heading */}
           <Text style={styles.heading}>
             Verify Your <Text style={[styles.highlight, { color: accentColor }]}>OTP</Text>
           </Text>
 
-          {/* Messages */}
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
           {success ? <Text style={styles.successText}>{success}</Text> : null}
 
-          {/* OTP Input */}
           <Text style={styles.label}>Enter OTP</Text>
           <TextInput
             value={otp}
@@ -115,7 +111,6 @@ const VerifyOTP: React.FC = () => {
 
           />
 
-          {/* Verify Button */}
           <TouchableOpacity
             onPress={handleVerifyOTP}
             disabled={isLoading}
@@ -128,7 +123,6 @@ const VerifyOTP: React.FC = () => {
             )}
           </TouchableOpacity>
 
-          {/* Resend OTP */}
           <View style={styles.resendContainer}>
             <Text style={styles.resendText}>Didn’t receive OTP?</Text>
             <TouchableOpacity onPress={handleResendOTP} disabled={isResending}>

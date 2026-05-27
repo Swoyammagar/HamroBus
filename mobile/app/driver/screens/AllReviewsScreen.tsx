@@ -74,7 +74,6 @@ export default function AllReviewsScreen() {
       setReviews((prev) => [...prev, ...incoming]);
       setHasMore(Boolean(list?.hasMore));
     } catch {
-      // Keep current list if pagination fails.
     } finally {
       setLoadingMore(false);
     }

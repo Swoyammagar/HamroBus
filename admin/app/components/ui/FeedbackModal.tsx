@@ -37,7 +37,16 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
       size="sm"
       showCloseButton={false}
       containerStyle={styles.modal}
-      footer={<Button variant={type === 'error' ? 'danger' : 'primary'} onPress={onClose}>OK</Button>}
+      footer={
+        <View style={{ alignItems: 'center' }}>
+          <Button
+            variant={type === 'error' ? 'danger' : 'primary'}
+            onPress={onClose}
+          >
+            OK
+          </Button>
+        </View>
+      }
     >
       <View style={styles.content}>
         <View style={[styles.iconWrap, { backgroundColor: config.bg, borderColor: config.border }]}>

@@ -42,7 +42,6 @@ export default function HelpCentreScreen() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  // ✅ Fetch FAQs when switching to VIEW tab
   useEffect(() => {
     if (activeTab === 'view') {
       getUserFAQs();
@@ -82,7 +81,6 @@ export default function HelpCentreScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={[ 'top' ]}>
-      {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Feather name="chevron-left" size={24} color="#1f2937" />
@@ -93,7 +91,6 @@ export default function HelpCentreScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'submit' && styles.activeTab]}
@@ -125,7 +122,6 @@ export default function HelpCentreScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* ================= SUBMIT TAB ================= */}
         {activeTab === 'submit' ? (
           <View style={styles.formContainer}>
             {(error || hookError) && (

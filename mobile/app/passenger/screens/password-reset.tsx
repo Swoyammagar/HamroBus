@@ -79,7 +79,6 @@ const PasswordReset = () => {
   const passwordValidation = validatePassword(formData.newPassword);
   const passwordMeetsRequirements = Object.values(passwordValidation).every((v) => v);
 
-  // Helper to keep icon name TS-safe
   const checkIcon = (met: boolean) =>
     (met ? 'checkmark-circle' : 'ellipse-outline') as React.ComponentProps<typeof Ionicons>['name'];
 
@@ -98,7 +97,6 @@ const PasswordReset = () => {
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Info Card */}
           <View style={styles.infoCard}>
             <Ionicons name="information-circle" size={24} color="#3b82f6" />
             <Text style={styles.infoText}>
@@ -106,9 +104,7 @@ const PasswordReset = () => {
             </Text>
           </View>
 
-          {/* Form Section */}
           <View style={styles.formSection}>
-            {/* Current Password */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>Current Password *</Text>
               <View style={[styles.inputContainer, formErrors.currentPassword && styles.inputContainerError]}>
@@ -133,7 +129,6 @@ const PasswordReset = () => {
               {formErrors.currentPassword && <Text style={styles.errorText}>{formErrors.currentPassword}</Text>}
             </View>
 
-            {/* New Password */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>New Password *</Text>
               <View style={[styles.inputContainer, formErrors.newPassword && styles.inputContainerError]}>
@@ -171,7 +166,6 @@ const PasswordReset = () => {
               )}
             </View>
 
-            {/* Confirm Password */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>Confirm New Password *</Text>
               <View style={[styles.inputContainer, formErrors.confirmPassword && styles.inputContainerError]}>
@@ -201,7 +195,6 @@ const PasswordReset = () => {
                 )}
             </View>
 
-            {/* Password Requirements */}
             <View style={styles.requirementsBox}>
               <Text style={styles.requirementsTitle}>Password requirements:</Text>
               {[
@@ -226,7 +219,6 @@ const PasswordReset = () => {
             </View>
           </View>
 
-          {/* Error Alert */}
           {error && (
             <View style={styles.errorAlert}>
               <Ionicons name="alert-circle" size={20} color="#ef4444" />
@@ -234,7 +226,6 @@ const PasswordReset = () => {
             </View>
           )}
 
-          {/* Action Buttons */}
           <View style={styles.buttonSection}>
             <TouchableOpacity
               style={[styles.button, styles.cancelButton]}

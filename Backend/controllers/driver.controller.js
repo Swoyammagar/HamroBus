@@ -16,7 +16,6 @@ const {
 const { getAdminEmailRecipients } = require('../utils/adminEmailRecipients');
 const { requestDriverProfileDeletion, cancelDriverProfileDeletion, checkDriverDeletionStatusOnLogin } = require('../services/deleteAccountService');
 
-// Driver Registration
 const registerDriver = async (req, res) => {
     const {
         firstName,
@@ -32,39 +31,31 @@ const registerDriver = async (req, res) => {
         licenseImgUrl
     } = req.body;
 
-    console.log("👉 DRIVER REGISTER HIT");
-    console.log("BODY:", req.body);
 
     try {
-        // Validate required fields
         if (!firstName || !lastName || !email || !password || !phoneNumber || !licenseNo) {
             return res.status(400).json({ message: "Missing required fields" });
         }
 
-        // Check if email already exists
         const existingDriver = await Driver.findOne({ email });
         if (existingDriver) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 message: "Driver with this email already exists"
             });
         }
 
-        // Check if phone number already exists
         const existingPhone = await Driver.findOne({ phoneNumber });
         if (existingPhone) {
             return res.status(400).json({ message: "Phone number already in use" });
         }
 
-        // Check if license already exists
         const existingLicense = await Driver.findOne({ licenseNo });
         if (existingLicense) {
             return res.status(400).json({ message: "License number already registered" });
         }
 
-        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create new driver
         const newDriver = new Driver({
             firstName,
             lastName,
@@ -84,7 +75,6 @@ const registerDriver = async (req, res) => {
 
         await newDriver.save();
 
-        // 📧 Send email notification to admin
         const adminEmails = await getAdminEmailRecipients();
         if (adminEmails.length > 0) {
             await sendEmail(
@@ -100,7 +90,6 @@ const registerDriver = async (req, res) => {
             );
         }
 
-        // 💾 Create in-app notification for admins
         const notificationId = `admin-driver-reg-${newDriver._id}-${Date.now()}`;
         const adminNotification = new Notification({
             notificationId,
@@ -121,10 +110,9 @@ const registerDriver = async (req, res) => {
                 actionRequired: 'approve_reject_driver'
             }
         });
-        
+
         await adminNotification.save();
 
-        // 🔔 Socket logic for real-time admin notification
         const io = req.app.get('io');
         if (io) {
             io.to('admin-room').emit('notification:new', {
@@ -166,36 +154,30 @@ const registerDriver = async (req, res) => {
 };
 
 
-// Driver Login
 const loginDriver = async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        // Find driver by email
         const driver = await Driver.findOne({ email });
         if (!driver) {
             return res.status(404).json({ message: "Driver not found" });
         }
 
-        // Verify password
         const isPasswordValid = await bcrypt.compare(password, driver.password);
         if (!isPasswordValid) {
             return res.status(401).json({ message: "Invalid password" });
         }
 
-        // Check validation status
         if (driver.validationStatus !== 'approved') {
-            return res.status(403).json({ 
+            return res.status(403).json({
                 message: "Driver account is not approved yet",
                 validationStatus: driver.validationStatus
             });
         }
 
-        // Generate tokens
         const accessToken = generateToken(driver);
         const refreshToken = generateRefreshToken(driver);
 
-        // Save refresh token
         driver.refreshToken = refreshToken;
         await driver.save();
 
@@ -227,13 +209,11 @@ const loginDriver = async (req, res) => {
 };
 
 
-// Update Driver Location
 const updateDriverLocation = async (req, res) => {
     const { longitude, latitude, tripId } = req.body;
     const driverId = req.user.id; // From JWT middleware (now driver._id)
 
     try {
-        // Get driver
         const driver = await Driver.findById(driverId);
         if (!driver) {
             return res.status(404).json({ message: "Driver not found" });
@@ -250,7 +230,6 @@ const updateDriverLocation = async (req, res) => {
             });
         }
 
-        // Create location entry
         const location = new Location({
             driverId: driver._id,
             tripId: tripId || null,
@@ -277,7 +256,6 @@ const updateDriverLocation = async (req, res) => {
     }
 };
 
-// Get Driver Location History
 const getDriverLocationHistory = async (req, res) => {
     const { driverId } = req.params;
     const { limit = 100 } = req.query;
@@ -303,7 +281,6 @@ const getDriverLocationHistory = async (req, res) => {
     }
 };
 
-// Get Driver Profile
 const getDriverProfile = async (req, res) => {
     const driverId = req.user.id; // From JWT middleware
 
@@ -345,7 +322,6 @@ const getDriverProfile = async (req, res) => {
     }
 };
 
-// Get pending drivers (admin)
 const getPendingDrivers = async (req, res) => {
     try {
         const pendingDrivers = await Driver.find({ validationStatus: 'pending' })
@@ -358,7 +334,6 @@ const getPendingDrivers = async (req, res) => {
     }
 };
 
-// Approve driver (admin)
 const approveDriver = async (req, res) => {
     const { driverId } = req.params;
 
@@ -428,7 +403,6 @@ const approveDriver = async (req, res) => {
     }
 };
 
-// Reject driver (admin)
 const rejectDriver = async (req, res) => {
     const { driverId } = req.params;
 
@@ -496,7 +470,6 @@ const rejectDriver = async (req, res) => {
     }
 };
 
-// List all drivers (admin)
 const getAllDrivers = async (req, res) => {
     try {
         const drivers = await Driver.find().select('-password -refreshToken');
@@ -520,26 +493,22 @@ const updateDriverProfile = async (req, res) => {
             return res.status(404).json({ message: "Driver not found" });
         }
 
-        // Validate and update firstName
         if (firstName !== undefined && firstName !== null && firstName.trim() !== '') {
             driver.firstName = firstName.trim();
         } else if (firstName === '') {
             return res.status(400).json({ message: "First name cannot be empty" });
         }
 
-        // Validate and update lastName
         if (lastName !== undefined && lastName !== null && lastName.trim() !== '') {
             driver.lastName = lastName.trim();
         } else if (lastName === '') {
             return res.status(400).json({ message: "Last name cannot be empty" });
         }
 
-        // Update address
         if (address !== undefined) {
             driver.address = address || '';
         }
 
-        // Validate and update phone number
         if (phoneNumber) {
             const isUnique = await isPhoneNumberUnique(Driver, phoneNumber, driverId);
             if (!isUnique) {
@@ -548,7 +517,6 @@ const updateDriverProfile = async (req, res) => {
             driver.phoneNumber = phoneNumber;
         }
 
-        // Validate and update license number
         if (licenseNo) {
             const isLicenseUnique = await isLicenseNumberUnique(licenseNo, driverId);
             if (!isLicenseUnique) {
@@ -557,12 +525,10 @@ const updateDriverProfile = async (req, res) => {
             driver.licenseNo = licenseNo;
         }
 
-        // Update profile image
         if (profileImgUrl !== undefined) {
             driver.profileImgUrl = profileImgUrl || '';
         }
 
-        // Update license image
         if (licenseImgUrl !== undefined) {
             driver.licenseImgUrl = licenseImgUrl || '';
         }
@@ -606,7 +572,6 @@ const changeDriverPassword = async (req, res) => {
     const { currentPassword, newPassword, confirmPassword } = req.body;
 
     try {
-        // Validate input
         if (!currentPassword || !newPassword || !confirmPassword) {
             return res.status(400).json({ message: "Current password, new password, and confirmation are required" });
         }
@@ -623,19 +588,16 @@ const changeDriverPassword = async (req, res) => {
             return res.status(400).json({ message: "New password must be different from current password" });
         }
 
-        // Find driver
         const driver = await Driver.findById(driverId);
         if (!driver) {
             return res.status(404).json({ message: "Driver not found" });
         }
 
-        // Verify current password
         const isPasswordValid = await comparePassword(currentPassword, driver.password);
         if (!isPasswordValid) {
             return res.status(401).json({ message: "Current password is incorrect" });
         }
 
-        // Hash and save new password
         const hashedPassword = await hashPassword(newPassword);
         driver.password = hashedPassword;
         await driver.save();
@@ -710,9 +672,9 @@ const requestDeleteProfile = async (req, res) => {
         const driverId = req.user?.id || req.body?.driverId;
 
         if (!driverId) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: "Driver ID is required" 
+                message: "Driver ID is required"
             });
         }
 
@@ -729,9 +691,9 @@ const requestDeleteProfile = async (req, res) => {
         });
     } catch (error) {
         console.error("Error requesting profile deletion:", error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
-            message: "Internal server error" 
+            message: "Internal server error"
         });
     }
 };
@@ -744,9 +706,9 @@ const cancelDeleteProfile = async (req, res) => {
         const driverId = req.user?.id || req.body?.driverId;
 
         if (!driverId) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: "Driver ID is required" 
+                message: "Driver ID is required"
             });
         }
 
@@ -762,9 +724,9 @@ const cancelDeleteProfile = async (req, res) => {
         });
     } catch (error) {
         console.error("Error cancelling profile deletion:", error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
-            message: "Internal server error" 
+            message: "Internal server error"
         });
     }
 };
@@ -777,9 +739,9 @@ const checkDeletionStatus = async (req, res) => {
         const driverId = req.user?.id || req.body?.driverId;
 
         if (!driverId) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: "Driver ID is required" 
+                message: "Driver ID is required"
             });
         }
 
@@ -791,9 +753,9 @@ const checkDeletionStatus = async (req, res) => {
         });
     } catch (error) {
         console.error("Error checking deletion status:", error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
-            message: "Internal server error" 
+            message: "Internal server error"
         });
     }
 };

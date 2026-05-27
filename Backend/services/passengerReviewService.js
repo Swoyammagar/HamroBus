@@ -9,8 +9,8 @@ const Bus = require('../models/bus.model');
  */
 const getPassengerReviews = async (passengerId, options = {}) => {
     try {
-        const { 
-            page = 1, 
+        const {
+            page = 1,
             limit = 10,
             sortBy = 'createdAt',
             sortOrder = 'desc'
@@ -19,7 +19,6 @@ const getPassengerReviews = async (passengerId, options = {}) => {
         const skip = (page - 1) * limit;
         const sortObject = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
 
-        // Get reviews with pagination
         const reviews = await Review.find({ passengerId })
             .populate({
                 path: 'driverId',
@@ -38,11 +37,9 @@ const getPassengerReviews = async (passengerId, options = {}) => {
             .limit(limit)
             .lean();
 
-        // Get total count for pagination info
         const totalReviews = await Review.countDocuments({ passengerId });
         const totalPages = Math.ceil(totalReviews / limit);
 
-        // Format reviews data
         const formattedReviews = reviews.map(review => ({
             id: review._id,
             reviewId: review._id,
@@ -129,7 +126,6 @@ const getPassengerReviewStats = async (passengerId) => {
             };
         }
 
-        // Calculate stats
         const ratingDistribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
         let totalRating = 0;
 

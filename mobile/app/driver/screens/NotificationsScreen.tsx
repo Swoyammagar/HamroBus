@@ -251,7 +251,6 @@ const NotificationsScreen = () => {
         <Text style={styles.headerSubtitle}>Stay updated with important alerts</Text>
       </View>
 
-      {/* Filter and Actions */}
       <View style={styles.controlsContainer}>
         <View style={styles.filterTabs}>
           <TouchableOpacity
@@ -290,7 +289,6 @@ const NotificationsScreen = () => {
         )}
       </View>
 
-      {/* Alerts List */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {loading ? (
           <View style={styles.loadingWrap}>
@@ -326,7 +324,6 @@ const NotificationsScreen = () => {
         )}
       </ScrollView>
 
-      {/* Detail Modal */}
       <Modal
         visible={alertDetailModal}
         transparent={true}

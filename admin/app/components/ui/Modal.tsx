@@ -40,7 +40,6 @@ export const Modal: React.FC<ModalProps> = ({
     >
       <View style={styles.overlay}>
         <View style={[styles.modal, styles[size], containerStyle]}>
-          {/* Header */}
           {(title || showCloseButton) && (
             <View style={styles.header}>
               {title && <Text style={styles.title}>{title}</Text>}
@@ -52,12 +51,10 @@ export const Modal: React.FC<ModalProps> = ({
             </View>
           )}
 
-          {/* Content */}
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {children}
           </ScrollView>
 
-          {/* Footer */}
           {footer && <View style={styles.footer}>{footer}</View>}
         </View>
       </View>
@@ -119,7 +116,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
     gap: 12,
   },
 });

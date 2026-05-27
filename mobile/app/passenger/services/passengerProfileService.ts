@@ -86,12 +86,10 @@ export class PassengerProfileService {
     phoneNumber: string,
     userId?: string
   ): Promise<{ isValid: boolean; error?: string }> {
-    // Basic format validation
     if (!phoneNumber || phoneNumber.trim().length === 0) {
       return { isValid: false, error: 'Phone number is required' };
     }
 
-    // Remove common formatting characters
     const cleaned = phoneNumber.replace(/[\s\-\(\)]/g, '');
 
     if (cleaned.length < 7) {
@@ -102,7 +100,6 @@ export class PassengerProfileService {
       return { isValid: false, error: 'Phone number is too long' };
     }
 
-    // Check availability
     try {
       const availability = await this.checkPhoneAvailability(phoneNumber, userId);
       if (!availability.available) {

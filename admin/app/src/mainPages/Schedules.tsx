@@ -390,7 +390,6 @@ const Schedules: React.FC = () => {
             </View>
           )}
 
-          {/* Edit Modal */}
           <Modal
             visible={modalVisible}
             onClose={() => { setModalVisible(false); setEditingSchedule(null); setEditFields({}); }}
@@ -467,7 +466,6 @@ const Schedules: React.FC = () => {
             </View>
           </Modal>
 
-          {/* Delete Confirm Overlay */}
           {confirmDeleteId && (
             <View style={styles.confirmOverlay}>
               <View style={styles.confirmCard}>
@@ -607,7 +605,6 @@ const styles = StyleSheet.create({
   driverInfoBox: { padding: 12, backgroundColor: '#f3f4f6', borderRadius: 6 },
   driverInfoLabel: { fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 4 },
   driverInfoValue: { fontSize: 14, color: '#1f2937', fontWeight: '500' },
-  // Confirm overlay
   confirmOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(15,23,42,0.55)',

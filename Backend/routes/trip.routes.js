@@ -20,7 +20,6 @@ const {
 const { authenticateDriver } = require('../middlewares/mobile.auth.middleware');
 const { authenticateAdmin } = require('../middlewares/admin.auth.middleware');
 
-// All routes are driver-protected
 router.get('/assigned-route', authenticateDriver, getAssignedRoute);
 router.get('/schedules', authenticateDriver, getDriverSchedules);
 router.get('/current', authenticateDriver, getCurrentTrip);
@@ -34,10 +33,8 @@ router.post('/update-passengers', authenticateDriver, updatePassengerCount);
 router.get('/history', authenticateDriver, getTripHistory);
 router.post('/scan-booking-qr', authenticateDriver, scanBookingQr);
 
-// System endpoint for processing missed trips (can be called by cron job or admin)
 router.post('/system/process-missed-trips', authenticateAdmin, processMissedTrips);
 
-// Admin endpoints for trip management with passenger bookings
 router.get('/admin/all-trips', authenticateAdmin, getAllTripsWithBookings);
 router.get('/admin/:tripId', authenticateAdmin, getTripDetailsById);
 

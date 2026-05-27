@@ -17,7 +17,6 @@ const RoutesPage: React.FC = () => {
   const [editingRoute, setEditingRoute] = useState<RouteRecord | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
 
-  // ← NEW: confirmation modal state
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const [newName, setNewName] = useState('');
@@ -87,8 +86,6 @@ const RoutesPage: React.FC = () => {
       {activeTab === 'all' ? (
         // @ts-ignore
         <View style={styles.splitRow}>
-          {/* Left pane — route list */}
-          {/* @ts-ignore */}
           <View style={styles.leftPane}>
             <SearchBar
               value={query}
@@ -163,8 +160,6 @@ const RoutesPage: React.FC = () => {
             )}
           </View>
 
-          {/* Right pane — map */}
-          {/* @ts-ignore */}
           <View style={styles.rightPane}>
             {Platform.OS === 'web' ? (
               // @ts-ignore
@@ -185,8 +180,6 @@ const RoutesPage: React.FC = () => {
       ) : (
         // @ts-ignore
         <View style={styles.splitRow}>
-          {/* Left pane — add route form (scrollable) */}
-          {/* @ts-ignore */}
           <View style={styles.leftPane}>
             <ScrollView
               contentContainerStyle={{ paddingBottom: 24 }}
@@ -347,8 +340,6 @@ const RoutesPage: React.FC = () => {
             </ScrollView>
           </View>
 
-          {/* Right pane — add map */}
-          {/* @ts-ignore */}
           <View style={styles.rightPane}>
             {Platform.OS === 'web' ? (
               // @ts-ignore
@@ -386,7 +377,6 @@ const RoutesPage: React.FC = () => {
           fetchAllRoutes();
         }}
         onUpdate={updateRoute}
-        // ← NEW: trigger confirmation instead of deleting directly
         onDelete={(id) => {
           setShowDetailModal(false);
           setConfirmDeleteId(id);
@@ -394,7 +384,6 @@ const RoutesPage: React.FC = () => {
         onFeedback={setFeedback}
       />
 
-      {/* ← NEW: Delete Confirmation Overlay */}
       {confirmDeleteId && (
         <View style={styles.confirmOverlay}>
           <View style={styles.confirmCard}>
@@ -445,14 +434,12 @@ const RoutesPage: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  // ── Root ──────────────────────────────────────────────────────────────────
   container: {
     flex: 1,
     padding: 16,
     overflow: 'hidden',
   },
 
-  // ── Two-column layout ─────────────────────────────────────────────────────
   splitRow: {
     flex: 1,
     flexDirection: 'row',
@@ -461,7 +448,6 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
 
-  // ── Left pane ─────────────────────────────────────────────────────────────
   leftPane: {
     width: 340,
     backgroundColor: '#fff',
@@ -478,7 +464,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 
-  // ── Right pane ────────────────────────────────────────────────────────────
   rightPane: {
     flex: 1,
     backgroundColor: '#fff',
@@ -489,7 +474,6 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
 
-  // ── Route cards ───────────────────────────────────────────────────────────
   routeCard: {
     backgroundColor: '#fff',
     borderWidth: 1,
@@ -516,7 +500,6 @@ const styles = StyleSheet.create({
   routeNumber: { color: '#6b7280', fontSize: 13 },
   busText: { color: '#6b7280', fontSize: 13 },
 
-  // ── Map placeholder ───────────────────────────────────────────────────────
   mapPlaceholder: {
     flex: 1,
     alignItems: 'center',
@@ -524,7 +507,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
 
-  // ── Form ──────────────────────────────────────────────────────────────────
   formGroup: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6 },
 
@@ -571,7 +553,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
 
-  // ── Shared states ─────────────────────────────────────────────────────────
   centerState: {
     flex: 1,
     alignItems: 'center',
@@ -579,7 +560,6 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
 
-  // ── Delete confirmation overlay ───────────────────────────────────────────
   confirmOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(15,23,42,0.55)',
