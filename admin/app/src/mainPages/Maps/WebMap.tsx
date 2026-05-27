@@ -391,7 +391,7 @@ const WebMap: React.FC<WebMapProps> = ({
       </View>
     );
 
-  const { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap } = leaflet; // ← added useMap
+  const { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap } = leaflet;
 
   const center = route?.stops?.length > 0
     ? [parseFloat(route.stops[0].latitude), parseFloat(route.stops[0].longitude)]
@@ -403,7 +403,6 @@ const WebMap: React.FC<WebMapProps> = ({
     return selectedRouteBusIds.has(String(driver.busId));
   });
 
-  // ← NEW: captures map instance into mapRef via useMap hook
   const MapRefCapture = () => {
     const map = useMap();
     mapRef.current = map;
@@ -446,7 +445,7 @@ const WebMap: React.FC<WebMapProps> = ({
                 onClick={() => {
                   const lat = parseFloat(result.lat);
                   const lon = parseFloat(result.lon);
-                  mapRef.current?.flyTo([lat, lon], 15); // ← now works correctly
+                  mapRef.current?.flyTo([lat, lon], 15);
                   setSearchMarker([lat, lon]);
                   setSearchResults([]);
                   setSearchQuery(result.display_name);
@@ -459,140 +458,143 @@ const WebMap: React.FC<WebMapProps> = ({
         )}
       </View>
 
-      {/* Map */}
-      <View style={s.mapContainer}>
-        <MapContainer
-          center={center}
-          zoom={12}
-          style={{ height: '100%', width: '100%' }}
-          // ← removed whenCreated; MapRefCapture handles this now
-        >
-          <MapRefCapture /> {/* ← added */}
+      {/* ── Outer wrapper: fills remaining space, position relative so the panel can anchor to it ── */}
+      <View style={s.mapWrapper}>
 
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            eventHandlers={{
-              load: () => setTilesLoaded(true),
-              tileerror: () => setTilesLoaded(true),
-            }}
-          />
+        {/* Map */}
+        <View style={s.mapContainer}>
+          <MapContainer
+            center={center}
+            zoom={12}
+            style={{ height: '100%', width: '100%' }}
+          >
+            <MapRefCapture />
 
-          {positions.map((pos: any, idx: number) => (
-            <Marker key={`stop-${idx}`} position={pos} icon={leaflet.stopIcon}>
-              <Tooltip>{route?.stops[idx]?.stopName || `Stop ${idx + 1}`}</Tooltip>
-              <Popup>{route?.stops[idx]?.stopName || `Stop ${idx + 1}`}</Popup>
-            </Marker>
-          ))}
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              eventHandlers={{
+                load: () => setTilesLoaded(true),
+                tileerror: () => setTilesLoaded(true),
+              }}
+            />
 
-          {visibleDriverLocations.map((driver) => {
-            if (!leaflet?.L) return null;
-            const isSos = Boolean(driver.sosActive || activeSosBusIds.has(String(driver.busId)));
-            const isOnBreak = Boolean(driver.isOnBreak || driver.tripStatus === 'on-break');
-            const isOffline = Boolean(driver.isOffline || driver.tripStatus === 'offline');
-            const markerColor = isSos ? '#dc2626' : isOffline ? '#6b7280' : isOnBreak ? '#f59e0b' : '#10b981';
-            const driverLabel = String(driver.driverName || '').trim() || `Driver ${String(driver.driverId || '').slice(-4)}`;
-            const busLabel = String(driver.busNumber || '').trim() || String(driver.busId || '').slice(-4);
+            {positions.map((pos: any, idx: number) => (
+              <Marker key={`stop-${idx}`} position={pos} icon={leaflet.stopIcon}>
+                <Tooltip>{route?.stops[idx]?.stopName || `Stop ${idx + 1}`}</Tooltip>
+                <Popup>{route?.stops[idx]?.stopName || `Stop ${idx + 1}`}</Popup>
+              </Marker>
+            ))}
 
-            const driverIcon = leaflet.L.divIcon({
-              className: '',
-              html: `
-                <div style="
-                  position: relative;
-                  width: 40px;
-                  height: 40px;
-                  background: ${markerColor};
-                  border: 3px solid white;
-                  border-radius: 50%;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                  transform: rotate(${driver.heading}deg);
-                  ${isSos ? 'animation: sos-pulse 1s infinite;' : ''}
-                ">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                    <path d="M18 11H6.83l3.58-3.59L9 6l-6 6 6 6 1.41-1.41L6.83 13H18v-2z"/>
-                  </svg>
-                </div>
-                ${isSos ? `
-                <style>
-                  @keyframes sos-pulse {
-                    0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.6); }
-                    50% { box-shadow: 0 0 0 10px rgba(220,38,38,0); }
-                  }
-                </style>` : ''}
-              `,
-              iconSize: [40, 40],
-              iconAnchor: [20, 20],
-              popupAnchor: [0, -22],
-            });
+            {visibleDriverLocations.map((driver) => {
+              if (!leaflet?.L) return null;
+              const isSos = Boolean(driver.sosActive || activeSosBusIds.has(String(driver.busId)));
+              const isOnBreak = Boolean(driver.isOnBreak || driver.tripStatus === 'on-break');
+              const isOffline = Boolean(driver.isOffline || driver.tripStatus === 'offline');
+              const markerColor = isSos ? '#dc2626' : isOffline ? '#6b7280' : isOnBreak ? '#f59e0b' : '#10b981';
+              const driverLabel = String(driver.driverName || '').trim() || `Driver ${String(driver.driverId || '').slice(-4)}`;
+              const busLabel = String(driver.busNumber || '').trim() || String(driver.busId || '').slice(-4);
 
-            return (
-              <Marker
-                key={`driver-${driver.driverId}`}
-                position={[driver.latitude, driver.longitude]}
-                icon={driverIcon}
-              >
-                <Tooltip permanent direction="top" offset={[0, -24]}>
-                  <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
-                    🚌 {busLabel}
+              const driverIcon = leaflet.L.divIcon({
+                className: '',
+                html: `
+                  <div style="
+                    position: relative;
+                    width: 40px;
+                    height: 40px;
+                    background: ${markerColor};
+                    border: 3px solid white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    transform: rotate(${driver.heading}deg);
+                    ${isSos ? 'animation: sos-pulse 1s infinite;' : ''}
+                  ">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                      <path d="M18 11H6.83l3.58-3.59L9 6l-6 6 6 6 1.41-1.41L6.83 13H18v-2z"/>
+                    </svg>
                   </div>
-                </Tooltip>
+                  ${isSos ? `
+                  <style>
+                    @keyframes sos-pulse {
+                      0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.6); }
+                      50% { box-shadow: 0 0 0 10px rgba(220,38,38,0); }
+                    }
+                  </style>` : ''}
+                `,
+                iconSize: [40, 40],
+                iconAnchor: [20, 20],
+                popupAnchor: [0, -22],
+              });
+
+              return (
+                <Marker
+                  key={`driver-${driver.driverId}`}
+                  position={[driver.latitude, driver.longitude]}
+                  icon={driverIcon}
+                >
+                  <Tooltip permanent direction="top" offset={[0, -24]}>
+                    <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
+                      🚌 {busLabel}
+                    </div>
+                  </Tooltip>
+                  <Popup>
+                    <div style={{ fontSize: '12px', minWidth: '160px' }}>
+                      {driver.driverProfileImgUrl && (
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '6px' }}>
+                          <img
+                            src={driver.driverProfileImgUrl}
+                            alt="Driver"
+                            style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #e5e7eb' }}
+                          />
+                        </div>
+                      )}
+                      <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '6px' }}>{driverLabel}</div>
+                      <div><strong>Bus:</strong> {busLabel}</div>
+                      <div><strong>Status:</strong> {isSos ? `🚨 SOS${driver.sosCategory ? ` (${driver.sosCategory})` : ''}` : isOffline ? '⚫ Offline' : isOnBreak ? '🟡 On Break' : '🟢 In Trip'}</div>
+                      <div><strong>Speed:</strong> {driver.speed.toFixed(1)} km/h</div>
+                      <div><strong>Heading:</strong> {driver.heading}°</div>
+                      <div><strong>Updated:</strong> {new Date(driver.timestamp).toLocaleTimeString()}</div>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+
+            {searchMarker && (
+              <Marker
+                position={searchMarker}
+                icon={leaflet.searchIcon}
+                eventHandlers={{
+                  contextmenu: (e: any) => {
+                    e.originalEvent.preventDefault();
+                    setSearchMarker(null);
+                  },
+                }}
+              >
                 <Popup>
-                  <div style={{ fontSize: '12px', minWidth: '160px' }}>
-                    {driver.driverProfileImgUrl && (
-                      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '6px' }}>
-                        <img
-                          src={driver.driverProfileImgUrl}
-                          alt="Driver"
-                          style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #e5e7eb' }}
-                        />
-                      </div>
-                    )}
-                    <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '6px' }}>{driverLabel}</div>
-                    <div><strong>Bus:</strong> {busLabel}</div>
-                    <div><strong>Status:</strong> {isSos ? `🚨 SOS${driver.sosCategory ? ` (${driver.sosCategory})` : ''}` : isOffline ? '⚫ Offline' : isOnBreak ? '🟡 On Break' : '🟢 In Trip'}</div>
-                    <div><strong>Speed:</strong> {driver.speed.toFixed(1)} km/h</div>
-                    <div><strong>Heading:</strong> {driver.heading}°</div>
-                    <div><strong>Updated:</strong> {new Date(driver.timestamp).toLocaleTimeString()}</div>
+                  <div>
+                    <div>Searched Location</div>
+                    <small>(Right click to remove)</small>
                   </div>
                 </Popup>
               </Marker>
-            );
-          })}
+            )}
 
-          {/* ← right-click on search marker now removes it */}
-          {searchMarker && (
-            <Marker
-              position={searchMarker}
-              icon={leaflet.searchIcon}
-              eventHandlers={{
-                contextmenu: (e: any) => {
-                  e.originalEvent.preventDefault();
-                  setSearchMarker(null);
-                },
-              }}
-            >
-              <Popup>
-                <div>
-                  <div>Searched Location</div>
-                  <small>(Right click to remove)</small>
-                </div>
-              </Popup>
-            </Marker>
+            {routePath.length > 0 && (
+              <Polyline positions={routePath} color="#2563eb" weight={5} opacity={0.8} />
+            )}
+          </MapContainer>
+
+          {!tilesLoaded && (
+            <View style={s.mapLoadingOverlay}>
+              <Text style={{ color: '#fff' }}>Loading tiles...</Text>
+            </View>
           )}
+        </View>
 
-          {routePath.length > 0 && (
-            <Polyline positions={routePath} color="#2563eb" weight={5} opacity={0.8} />
-          )}
-        </MapContainer>
-
-        {!tilesLoaded && (
-          <View style={s.mapLoadingOverlay}>
-            <Text style={{ color: '#fff' }}>Loading tiles...</Text>
-          </View>
-        )}
-
+        {/* ── Driver panel: lives OUTSIDE MapContainer, still overlays via absolute on mapWrapper ── */}
         {visibleDriverLocations.length > 0 && (
           <View style={s.driverStatusPanel}>
             <View style={s.panelHeader}>
@@ -625,7 +627,10 @@ const WebMap: React.FC<WebMapProps> = ({
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  mapContainer: { flex: 1, position: 'relative' },
+  // ← NEW: wraps map + panel together; position relative so panel can anchor to it
+  mapWrapper: { flex: 1, position: 'relative' },
+  // ← map now fills the wrapper via StyleSheet.absoluteFillObject equivalent
+  mapContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   mapPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   dropdownContainer: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
   webSelect: { width: '100%', padding: '8px', fontSize: '14px', borderRadius: '6px', border: '1px solid #d1d5db' },
@@ -633,13 +638,14 @@ const s = StyleSheet.create({
   searchInput: { width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '14px' },
   resultsContainer: { marginTop: 6, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 6 },
   resultItem: { padding: 8, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', cursor: 'pointer' },
-  mapLoadingOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  driverStatusPanel: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: 12, minWidth: 200, maxHeight: 300, overflow: 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' },
+  mapLoadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  // ── panel is now a sibling of mapContainer inside mapWrapper, z-index ensures it floats above Leaflet ──
+  driverStatusPanel: { position: 'absolute', top: 10, right: 10, zIndex: 1000, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: 12, minWidth: 200, maxHeight: 300, overflow: 'scroll', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8 },
   panelHeader: { borderBottomWidth: 1, borderBottomColor: '#e5e7eb', paddingBottom: 8, marginBottom: 8 },
   panelTitle: { fontSize: 14, fontWeight: 'bold', color: '#1f2937' },
   driverList: { gap: 6 },
   driverItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  driverDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10b981' },
+  driverDot: { width: 8, height: 8, borderRadius: 4 },
   driverText: { fontSize: 12, color: '#4b5563' },
 });
 
