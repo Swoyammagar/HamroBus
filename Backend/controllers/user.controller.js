@@ -29,8 +29,9 @@ const requestPasswordReset = async (req, res) => {
       });
     }
 
-    const otp = generateOTP().otp;
+    const { otp, expiration } = generateOTP();
     user.otp = otp;
+    user.otpExpiresAt = expiration;  // ✅ Set expiry with 5-minute duration
     await user.save();
     const fullName = `${user.firstName} ${user.lastName}`;
     await sendPasswordResetEmail(email, fullName, otp);
@@ -115,6 +116,15 @@ const verifyOTPUser = async (req, res) => {
       });
     }
 
+    // ✅ Check OTP expiration before validating OTP value
+    if (user.otpExpiresAt && user.otpExpiresAt < new Date()) {
+      return res.status(400).json({
+        status: 'error',
+        message: "OTP has expired. Please request a new one.",
+        error: 'OTP_EXPIRED'
+      });
+    }
+
     if (user.otp !== otp) {
       return res.status(400).json({
         status: 'error',
@@ -125,6 +135,7 @@ const verifyOTPUser = async (req, res) => {
 
     user.passwordResetVerified = true;
     user.otp = null;
+    user.otpExpiresAt = null;  // ✅ Clear expiry after successful verification
     await user.save();
 
     res.status(200).json({

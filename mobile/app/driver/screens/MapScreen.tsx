@@ -398,7 +398,7 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={palette.primary} />
-        <Text style={{ marginTop: spacing.md, color: palette.text }}>🗺️ Starting location tracking...</Text>
+        <Text style={{ marginTop: spacing.md, color: palette.text }}>Starting location tracking...</Text>
       </View>
     );
   }
@@ -406,7 +406,7 @@ export default function MapScreen({ isOnline, onStatusChange }: Props) {
   if (!assignedRoute && !routeLoading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: palette.text, fontSize: 16 }}>❌ No assigned route found</Text>
+        <Text style={{ color: palette.text, fontSize: 16 }}>No assigned route found</Text>
       </View>
     );
   }

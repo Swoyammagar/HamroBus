@@ -75,7 +75,7 @@ const driverSchema = new mongoose.Schema({
     },
     otpExpiresAt: {
         type: Date,
-        index: { expireAfterSeconds: 0 }
+        required: false
     },
     refreshToken: {
         type: String,

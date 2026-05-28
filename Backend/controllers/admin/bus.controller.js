@@ -1,6 +1,7 @@
 const Bus = require("../../models/bus.model");
 const Driver = require("../../models/driver.model");
 const Route = require("../../models/route.model");
+const TripSession = require("../../models/tripSession.model");
 
 const createBus = async (req, res) => {
     const {
@@ -178,6 +179,17 @@ const updateBus = async (req, res) => {
             const newRouteId = assignedRouteId || null;
 
             if (String(oldRouteId) !== String(newRouteId)) {
+                // Check if bus has an active ongoing trip
+                const activeTrip = await TripSession.findOne({
+                    busId: busId,
+                    status: { $in: ['in-progress', 'on-break'] }
+                });
+
+                if (activeTrip) {
+                    return res.status(400).json({
+                        message: "Cannot change route: Bus has an active ongoing trip. Please wait until the trip is completed."
+                    });
+                }
                 if (oldRouteId) {
                     const oldRouteUpdate = { $pull: { assignedBusIds: busId } };
 
