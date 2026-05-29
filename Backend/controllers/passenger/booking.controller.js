@@ -907,7 +907,7 @@ const getBookingQr = async (req, res) => {
     const booking = await Booking.findOne({
       _id: bookingId,
       passengerId,
-    });selectedSeats
+    });
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
     }
