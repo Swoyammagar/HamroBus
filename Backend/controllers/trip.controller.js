@@ -289,7 +289,7 @@ const getDriverSchedules = async (req, res) => {
             .populate('routeId', 'routeName source destination')
             .populate('busId', 'busNumber')
             .sort({ startTime: 1 })
-            .limit(parseInt(days) * 3); // Rough estimate: 3 trips per day
+            .limit(parseInt(days) * 10); // Rough estimate: 10 trips per day
 
         res.status(200).json({
             schedules: driverSchedules,
@@ -311,7 +311,7 @@ const getCurrentTrip = async (req, res) => {
             status: { $in: ['in-progress', 'on-break'] }
         })
             .populate('routeId', 'routeName stops source destination')
-            .populate('busId', 'busNumber registrationNumber');
+            .populate('busId', 'busNumber registrationNumber totalCapacity');
 
         if (!currentTrip) {
             return res.status(404).json({ message: "No active trip" });

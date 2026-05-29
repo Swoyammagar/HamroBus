@@ -452,6 +452,8 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     },
   ];
 
+  const busCapacity = currentTrip?.busId?.totalCapacity || 45;
+
   if (routeLoading) {
     return (
       <View style={[styles.container, styles.centerContainer]}>
@@ -727,6 +729,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
         }}
         onStart={handleStartTrip}
       />
+      
 
       <PassengerLogModal
         visible={showPassengerLog}
@@ -734,7 +737,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
         onCountChange={setTempPassengerCount}
         onConfirm={handleConfirmPassengers}
         onClose={() => setShowPassengerLog(false)}
-        capacity={45}
+        capacity={busCapacity}
         isLoading={tripActionLoading}
       />
 

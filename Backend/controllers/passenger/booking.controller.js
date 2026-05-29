@@ -25,7 +25,7 @@ const normalizeDateOnly = (value) => {
   if (Number.isNaN(input.getTime())) {
     return null;
   }
-  return new Date(Date.UTC(input.getUTCFullYear(), input.getUTCMonth(), input.getUTCDate()));
+  return new Date(Date.UTC(input.getUTCFullYear(), input.getUTCMonth(), input.getUTCDate())); // time remove only date
 };
 
 const dayOfWeekFromDate = (dateValue) => DAYS[new Date(dateValue).getUTCDay()];
@@ -69,7 +69,7 @@ const buildSeatLabelMap = (capacity) => {
 
 const makeBookingCode = () => `BK${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 9999)
   .toString()
-  .padStart(4, '0')}`;
+  .padStart(4, '0')}`; //add characters at the beginning of a string until it reaches a certain length.
 
 const makeQrToken = () => crypto.randomBytes(16).toString('hex');
 
@@ -222,6 +222,16 @@ const createBooking = async (req, res) => {
     const normalizedServiceDate = normalizeDateOnly(serviceDate);
     if (!normalizedServiceDate) {
       return res.status(400).json({ message: 'serviceDate is invalid' });
+    }
+
+    // Check if passenger is banned from booking
+    const banStatus = await checkBanStatus(passengerId);
+    if (banStatus.isBanned) {
+      return res.status(403).json({
+        message: `You are temporarily banned from booking due to multiple cancellations. Please try again after ${banStatus.minutesRemaining} minute(s).`,
+        banUntil: banStatus.banUntil,
+        minutesRemaining: banStatus.minutesRemaining,
+      });
     }
 
     const dayRange = buildUtcDayRange(normalizedServiceDate);
@@ -897,7 +907,7 @@ const getBookingQr = async (req, res) => {
     const booking = await Booking.findOne({
       _id: bookingId,
       passengerId,
-    });
+    });selectedSeats
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
     }

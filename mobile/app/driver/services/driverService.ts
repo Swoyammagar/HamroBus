@@ -50,6 +50,7 @@ export interface TripSession {
     busId?: {
         _id: string;
         busNumber: string;
+        totalCapacity?: number;
     };
     scheduleId?: string;
     stopArrivals?: StopArrival[];

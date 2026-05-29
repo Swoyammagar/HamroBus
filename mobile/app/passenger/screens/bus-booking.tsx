@@ -266,44 +266,24 @@ const BusBooking = () => {
 
   const generateSeatsGrid = () => {
     const totalSeats = availabilityData?.totalSeats || bus?.totalCapacity || bus?.capacity || 50;
-    const lastRowCount = totalSeats >= 5 ? 5 : totalSeats;
-    const regularSeatCount = totalSeats - lastRowCount;
-    const regularRowsCount = Math.ceil(regularSeatCount / 4);
+    const seatsPerRow = 4;
     const seats = [];
 
-    for (let rowIndex = 0; rowIndex < regularRowsCount; rowIndex++) {
-      for (let position = 1; position <= 4; position++) {
-        const seatNumber = rowIndex * 4 + position;
-        if (seatNumber > regularSeatCount) {
-          continue;
-        }
-        const label = `${String.fromCharCode(65 + rowIndex)}${position}`;
-        const isTaken = availabilityData ? availabilityData.takenSeats.includes(label) : false;
-        seats.push({
-          id: label,
-          number: label,
-          available: !isTaken,
-          rowType: 'regular' as const,
-          rowIndex,
-          position,
-        });
-      }
-    }
-
-    if (lastRowCount > 0) {
-      const lastRowIndex = regularRowsCount;
-      for (let position = 1; position <= lastRowCount; position++) {
-        const label = `${String.fromCharCode(65 + lastRowIndex)}${position}`;
-        const isTaken = availabilityData ? availabilityData.takenSeats.includes(label) : false;
-        seats.push({
-          id: label,
-          number: label,
-          available: !isTaken,
-          rowType: 'last' as const,
-          rowIndex: lastRowIndex,
-          position,
-        });
-      }
+    // Backend uses modulo formula: always 4 seats per row
+    for (let i = 1; i <= totalSeats; i++) {
+      const rowIndex = Math.floor((i - 1) / seatsPerRow);
+      const position = ((i - 1) % seatsPerRow) + 1;
+      const label = `${String.fromCharCode(65 + rowIndex)}${position}`;
+      const isTaken = availabilityData ? availabilityData.takenSeats.includes(label) : false;
+      
+      seats.push({
+        id: label,
+        number: label,
+        available: !isTaken,
+        rowType: position <= seatsPerRow ? 'regular' : 'last',
+        rowIndex,
+        position,
+      });
     }
 
     return seats;
