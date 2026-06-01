@@ -153,6 +153,7 @@ const Login = () => {
                 onChangeText={(text) => setPassword(text)}
                 onFocus={() => setIsPasswordFocused(true)}
                 onBlur={() => setIsPasswordFocused(false)}
+                style={{ color: '#000000' }}
               />
 
               <Feather

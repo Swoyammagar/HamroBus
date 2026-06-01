@@ -20,6 +20,7 @@ import { RewardService } from '../services/rewardService';
 import passengerNotificationSocket from '../services/passengerNotificationSocket';
 import StopSelectionModal from '@/app/passenger/components/StopSelectionModal';
 import BookingSuccessTicket from '@/app/passenger/components/BookingSuccessTicket';
+import { buildSeatLayout } from '@/app/utils/seatLayout';
 
 const resolveKhaltiReturnUrl = () => {
   const apiBase = String(process.env.EXPO_PUBLIC_API_BASE || '').trim().replace(/\/$/, '');
@@ -266,27 +267,13 @@ const BusBooking = () => {
 
   const generateSeatsGrid = () => {
     const totalSeats = availabilityData?.totalSeats || bus?.totalCapacity || bus?.capacity || 50;
-    const seatsPerRow = 4;
-    const seats = [];
-
-    // Backend uses modulo formula: always 4 seats per row
-    for (let i = 1; i <= totalSeats; i++) {
-      const rowIndex = Math.floor((i - 1) / seatsPerRow);
-      const position = ((i - 1) % seatsPerRow) + 1;
-      const label = `${String.fromCharCode(65 + rowIndex)}${position}`;
-      const isTaken = availabilityData ? availabilityData.takenSeats.includes(label) : false;
-      
-      seats.push({
-        id: label,
-        number: label,
-        available: !isTaken,
-        rowType: position <= seatsPerRow ? 'regular' : 'last',
-        rowIndex,
-        position,
-      });
-    }
-
-    return seats;
+    return buildSeatLayout(totalSeats).map((row) => ({
+      ...row,
+      seats: row.seats.map((seat) => ({
+        ...seat,
+        available: availabilityData ? !availabilityData.takenSeats.includes(seat.id) : true,
+      })),
+    }));
   };
 
   const handleSeatToggle = (seatLabel: string) => {
@@ -535,23 +522,7 @@ const BusBooking = () => {
     );
   }
 
-  const seats = generateSeatsGrid();
-  const regularSeatRows = seats
-    .filter((seat) => seat.rowType === 'regular')
-    .reduce<Record<number, typeof seats>>((acc, seat) => {
-      if (!acc[seat.rowIndex]) {
-        acc[seat.rowIndex] = [];
-      }
-      acc[seat.rowIndex].push(seat);
-      return acc;
-    }, {});
-  const orderedRegularRows = Object.keys(regularSeatRows)
-    .map(Number)
-    .sort((a, b) => a - b)
-    .map((rowIndex) => regularSeatRows[rowIndex]);
-  const lastRowSeats = seats
-    .filter((seat) => seat.rowType === 'last')
-    .sort((a, b) => a.position - b.position);
+  const seatRows = generateSeatsGrid();
 
   return (
     <View style={styles.container}>
@@ -664,17 +635,46 @@ const BusBooking = () => {
             <ActivityIndicator size="small" color="#3b82f6" style={{ marginVertical: 12 }} />
           ) : (
             <View style={styles.seatsGrid}>
-              {orderedRegularRows.map((rowSeats, rowIndex) => {
-                const leftSeats = rowSeats.filter((seat) => seat.position <= 2);
-                const rightSeats = rowSeats.filter((seat) => seat.position >= 3);
+              {seatRows.map((row) => {
+                if (row.rowType === 'back') {
+                  return (
+                    <View key={row.rowLabel} style={styles.busLastRow}>
+                      {row.seats.map((seat) => (
+                        <TouchableOpacity
+                          key={seat.id}
+                          style={[
+                            styles.seat,
+                            styles.lastRowSeat,
+                            !seat.available && styles.seatUnavailable,
+                            selectedSeats.includes(seat.id) && styles.seatSelected,
+                          ]}
+                          onPress={() => seat.available && handleSeatToggle(seat.id)}
+                          disabled={!seat.available}
+                        >
+                          <Text
+                            style={[
+                              styles.seatText,
+                              selectedSeats.includes(seat.id) && styles.seatTextSelected,
+                            ]}
+                          >
+                            {seat.number}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  );
+                }
+
+                const leftSeats = row.seats.filter((seat) => seat.position <= 2);
+                const rightSeats = row.seats.filter((seat) => seat.position >= 3);
 
                 return (
-                  <View key={`regular-${rowIndex}`} style={styles.busRegularRow}>
+                  <View key={row.rowLabel} style={styles.busRegularRow}>
                     <View style={styles.busSeatGroup}>
                       {[0, 1].map((index) => {
                         const seat = leftSeats[index];
                         if (!seat) {
-                          return <View key={`regular-left-empty-${rowIndex}-${index}`} style={styles.emptySeatSlot} />;
+                          return <View key={`${row.rowLabel}-left-empty-${index}`} style={styles.emptySeatSlot} />;
                         }
                         return (
                           <TouchableOpacity
@@ -706,7 +706,7 @@ const BusBooking = () => {
                       {[0, 1].map((index) => {
                         const seat = rightSeats[index];
                         if (!seat) {
-                          return <View key={`regular-right-empty-${rowIndex}-${index}`} style={styles.emptySeatSlot} />;
+                          return <View key={`${row.rowLabel}-right-empty-${index}`} style={styles.emptySeatSlot} />;
                         }
                         return (
                           <TouchableOpacity
@@ -734,33 +734,6 @@ const BusBooking = () => {
                   </View>
                 );
               })}
-
-              {lastRowSeats.length > 0 && (
-                <View style={styles.busLastRow}>
-                  {lastRowSeats.map((seat) => (
-                    <TouchableOpacity
-                      key={seat.id}
-                      style={[
-                        styles.seat,
-                        styles.lastRowSeat,
-                        !seat.available && styles.seatUnavailable,
-                        selectedSeats.includes(seat.id) && styles.seatSelected,
-                      ]}
-                      onPress={() => seat.available && handleSeatToggle(seat.id)}
-                      disabled={!seat.available}
-                    >
-                      <Text
-                        style={[
-                          styles.seatText,
-                          selectedSeats.includes(seat.id) && styles.seatTextSelected,
-                        ]}
-                      >
-                        {seat.number}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
             </View>
           )}
 

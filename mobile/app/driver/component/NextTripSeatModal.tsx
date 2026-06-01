@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Modal, View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { palette, spacing, radius, shadow } from '../theme';
+import { buildSeatLayout } from '@/app/utils/seatLayout';
 
 export type SeatReservation = {
   seatNumber: string;
@@ -56,65 +57,10 @@ export default function NextTripSeatModal({
     return map;
   }, [reservedSeats]);
 
-  const seats = useMemo(() => {
+  const seatRows = useMemo(() => {
     const count = totalSeats > 0 ? totalSeats : 45;
-    const lastRowCount = count >= 5 ? 5 : count;
-    const regularSeatCount = count - lastRowCount;
-    const regularRowsCount = Math.ceil(regularSeatCount / 4);
-    const generated = [] as Array<{ id: string; rowType: 'regular' | 'last'; rowIndex: number; position: number }>;
-
-    for (let rowIndex = 0; rowIndex < regularRowsCount; rowIndex += 1) {
-      for (let position = 1; position <= 4; position += 1) {
-        const seatNumber = rowIndex * 4 + position;
-        if (seatNumber > regularSeatCount) {
-          continue;
-        }
-        const label = `${String.fromCharCode(65 + rowIndex)}${position}`;
-        generated.push({
-          id: label,
-          rowType: 'regular',
-          rowIndex,
-          position,
-        });
-      }
-    }
-
-    if (lastRowCount > 0) {
-      const rowIndex = regularRowsCount;
-      for (let position = 1; position <= lastRowCount; position += 1) {
-        const label = `${String.fromCharCode(65 + rowIndex)}${position}`;
-        generated.push({
-          id: label,
-          rowType: 'last',
-          rowIndex,
-          position,
-        });
-      }
-    }
-    return generated;
+    return buildSeatLayout(count);
   }, [totalSeats]);
-
-  const regularRows = useMemo(() => {
-    const grouped = seats
-      .filter((seat) => seat.rowType === 'regular')
-      .reduce<Record<number, typeof seats>>((acc, seat) => {
-        if (!acc[seat.rowIndex]) {
-          acc[seat.rowIndex] = [];
-        }
-        acc[seat.rowIndex].push(seat);
-        return acc;
-      }, {});
-
-    return Object.keys(grouped)
-      .map(Number)
-      .sort((a, b) => a - b)
-      .map((rowIndex) => grouped[rowIndex]);
-  }, [seats]);
-
-  const lastRowSeats = useMemo(
-    () => seats.filter((seat) => seat.rowType === 'last').sort((a, b) => a.position - b.position),
-    [seats]
-  );
 
   const handleSeatPress = (seatLabel: string) => {
     const reservation = reservedMap.get(seatLabel);
@@ -187,17 +133,45 @@ export default function NextTripSeatModal({
             <>
               <ScrollView style={styles.gridWrap} contentContainerStyle={styles.gridContent}>
                 <View style={styles.grid}>
-                  {regularRows.map((rowSeats, rowIndex) => {
-                    const leftSeats = rowSeats.filter((seat) => seat.position <= 2);
-                    const rightSeats = rowSeats.filter((seat) => seat.position >= 3);
+                  {seatRows.map((row) => {
+                    if (row.rowType === 'back') {
+                      return (
+                        <View key={row.rowLabel} style={styles.busLastRow}>
+                          {row.seats.map((seat) => {
+                            const isReserved = reservedMap.has(seat.id);
+                            const reservation = reservedMap.get(seat.id);
+                            const isBoarded = Boolean(reservation?.boarded);
+                            const isSelected = selectedSeat?.seatNumber?.trim().toUpperCase() === seat.id;
+                            return (
+                              <Pressable
+                                key={seat.id}
+                                style={[
+                                  styles.seat,
+                                  styles.lastRowSeat,
+                                  isBoarded && styles.seatBoarded,
+                                  !isBoarded && isReserved && styles.seatReserved,
+                                  isSelected && styles.seatSelected,
+                                ]}
+                                onPress={() => handleSeatPress(seat.id)}
+                              >
+                                <Text style={[styles.seatText, isSelected && styles.seatTextSelected]}>{seat.id}</Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      );
+                    }
+
+                    const leftSeats = row.seats.filter((seat) => seat.position <= 2);
+                    const rightSeats = row.seats.filter((seat) => seat.position >= 3);
 
                     return (
-                      <View key={`regular-${rowIndex}`} style={styles.busRegularRow}>
+                      <View key={row.rowLabel} style={styles.busRegularRow}>
                         <View style={styles.busSeatGroup}>
                           {[0, 1].map((index) => {
                             const seat = leftSeats[index];
                             if (!seat) {
-                              return <View key={`regular-left-empty-${rowIndex}-${index}`} style={styles.emptySeatSlot} />;
+                              return <View key={`${row.rowLabel}-left-empty-${index}`} style={styles.emptySeatSlot} />;
                             }
                             const isReserved = reservedMap.has(seat.id);
                             const reservation = reservedMap.get(seat.id);
@@ -226,7 +200,7 @@ export default function NextTripSeatModal({
                           {[0, 1].map((index) => {
                             const seat = rightSeats[index];
                             if (!seat) {
-                              return <View key={`regular-right-empty-${rowIndex}-${index}`} style={styles.emptySeatSlot} />;
+                              return <View key={`${row.rowLabel}-right-empty-${index}`} style={styles.emptySeatSlot} />;
                             }
                             const isReserved = reservedMap.has(seat.id);
                             const reservation = reservedMap.get(seat.id);
@@ -251,32 +225,6 @@ export default function NextTripSeatModal({
                       </View>
                     );
                   })}
-
-                  {lastRowSeats.length > 0 && (
-                    <View style={styles.busLastRow}>
-                      {lastRowSeats.map((seat) => {
-                        const isReserved = reservedMap.has(seat.id);
-                        const reservation = reservedMap.get(seat.id);
-                        const isBoarded = Boolean(reservation?.boarded);
-                        const isSelected = selectedSeat?.seatNumber?.trim().toUpperCase() === seat.id;
-                        return (
-                          <Pressable
-                            key={seat.id}
-                            style={[
-                              styles.seat,
-                              styles.lastRowSeat,
-                              isBoarded && styles.seatBoarded,
-                              !isBoarded && isReserved && styles.seatReserved,
-                              isSelected && styles.seatSelected,
-                            ]}
-                            onPress={() => handleSeatPress(seat.id)}
-                          >
-                            <Text style={[styles.seatText, isSelected && styles.seatTextSelected]}>{seat.id}</Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  )}
                 </View>
               </ScrollView>
 
