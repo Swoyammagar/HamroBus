@@ -14,6 +14,7 @@ const { getCurrentStopSequence } = require('../../services/distanceUtils');
 const { getIoInstance } = require('../../services/ioManager');
 const { deductPoints, checkBanStatus } = require('../../services/rewardService');
 const { sendPushToUsers } = require('../../services/pushNotificationService');
+const { buildSeatLabelMap } = require('../../utils/seatLayout');
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const BOOKING_ACTIVE_STATUSES = ['confirmed', 'in-progress'];
@@ -54,17 +55,6 @@ const getStopByName = (route, stopName) => {
   const normalized = String(stopName || '').trim().toLowerCase();
   if (!normalized) return null;
   return route.stops.find((stop) => String(stop.stopName || '').trim().toLowerCase() === normalized) || null;
-};
-
-const buildSeatLabelMap = (capacity) => {
-  const labels = [];
-  const seatsPerRow = 4;
-  for (let i = 1; i <= capacity; i += 1) {
-    const rowLabel = String.fromCharCode(65 + Math.floor((i - 1) / seatsPerRow));
-    const seatInRow = ((i - 1) % seatsPerRow) + 1;
-    labels.push(`${rowLabel}${seatInRow}`);
-  }
-  return labels;
 };
 
 const makeBookingCode = () => `BK${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 9999)
