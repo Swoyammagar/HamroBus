@@ -41,3 +41,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Firebase Service Account Keys
+hamrobus-5b98c-*.json
