@@ -3,6 +3,7 @@ const Bus = require('../../models/bus.model');
 const Driver = require('../../models/driver.model');
 const TripSession = require('../../models/tripSession.model');
 const Review = require('../../models/review.model');
+const { calculateDistance } = require('../../services/distanceUtils');
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -55,7 +56,12 @@ const mapStop = (stop, index) => ({
   order: stop.sequence,
 });
 
-const mapRoute = (route) => ({
+const parseCoordinate = (value) => {
+  const coordinate = Number(value);
+  return Number.isFinite(coordinate) ? coordinate : null;
+};
+
+const mapRoute = (route, extra = {}) => ({
   _id: route._id,
   name: route.routeName,
   source: route.source,
@@ -65,6 +71,7 @@ const mapRoute = (route) => ({
   busesCount: Array.isArray(route.assignedBusIds) ? route.assignedBusIds.length : 0,
   stops: Array.isArray(route.stops) ? route.stops.map(mapStop) : [],
   isActive: true,
+  ...extra,
 });
 
 const mapBus = (bus) => ({
@@ -93,6 +100,58 @@ const getPublicRoutes = async (req, res) => {
     return res.status(200).json({ routes: formatted });
   } catch (error) {
     console.error('Public routes error:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+const getNearbyPublicRoutes = async (req, res) => {
+  const lat = parseCoordinate(req.query.lat);
+  const lng = parseCoordinate(req.query.lng);
+
+  if (lat === null || lng === null) {
+    return res.status(400).json({ message: 'Valid lat and lng query parameters are required' });
+  }
+
+  try {
+    const routes = await Route.find()
+      .populate('assignedBusIds', 'busNumber')
+      .lean();
+
+    const formatted = routes
+      .map((route) => {
+        const orderedStops = Array.isArray(route.stops)
+          ? [...route.stops].sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0))
+          : [];
+        const usableStops = orderedStops.slice(0, -1);
+
+        if (usableStops.length === 0) {
+          return null;
+        }
+
+        const closestDistance = usableStops.reduce((minimum, stop) => {
+          const stopLat = parseCoordinate(stop.latitude);
+          const stopLng = parseCoordinate(stop.longitude);
+
+          if (stopLat === null || stopLng === null) {
+            return minimum;
+          }
+
+          const distance = calculateDistance(lat, lng, stopLat, stopLng);
+          return distance < minimum ? distance : minimum;
+        }, Infinity);
+
+        if (!Number.isFinite(closestDistance)) {
+          return null;
+        }
+
+        return mapRoute(route, { closestDistance });
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.closestDistance - b.closestDistance);
+
+    return res.status(200).json({ routes: formatted });
+  } catch (error) {
+    console.error('Nearby public routes error:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -192,13 +251,43 @@ const getPublicRouteSchedules = async (req, res) => {
 };
 
 const getPublicBuses = async (req, res) => {
+  const lat = parseCoordinate(req.query.lat);
+  const lng = parseCoordinate(req.query.lng);
+
   try {
     const buses = await Bus.find()
       .populate('assignedDriverId', 'firstName lastName licenseNo profileImgUrl ratingAverage ratingCount')
       .populate('assignedRouteId', 'routeName')
       .lean();
 
-    const formatted = buses.map(mapBus);
+    const sortedBuses = lat === null || lng === null
+      ? buses
+      : [...buses].sort((a, b) => {
+        const aLat = parseCoordinate(a.lastKnownLocation?.latitude);
+        const aLng = parseCoordinate(a.lastKnownLocation?.longitude);
+        const bLat = parseCoordinate(b.lastKnownLocation?.latitude);
+        const bLng = parseCoordinate(b.lastKnownLocation?.longitude);
+        const aDistance = aLat === null || aLng === null
+          ? Infinity
+          : calculateDistance(lat, lng, aLat, aLng);
+        const bDistance = bLat === null || bLng === null
+          ? Infinity
+          : calculateDistance(lat, lng, bLat, bLng);
+
+        return aDistance - bDistance;
+      });
+
+    const formatted = sortedBuses.map((bus) => {
+      const mapped = mapBus(bus);
+      const busLat = parseCoordinate(bus.lastKnownLocation?.latitude);
+      const busLng = parseCoordinate(bus.lastKnownLocation?.longitude);
+
+      if (lat !== null && lng !== null && busLat !== null && busLng !== null) {
+        mapped.closestDistance = calculateDistance(lat, lng, busLat, busLng);
+      }
+
+      return mapped;
+    });
     return res.status(200).json({ buses: formatted });
   } catch (error) {
     console.error('Public buses error:', error);
@@ -295,6 +384,7 @@ const getPublicDriverLatestReviews = async (req, res) => {
 
 module.exports = {
   getPublicRoutes,
+  getNearbyPublicRoutes,
   getPublicRouteById,
   searchPublicRoutes,
   getPublicRouteSchedules,

@@ -16,6 +16,7 @@ const {
 } = require('../controllers/passenger.controller');
 const {
     getPublicRoutes,
+    getNearbyPublicRoutes,
     getPublicRouteById,
     searchPublicRoutes,
     getPublicRouteSchedules,
@@ -44,6 +45,7 @@ router.post('/register', registerPassenger);
 router.post('/login', loginPassenger);
 router.get('/check-phone-availability', checkPhoneNumberAvailability);
 router.get('/routes', getPublicRoutes);
+router.get('/routes/nearby', getNearbyPublicRoutes);
 router.get('/routes/search', searchPublicRoutes);
 router.get('/routes/:routeId', getPublicRouteById);
 router.get('/routes/:routeId/schedules', getPublicRouteSchedules);
