@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,32 +13,76 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
 import { usePassenger, type Route } from '../context/PassengerContext';
 import { useRoutes } from '../hooks/useRoutes';
+
+type RouteTab = 'nearby' | 'all';
 
 const Home = () => {
   const router = useRouter();
   const { routes, setRoutes, setSelectedRoute } = usePassenger();
-  const { routes: fetchedRoutes, loading, refreshing, refreshRoutes, searchRoutes } = useRoutes();
+  const {
+    routes: fetchedRoutes,
+    loading,
+    refreshing,
+    fetchRoutes,
+    fetchNearbyRoutes,
+    refreshRoutes,
+    refreshNearbyRoutes,
+  } = useRoutes(false);
   const [searchText, setSearchText] = useState('');
   const [filteredRoutes, setFilteredRoutes] = useState(routes);
+  const [activeTab, setActiveTab] = useState<RouteTab>('nearby');
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const initialLoadStarted = useRef(false);
+
+  const loadAllRoutes = useCallback(async () => {
+    await fetchRoutes();
+  }, [fetchRoutes]);
+
+  const loadNearbyRoutes = useCallback(async (refresh = false) => {
+    try {
+      let coords = currentLocation;
+
+      if (!coords) {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (permission.status !== 'granted') {
+          setActiveTab('all');
+          await loadAllRoutes();
+          return;
+        }
+
+        const position = await Location.getCurrentPositionAsync({});
+        coords = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setCurrentLocation(coords);
+      }
+
+      if (refresh) {
+        await refreshNearbyRoutes(coords.lat, coords.lng);
+      } else {
+        await fetchNearbyRoutes(coords.lat, coords.lng);
+      }
+    } catch (error) {
+      console.error('Error loading nearby routes:', error);
+      setActiveTab('all');
+      await loadAllRoutes();
+    }
+  }, [currentLocation, fetchNearbyRoutes, loadAllRoutes, refreshNearbyRoutes]);
 
   useEffect(() => {
-    if (fetchedRoutes.length > 0) {
-      setRoutes(fetchedRoutes);
-      setFilteredRoutes(fetchedRoutes);
-    }
+    setRoutes(fetchedRoutes);
+    setFilteredRoutes(fetchedRoutes);
   }, [fetchedRoutes, setRoutes]);
 
   useEffect(() => {
-    const query = searchText.trim();
-    if (query.length > 0) {
-      const debounceId = setTimeout(() => {
-        searchRoutes(query);
-      }, 350);
-      return () => clearTimeout(debounceId);
-    }
-  }, [searchText, searchRoutes]);
+    if (initialLoadStarted.current) return;
+    initialLoadStarted.current = true;
+    loadNearbyRoutes();
+  }, [loadNearbyRoutes]);
 
   useEffect(() => {
     const filtered = routes.filter(
@@ -50,6 +94,25 @@ const Home = () => {
     );
     setFilteredRoutes(filtered);
   }, [searchText, routes]);
+
+  const handleTabChange = async (tab: RouteTab) => {
+    setActiveTab(tab);
+    setSearchText('');
+
+    if (tab === 'nearby') {
+      await loadNearbyRoutes();
+    } else {
+      await loadAllRoutes();
+    }
+  };
+
+  const handleRefresh = useCallback(async () => {
+    if (activeTab === 'nearby') {
+      await loadNearbyRoutes(true);
+    } else {
+      await refreshRoutes();
+    }
+  }, [activeTab, loadNearbyRoutes, refreshRoutes]);
 
   const handleRouteSelect = (route: Route) => {
     setSelectedRoute(route);
@@ -120,6 +183,27 @@ const Home = () => {
         <Text style={styles.headerSubtitle}>Tap a route to explore</Text>
       </View>
 
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'nearby' && styles.tabButtonActive]}
+          onPress={() => handleTabChange('nearby')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabText, activeTab === 'nearby' && styles.tabTextActive]}>
+            Nearby Routes
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'all' && styles.tabButtonActive]}
+          onPress={() => handleTabChange('all')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
+            All Routes
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={20} color="#9ca3af" />
         <TextInput
@@ -138,7 +222,7 @@ const Home = () => {
 
       <ScrollView
         style={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshRoutes} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         showsVerticalScrollIndicator={false}
       >
         {filteredRoutes.length > 0 ? (
@@ -196,6 +280,35 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 14,
+    padding: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  tabButtonActive: {
+    backgroundColor: '#dbeafe',
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  tabTextActive: {
+    color: '#1e40af',
   },
   searchInput: {
     flex: 1,

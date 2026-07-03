@@ -12,6 +12,8 @@ const {
 const Notification = require('../models/notification.model');
 const { v4: uuidv4 } = require('uuid');
 const { sendPushToUsers } = require('../services/pushNotificationService');
+const { clearTripSpeedHistory } = require('../services/arrivalEta.service');
+const { clearArrivalNotificationTripCache } = require('../services/arrivalNotification.service');
 const { calculateStartDelayMinutes } = require('../utils/tripDelay');
 
 const normalize = (v) => String(v || '').trim().toLowerCase();
@@ -446,6 +448,8 @@ const endTrip = async (req, res) => {
         trip.status = 'completed';
         trip.endTime = new Date();
         await trip.save();
+        clearTripSpeedHistory(trip._id);
+        clearArrivalNotificationTripCache(trip._id);
 
         const bookingCompletionStats = await completeAllInProgressBookingsForTrip({ trip });
 

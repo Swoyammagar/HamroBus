@@ -15,6 +15,8 @@ const TripSession = require('./models/tripSession.model');
 const Route = require('./models/route.model');
 const { detectAndUpdateCurrentStop } = require('./services/distanceUtils');
 const { setIoInstance } = require('./services/ioManager');
+const { recordLocationUpdate } = require('./services/arrivalEta.service');
+const { notifyPassengersForUpcomingBoardingStops } = require('./services/arrivalNotification.service');
 const { setupAccountDeletionCron } = require('./utils/accountDeletionCron');
 
 const server = http.createServer(app);
@@ -146,6 +148,13 @@ io.on('connection', (socket) => {
             ]);
 
             if (routeDoc) {
+              recordLocationUpdate({
+                tripId: activeTrip._id,
+                latitude,
+                longitude,
+                timestamp: locationPayload.timestamp,
+              });
+
               const stopDetection = await detectAndUpdateCurrentStop(
                 activeTrip,
                 latitude,
@@ -168,6 +177,16 @@ io.on('connection', (socket) => {
                 };
 
               }
+
+              notifyPassengersForUpcomingBoardingStops({
+                io,
+                trip: activeTrip,
+                route: routeDoc,
+                latitude,
+                longitude,
+              }).catch((arrivalNotificationError) => {
+                console.error('Error processing arrival notifications:', arrivalNotificationError);
+              });
             }
           }
         } catch (error) {

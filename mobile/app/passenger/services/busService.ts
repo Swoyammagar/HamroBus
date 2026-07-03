@@ -51,8 +51,12 @@ export interface Bus {
 }
 
 export const busService = {
-  getAllBuses: async (): Promise<Bus[]> => {
-    const response = await apiClient.get('/passenger/buses');
+  getAllBuses: async (lat?: number, lng?: number): Promise<Bus[]> => {
+    const hasLocation = typeof lat === 'number' && typeof lng === 'number';
+    const url = hasLocation
+      ? `/passenger/buses?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`
+      : '/passenger/buses';
+    const response = await apiClient.get(url);
     return response.data?.buses || response.data || [];
   },
 

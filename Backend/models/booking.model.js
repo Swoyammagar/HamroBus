@@ -222,6 +222,11 @@ const bookingSchema = new mongoose.Schema(
       type: Date,
       required: false,
     },
+    arrivalReminderSentAt: {
+      type: Date,
+      required: false,
+      index: true,
+    },
     rewardPointsRedeemed: {
       type: Boolean,
       default: false,
@@ -268,6 +273,13 @@ bookingSchema.index({
 bookingSchema.index({
   passengerId: 1,
   createdAt: -1,
+});
+
+bookingSchema.index({
+  tripSessionId: 1,
+  status: 1,
+  isBoarded: 1,
+  arrivalReminderSentAt: 1,
 });
 
 module.exports = mongoose.models.Booking || mongoose.model('Booking', bookingSchema);

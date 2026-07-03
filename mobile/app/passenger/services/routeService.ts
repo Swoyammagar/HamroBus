@@ -18,6 +18,7 @@ export interface Route {
   source?: string;
   destination?: string;
   distance?: number;
+  closestDistance?: number;
   busesCount?: number;
   fareInfo?: number;
   isActive: boolean;
@@ -72,6 +73,11 @@ export interface StopArrivalsResponse {
 export const routeService = {
   getAllRoutes: async (): Promise<Route[]> => {
     const response = await apiClient.get('/passenger/routes');
+    return response.data?.routes || response.data || [];
+  },
+
+  getNearbyRoutes: async (lat: number, lng: number): Promise<Route[]> => {
+    const response = await apiClient.get(`/passenger/routes/nearby?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
     return response.data?.routes || response.data || [];
   },
 

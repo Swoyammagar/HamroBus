@@ -35,6 +35,13 @@ const BusBooking = () => {
   const { busId, routeId } = useLocalSearchParams();
   const { routes, selectedRoute, selectedBus, buses, addBooking } = usePassenger();
 
+  const busIdValue = Array.isArray(busId) ? busId[0] : busId;
+  const routeIdValue = Array.isArray(routeId) ? routeId[0] : routeId;
+  const selectedBusId = String(selectedBus?._id || selectedBus?.id || '');
+  const selectedRouteId = String(selectedRoute?._id || selectedRoute?.id || '');
+  const busesSignature = buses.map((candidate) => String(candidate?._id || candidate?.id || '')).join('|');
+  const routesSignature = routes.map((candidate) => String(candidate?._id || candidate?.id || '')).join('|');
+
   const [bus, setBus] = useState<Bus | null>(null);
   const [route, setRoute] = useState<Route | null>(null);
   const [selectedBoardingStop, setSelectedBoardingStop] = useState<Stop | null>(null);
@@ -60,9 +67,6 @@ const BusBooking = () => {
   const [currentStop, setCurrentStop] = useState<string | null>(null);
 
   useEffect(() => {
-    const busIdValue = Array.isArray(busId) ? busId[0] : busId;
-    const routeIdValue = Array.isArray(routeId) ? routeId[0] : routeId;
-
     const busFromContext = [selectedBus, ...buses].find(candidate => {
       if (!candidate) return false;
       const candidateId = candidate._id || candidate.id;
@@ -93,7 +97,7 @@ const BusBooking = () => {
       setSelectedBoardingStop(resolvedRoute.stops[0]);
     }
     setResolutionAttempted(true);
-  }, [busId, routeId, selectedBus, buses, selectedRoute, routes]);
+  }, [busIdValue, routeIdValue, selectedBusId, selectedRouteId, busesSignature, routesSignature]);
 
   useEffect(() => {
     const fetchRewardPoints = async () => {
@@ -164,14 +168,14 @@ const BusBooking = () => {
       })
       .catch(() => setSchedules([]))
       .finally(() => setSchedulesLoading(false));
-  }, [route, bus]);
+  }, [route?._id, route?.id, bus?._id, bus?.id]);
 
   useEffect(() => {
     if (!selectedSchedule) return;
     setServiceDate(selectedSchedule.nextServiceDate || getNextOccurrenceOfDay(selectedSchedule.dayOfWeek, selectedSchedule.endTime));
     setSelectedSeats([]);
     setAvailabilityData(null);
-  }, [selectedSchedule]);
+  }, [selectedSchedule?._id]);
 
   useEffect(() => {
     if (!selectedSchedule || !route || !bus || !serviceDate) return;
@@ -186,7 +190,7 @@ const BusBooking = () => {
       .then((data) => setAvailabilityData(data))
       .catch(() => setAvailabilityData(null))
       .finally(() => setAvailabilityLoading(false));
-  }, [selectedSchedule, route, bus, serviceDate]);
+  }, [selectedSchedule?._id, route?._id, route?.id, bus?._id, bus?.id, serviceDate]);
 
   useEffect(() => {
     if (!selectedSchedule || !route || !bus) {
@@ -227,7 +231,7 @@ const BusBooking = () => {
       passengerNotificationSocket.offSeatBooked(handleSeatBooked);
       passengerNotificationSocket.offTripReminder(handleTripReminder);
     };
-  }, [selectedSchedule?._id, bus?._id, route, serviceDate]);
+  }, [selectedSchedule?._id, bus?._id, route?._id, route?.id, serviceDate]);
 
   useEffect(() => {
     if (!bus) {
@@ -261,7 +265,7 @@ const BusBooking = () => {
       passengerNotificationSocket.offCurrentStopUpdate(handleCurrentStopUpdate);
       passengerNotificationSocket.leaveBusRoom(busId);
     };
-  }, [bus]);
+  }, [bus?._id, bus?.id, route?._id, route?.id, selectedSchedule?._id, serviceDate]);
 
   const bookingPrice = route?.fareInfo ?? 150;
 
