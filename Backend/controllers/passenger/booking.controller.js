@@ -164,7 +164,8 @@ const mapBookingResponse = (booking) => ({
   discountPercentage: booking.discountPercentage || 0,
   discountAmount: booking.discountAmount || 0,
   finalFare: booking.finalFare || booking.totalFare,
-  paymentStatus: Boolean(booking.paymentStatus || booking.payment?.status === 'paid'),
+  paymentId: booking.paymentId ? String(booking.paymentId._id || booking.paymentId) : null,
+  paymentStatus: String(booking.paymentId?.status || booking.payment?.status || 'pending'),
   status: booking.status,
   cancelledAt: booking.cancelledAt,
   cancellationReason: booking.cancellationReason,
@@ -174,7 +175,7 @@ const mapBookingResponse = (booking) => ({
   completedAt: booking.completedAt,
   createdAt: booking.createdAt,
   updatedAt: booking.updatedAt,
-  payment: booking.payment,
+  payment: booking.paymentId || booking.payment || null,
   qrToken: booking.qrToken,
   qrPayload: booking.qrPayload,
   qrGeneratedAt: booking.qrGeneratedAt,
@@ -819,6 +820,7 @@ const getMyBookings = async (req, res) => {
       Booking.find(query)
         .populate('routeId', 'routeNumber routeName source destination')
         .populate('busId', 'busNumber capacity')
+        .populate('paymentId')
         .sort({ serviceDate: -1, createdAt: -1 })
         .limit(parsedLimit)
         .skip(parsedSkip),

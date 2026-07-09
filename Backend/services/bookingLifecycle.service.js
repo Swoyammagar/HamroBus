@@ -1,4 +1,5 @@
 const Booking = require('../models/booking.model');
+const Payment = require('../models/payment.model');
 const SeatLock = require('../models/seatLock.model');
 const Route = require('../models/route.model');
 const Driver = require('../models/driver.model');
@@ -239,6 +240,18 @@ const syncBookingsOnTripStart = async ({ trip }) => {
     status: 'in-progress',
     startedAt: transitionTime,
   }));
+
+  await Payment.updateMany(
+    { bookingId: { $in: candidates.map((row) => row._id) } },
+    {
+      $set: {
+        tripSessionId: trip._id,
+        routeId: trip.routeId,
+        busId: trip.busId,
+        scheduleId: trip.scheduleId,
+      },
+    }
+  );
 
   return {
     matched: result.matchedCount || 0,

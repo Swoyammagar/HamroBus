@@ -123,7 +123,8 @@ const getPassengerDetails = async (passengerId) => {
     }
 
     const bookings = await Booking.find({ passengerId })
-      .select('_id bookingCode status journeyDate paymentStatus totalAmount createdAt')
+      .populate('paymentId', 'status amount paidAt provider transactionId khalti')
+      .select('_id bookingCode status serviceDate finalFare totalFare paymentId createdAt')
       .sort({ createdAt: -1 })
       .limit(10)
       .lean()
@@ -144,7 +145,11 @@ const getPassengerDetails = async (passengerId) => {
       data: {
         ...passenger,
         fullName: `${passenger.firstName} ${passenger.lastName}`,
-        bookingHistory: bookings,
+        bookingHistory: bookings.map((booking) => ({
+          ...booking,
+          paymentStatus: booking.paymentId?.status || 'pending',
+          payment: booking.paymentId || null,
+        })),
         reviews,
         stats: {
           totalBookings,

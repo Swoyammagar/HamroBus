@@ -110,9 +110,10 @@ const bookingSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
-    paymentStatus: {
-      type: Boolean,
-      default: false,
+    paymentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Payment',
+      required: false,
       index: true,
     },
     status: {
@@ -148,35 +149,6 @@ const bookingSchema = new mongoose.Schema(
       required: false,
       trim: true,
       maxlength: 250,
-    },
-    payment: {
-      status: {
-        type: String,
-        enum: ['pending', 'paid', 'failed'],
-        default: 'pending',
-      },
-      method: {
-        type: String,
-        default: 'khalti',
-      },
-      khaltiToken: {
-        type: String,
-      },
-      paidAt: {
-        type: Date,
-      },
-      amount: {
-        type: Number,
-      },
-      khaltiIdx: {
-        type: String,
-      },
-      paymentUrl: {
-        type: String,
-      },
-      returnUrl: {
-        type: String,
-      },
     },
     qrToken: {
       type: String,

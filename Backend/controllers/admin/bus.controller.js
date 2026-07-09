@@ -2,6 +2,36 @@ const Bus = require("../../models/bus.model");
 const Driver = require("../../models/driver.model");
 const Route = require("../../models/route.model");
 const TripSession = require("../../models/tripSession.model");
+const QRCode = require('qrcode');
+
+const BUS_QR_SCHEMA_VERSION = 1;
+
+const buildBusQrRawPayload = (bus) => ({
+    v: BUS_QR_SCHEMA_VERSION,
+    type: 'bus-payment',
+    busId: String(bus._id),
+});
+
+const encodeBusQrPayload = (rawPayload) => JSON.stringify(rawPayload);
+
+const generateQrDataUrlFromPayload = async (payloadString) =>
+    QRCode.toDataURL(payloadString, {
+        errorCorrectionLevel: 'M',
+        margin: 2,
+        width: 280,
+    });
+
+const buildBusQrResponse = async (busDoc) => {
+    const qrRawPayload = buildBusQrRawPayload(busDoc);
+    const qrPayload = encodeBusQrPayload(qrRawPayload);
+    const qrCodeDataUrl = await generateQrDataUrlFromPayload(qrPayload);
+
+    return {
+        qrRawPayload,
+        qrPayload,
+        qrCodeDataUrl,
+    };
+};
 
 const createBus = async (req, res) => {
     const {
@@ -63,6 +93,8 @@ const createBus = async (req, res) => {
             await Route.findByIdAndUpdate(assignedRouteId, routeUpdate);
         }
 
+        const busQr = await buildBusQrResponse(newBus);
+
         let query = Bus.findById(newBus._id);
 
         if (newBus.assignedDriverId) {
@@ -78,7 +110,11 @@ const createBus = async (req, res) => {
 
         const populatedBus = await query.exec();
 
-        return res.status(201).json({ message: "Bus created successfully", bus: populatedBus });
+        return res.status(201).json({
+            message: "Bus created successfully",
+            bus: populatedBus,
+            qr: busQr,
+        });
     } catch (error) {
         console.error('Create bus error:', error);
         return res.status(500).json({ message: "Server error", error: error.message });
@@ -241,6 +277,7 @@ const updateBus = async (req, res) => {
         }
 
         const updatedBus = await query.exec();
+        const busQr = await buildBusQrResponse(updatedBus);
 
         const io = req.app.get('io');
         if (io && bus.assignedDriverId) {
@@ -252,13 +289,54 @@ const updateBus = async (req, res) => {
             });
         }
 
-        return res.status(200).json({ message: "Bus updated successfully", bus: updatedBus });
+        return res.status(200).json({
+            message: "Bus updated successfully",
+            bus: updatedBus,
+            qr: busQr,
+        });
     }
     catch (error) {
         console.error('Update bus error:', error);
         return res.status(500).json({ message: "Server error", error: error.message });
     }
 }
+
+const getBusQr = async (req, res) => {
+    const { busId } = req.params;
+
+    try {
+        if (!busId) {
+            return res.status(400).json({ message: 'busId is required' });
+        }
+
+        const bus = await Bus.findById(busId)
+            .select('busNumber model capacity status assignedDriverId assignedRouteId')
+            .lean();
+
+        if (!bus) {
+            return res.status(404).json({ message: 'Bus not found' });
+        }
+
+        const busQr = await buildBusQrResponse(bus);
+
+        return res.status(200).json({
+            success: true,
+            bus: {
+                id: String(bus._id),
+                busNumber: bus.busNumber,
+                model: bus.model,
+                capacity: bus.capacity,
+                status: bus.status,
+                assignedDriverId: bus.assignedDriverId || null,
+                assignedRouteId: bus.assignedRouteId || null,
+            },
+            qr: busQr,
+        });
+    } catch (error) {
+        console.error('Get bus QR error:', error);
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
 
 const getAllBuses = async (req, res) => {
     try {
@@ -336,5 +414,6 @@ module.exports = {
     updateBus,
     getAllBuses,
     getBusOccupancy,
-    getBusSosState
+    getBusSosState,
+    getBusQr
 };

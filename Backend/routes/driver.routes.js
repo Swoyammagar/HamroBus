@@ -21,6 +21,7 @@ const {
 } = require('../controllers/driver.controller');
 const { authenticateAdmin } = require('../middlewares/admin.auth.middleware');
 const { authenticateDriver } = require('../middlewares/mobile.auth.middleware');
+const { getDriverPaymentHistory, getPaymentById } = require('../controllers/payment.comtroller');
 const { getMyRatingSummary, getMyReviews } = require('../controllers/driver/review.controller');
 
 router.post('/register', registerDriver);
@@ -42,6 +43,8 @@ router.post('/location', authenticateDriver, updateDriverLocation);
 router.get('/location/:driverId', getDriverLocationHistory);
 router.get('/reviews/summary', authenticateDriver, getMyRatingSummary);
 router.get('/reviews', authenticateDriver, getMyReviews);
+router.get('/payments/history', authenticateDriver, getDriverPaymentHistory);
+router.get('/payments/:paymentId', authenticateDriver, getPaymentById);
 
 router.post('/profile/request-delete', authenticateDriver, requestDeleteProfile);
 router.post('/profile/cancel-delete', authenticateDriver, cancelDeleteProfile);

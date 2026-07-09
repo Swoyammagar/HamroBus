@@ -848,7 +848,8 @@ const getScheduleSeatMap = async (req, res) => {
             status: { $in: ['confirmed', 'in-progress'] }
         })
             .populate('passengerId', 'firstName lastName phoneNumber')
-            .select('bookingCode seatNumbers passengerId status paymentStatus payment isBoarded boardedAt boardingStop destinationStop seatCount')
+            .populate('paymentId', 'status provider amount paidAt providerAmount khalti')
+            .select('bookingCode seatNumbers passengerId status paymentId isBoarded boardedAt boardingStop destinationStop seatCount totalFare finalFare')
             .lean();
 
         const reservedSeats = bookings.flatMap((booking) => {
@@ -861,8 +862,8 @@ const getScheduleSeatMap = async (req, res) => {
                 status: booking.status,
                 passengerName: passengerName || 'Passenger',
                 passengerPhone: passenger.phoneNumber || '',
-                paymentStatus: booking.paymentStatus || false,
-                payment: booking.payment || null,
+                paymentStatus: booking.paymentId?.status || 'pending',
+                payment: booking.paymentId || null,
                 boarded: Boolean(booking.isBoarded),
                 boardedAt: booking.boardedAt || null,
                 boardingStop: booking.boardingStop || null,
@@ -1127,7 +1128,7 @@ const getAllTripsWithBookings = async (req, res) => {
             seats: b.seatNumbers.join(', '),
             boardingStop: b.boardingStop?.stopName,
             alightingStop: b.destinationStop?.stopName,
-            paymentStatus: b.payment?.status || 'pending',
+                        paymentStatus: b.paymentId?.status || 'pending',
             bookingStatus: b.status,
             totalFare: b.totalFare
           }))
@@ -1171,6 +1172,7 @@ const getTripDetailsById = async (req, res) => {
 
     const bookings = await Booking.find({ tripSessionId: tripId })
       .populate('passengerId', 'firstName lastName phoneNumber profileImgUrl')
+            .populate('paymentId', 'status provider amount paidAt providerAmount khalti')
       .lean();
 
     const tripDetails = {
@@ -1202,9 +1204,9 @@ const getTripDetailsById = async (req, res) => {
         passengerCount: bookings.reduce((sum, b) => sum + (b.seatCount || 0), 0),
         currentOccupancy: trip.passengerCount || 0,
         totalSeats: trip.busId?.capacity || bookings.reduce((sum, b) => sum + (b.seatCount || 0), 0),
-        totalFare: bookings.reduce((sum, b) => sum + (b.totalFare || 0), 0),
-        paidBookings: bookings.filter(b => b.payment?.status === 'paid').length,
-        pendingPayments: bookings.filter(b => b.payment?.status !== 'paid').length,
+                totalFare: bookings.reduce((sum, b) => sum + (b.paymentId?.status === 'completed' ? Number(b.paymentId?.amount || b.finalFare || b.totalFare || 0) : Number(b.finalFare || b.totalFare || 0)), 0),
+                paidBookings: bookings.filter(b => b.paymentId?.status === 'completed').length,
+                pendingPayments: bookings.filter(b => b.paymentId?.status !== 'completed').length,
       },
       occupancyHistory: trip.occupancyHistory || [],
       bookings: bookings.map(b => ({
@@ -1217,8 +1219,8 @@ const getTripDetailsById = async (req, res) => {
         boardingStop: b.boardingStop?.stopName,
         alightingStop: b.destinationStop?.stopName,
         fare: b.totalFare,
-        paymentStatus: b.payment?.status || 'pending',
-        paymentMethod: b.payment?.method || 'N/A',
+                paymentStatus: b.paymentId?.status || 'pending',
+                paymentMethod: b.paymentId?.provider || 'N/A',
         bookingStatus: b.status,
       }))
     };

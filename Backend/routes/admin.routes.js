@@ -18,6 +18,7 @@ const {
 const { authenticateAdmin } = require("../middlewares/admin.auth.middleware");
 const { currentUser } = require("../controllers/decodedTokenAdmin.controller");
 const { getAdminReviews, getAdminReviewSummary, getDriverLeaderboard, deleteReviewById } = require("../controllers/admin/review.controller");
+const { getAdminPaymentListing, getAdminPaymentStatistics, getPaymentById } = require('../controllers/payment.comtroller');
 
 router.get("/reviews", authenticateAdmin, getAdminReviews);
 router.get("/reviews/summary", authenticateAdmin, getAdminReviewSummary);
@@ -41,5 +42,9 @@ router.delete("/passengers/:passengerId", authenticateAdmin, deletePassengerByAd
 router.get("/drivers", authenticateAdmin, getDriversList);
 router.get("/drivers/:driverId", authenticateAdmin, getDriverInfo);
 router.delete("/drivers/:driverId", authenticateAdmin, deleteDriverByAdmin);
+
+router.get('/payments', authenticateAdmin, getAdminPaymentListing);
+router.get('/payments/stats', authenticateAdmin, getAdminPaymentStatistics);
+router.get('/payments/:paymentId', authenticateAdmin, getPaymentById);
 
 module.exports = router;
