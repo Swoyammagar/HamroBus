@@ -1,49 +1,12 @@
 const Booking = require('../models/booking.model');
-
-const getKhaltiSecretKey = () => String(process.env.KHALTI_SECRET_KEY || '').trim();
-
-const getKhaltiBaseUrl = () =>
-  String(process.env.KHALTI_API_BASE_URL || 'https://dev.khalti.com').replace(/\/$/, '');
-
-const buildHeaders = () => ({
-  Authorization: `Key ${getKhaltiSecretKey()}`,
-  'Content-Type': 'application/json',
-});
-
-const safeJson = async (response) => {
-  try {
-    return await response.json();
-  } catch (error) {
-    return null;
-  }
-};
-
-const isKhaltiSelfUrl = (value) => /(^|\/\/)(www\.)?khalti\.com/i.test(String(value || ''));
-
-const isHttpUrl = (value) => {
-  try {
-    const parsed = new URL(String(value || '').trim());
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch (error) {
-    return false;
-  }
-};
-
-const lookupKhaltiByPidx = async (pidx) => {
-  const response = await fetch(`${getKhaltiBaseUrl()}/api/v2/epayment/lookup/`, {
-    method: 'POST',
-    headers: buildHeaders(),
-    body: JSON.stringify({ pidx }),
-  });
-
-  const data = await safeJson(response);
-  return { response, data };
-};
-
-const isKhaltiFailedStatus = (status) =>
-  ['expired', 'refunded', 'canceled', 'cancelled', 'failed'].includes(
-    String(status || '').toLowerCase()
-  );
+const {
+  getKhaltiSecretKey,
+  lookupKhaltiByPidx,
+  initiateKhalti,
+  isKhaltiFailedStatus,
+  resolveKhaltiUrls,
+} = require('../services/khalti.service');
+const { mirrorBookingPayment } = require('../services/paymentRecord.service');
 
 const khaltiReturnBridge = async (req, res) => {
   try {
@@ -125,6 +88,9 @@ const initiateKhaltiPayment = async (req, res) => {
         };
         booking.paymentStatus = true;
         await booking.save();
+        await mirrorBookingPayment({ booking, khaltiData: lookupData }).catch((error) => {
+          console.error('Failed to mirror booking payment:', error);
+        });
 
         return res.status(200).json({
           success: true,
@@ -162,21 +128,15 @@ const initiateKhaltiPayment = async (req, res) => {
       return res.status(400).json({ message: 'Invalid booking amount for payment' });
     }
 
-    const fallbackReturnUrl = String(process.env.KHALTI_RETURN_URL || 'https://example.com/khalti-return').trim();
-    const fallbackWebsiteUrl = String(process.env.KHALTI_WEBSITE_URL || 'https://example.com').trim();
-    const requestedReturnUrl = String(returnUrl || '').trim();
-    const requestedWebsiteUrl = String(websiteUrl || '').trim();
+    const khaltiUrls = resolveKhaltiUrls({ returnUrl, websiteUrl });
 
-    const resolvedReturnUrl = isHttpUrl(requestedReturnUrl) ? requestedReturnUrl : fallbackReturnUrl;
-    const resolvedWebsiteUrl = isHttpUrl(requestedWebsiteUrl) ? requestedWebsiteUrl : fallbackWebsiteUrl;
-
-    if (!isHttpUrl(resolvedReturnUrl) || !isHttpUrl(resolvedWebsiteUrl)) {
+    if (!khaltiUrls.valid) {
       return res.status(400).json({
         message: 'Khalti URL configuration error. return_url and website_url must be valid http/https URLs.',
       });
     }
 
-    if (isKhaltiSelfUrl(resolvedReturnUrl) || isKhaltiSelfUrl(resolvedWebsiteUrl)) {
+    if (khaltiUrls.usesKhaltiSelfUrl) {
       return res.status(400).json({
         message: 'Invalid Khalti URL configuration. return_url and website_url must be your app URLs, not khalti.com',
       });
@@ -184,20 +144,14 @@ const initiateKhaltiPayment = async (req, res) => {
 
     const purchaseOrderId = `${String(booking._id)}-${Date.now()}`;
     const payload = {
-      return_url: resolvedReturnUrl,
-      website_url: resolvedWebsiteUrl,
+      return_url: khaltiUrls.resolvedReturnUrl,
+      website_url: khaltiUrls.resolvedWebsiteUrl,
       amount,
       purchase_order_id: purchaseOrderId,
       purchase_order_name: `Bus booking ${booking.bookingCode}`,
     };
 
-    const response = await fetch(`${getKhaltiBaseUrl()}/api/v2/epayment/initiate/`, {
-      method: 'POST',
-      headers: buildHeaders(),
-      body: JSON.stringify(payload),
-    });
-
-    const data = await safeJson(response);
+    const { response, data } = await initiateKhalti(payload);
 
     if (!response.ok) {
       return res.status(response.status).json({
@@ -262,6 +216,9 @@ const verifyKhaltiPayment = async (req, res) => {
     }
 
     if (booking.payment?.status === 'paid' || booking.paymentStatus === true) {
+      await mirrorBookingPayment({ booking }).catch((error) => {
+        console.error('Failed to mirror booking payment:', error);
+      });
       return res.status(200).json({
         success: true,
         message: 'Booking already paid',
@@ -294,6 +251,11 @@ const verifyKhaltiPayment = async (req, res) => {
     booking.paymentStatus = isPaid;
 
     await booking.save();
+    if (isPaid) {
+      await mirrorBookingPayment({ booking, khaltiData: data }).catch((error) => {
+        console.error('Failed to mirror booking payment:', error);
+      });
+    }
 
     return res.status(200).json({
       success: isPaid,

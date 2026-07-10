@@ -13,6 +13,7 @@ const notificationRoutes = require("./notification.routes");
 const sosRoutes = require("./sos.routes");
 const adminSosRoutes = require("./admin.sos.routes");
 const faqRoutes = require("./faq.routes");
+const qrPaymentRoutes = require("./qrPayment.routes");
 
 
 router.use("/admin", adminRoutes); // will handle /api/admin
@@ -28,6 +29,7 @@ router.use("/notifications", notificationRoutes); // will handle /api/notificati
 router.use('/sos', sosRoutes); // will handle /api/sos
 router.use('/admin/sos', adminSosRoutes); // admin SOS endpoints
 router.use('/faq', faqRoutes); // will handle /api/faq
+router.use('/qr-payments', qrPaymentRoutes); // will handle /api/qr-payments
 
 
 
