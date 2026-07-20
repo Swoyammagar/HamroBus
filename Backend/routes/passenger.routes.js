@@ -34,7 +34,12 @@ const {
     getBookingQr,
 } = require('../controllers/passenger/booking.controller');
 const { authenticatePassenger } = require('../middlewares/mobile.auth.middleware');
-const { initiateKhaltiPayment, verifyKhaltiPayment, khaltiReturnBridge } = require('../controllers/payment.comtroller');
+const {
+  initiateKhaltiPayment,
+  verifyKhaltiPayment,
+  khaltiReturnBridge,
+  getPassengerPaymentHistory,
+} = require('../controllers/payment.comtroller');
 const {
   createBookingReview,
   getMyReviewableBookings,
@@ -64,6 +69,7 @@ router.post('/bookings', authenticatePassenger, createBooking);
 router.post('/bookings/:bookingId/cancel', authenticatePassenger, cancelBooking);
 router.get('/bookings/availability', authenticatePassenger, getSeatAvailability);
 router.get('/bookings/:bookingId/qr', authenticatePassenger, getBookingQr);
+router.get('/payments/history', authenticatePassenger, getPassengerPaymentHistory);
 router.post('/payments/initiate-khalti', authenticatePassenger, initiateKhaltiPayment);
 router.post('/payments/verify-khalti', authenticatePassenger, verifyKhaltiPayment);
 

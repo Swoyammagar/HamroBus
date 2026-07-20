@@ -3,6 +3,7 @@ const Driver = require('../models/driver.model');
 const Route = require('../models/route.model');
 const Bus = require('../models/bus.model');
 const Booking = require('../models/booking.model');
+const Payment = require('../models/payment.model');
 const {
     syncBookingsOnTripStart,
     completeBookingsByReachedStop,
@@ -744,10 +745,81 @@ const getTripHistory = async (req, res) => {
             status: { $in: ['completed', 'cancelled', 'missed'] }
         });
 
+        const tripIds = trips.map((trip) => trip._id);
+        const incomeRows = tripIds.length
+            ? await Payment.aggregate([
+                {
+                    $match: {
+                        tripSessionId: { $in: tripIds },
+                        driverId: trips[0]?.driverId,
+                        paymentStatus: 'paid',
+                    },
+                },
+                {
+                    $group: {
+                        _id: '$tripSessionId',
+                        incomePerTrip: { $sum: '$fare' },
+                        bookingIds: { $addToSet: '$bookingId' },
+                    }
+                },
+            ])
+            : [];
+        const mirroredBookingIds = incomeRows
+            .flatMap((row) => row.bookingIds || [])
+            .filter(Boolean);
+        const bookingIncomeRows = tripIds.length
+            ? await Booking.aggregate([
+                {
+                    $match: {
+                        _id: { $nin: mirroredBookingIds },
+                        $and: [
+                            {
+                                $or: [
+                                    { tripSessionId: { $in: tripIds } },
+                                    { boardedTripSessionId: { $in: tripIds } },
+                                ],
+                            },
+                            {
+                                $or: [
+                                    { paymentStatus: true },
+                                    { 'payment.status': 'paid' },
+                                ],
+                            },
+                        ],
+                    },
+                },
+                {
+                    $group: {
+                        _id: { $ifNull: ['$boardedTripSessionId', '$tripSessionId'] },
+                        incomePerTrip: {
+                            $sum: {
+                                $cond: [
+                                    { $gt: ['$finalFare', 0] },
+                                    '$finalFare',
+                                    '$totalFare',
+                                ],
+                            },
+                        },
+                    },
+                },
+            ])
+            : [];
+        const incomeByTripId = new Map(
+            incomeRows.map((row) => [String(row._id), Number(row.incomePerTrip || 0)])
+        );
+        bookingIncomeRows.forEach((row) => {
+            const tripId = String(row._id);
+            incomeByTripId.set(
+                tripId,
+                Number(incomeByTripId.get(tripId) || 0) + Number(row.incomePerTrip || 0)
+            );
+        });
+
         const enrichedTrips = trips.map(trip => ({
             ...trip.toObject(),
             currentOccupancy: trip.passengerCount || 0,
-            occupancyHistory: trip.occupancyHistory || []
+            occupancyHistory: trip.occupancyHistory || [],
+            incomePerTrip: incomeByTripId.get(String(trip._id)) || 0
         }));
 
         res.status(200).json({

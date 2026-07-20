@@ -18,6 +18,7 @@ const {
 const { authenticateAdmin } = require("../middlewares/admin.auth.middleware");
 const { currentUser } = require("../controllers/decodedTokenAdmin.controller");
 const { getAdminReviews, getAdminReviewSummary, getDriverLeaderboard, deleteReviewById } = require("../controllers/admin/review.controller");
+const { getAdminPaymentRecords } = require("../controllers/payment.comtroller");
 
 router.get("/reviews", authenticateAdmin, getAdminReviews);
 router.get("/reviews/summary", authenticateAdmin, getAdminReviewSummary);
@@ -32,6 +33,7 @@ router.get("/current", authenticateAdmin, currentUser);
 router.post("/change-password", authenticateAdmin, changeAdminPassword);
 router.patch("/profile", authenticateAdmin, updateAdminProfile);
 router.get("/dashboard", authenticateAdmin, getDashboardData);
+router.get("/payments", authenticateAdmin, getAdminPaymentRecords);
 
 
 router.get("/passengers", authenticateAdmin, getPassengersList);
