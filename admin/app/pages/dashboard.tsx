@@ -13,6 +13,7 @@ import Notifications from '../src/mainPages/Notifications';
 import SosList from '../src/mainPages/SosList';
 import Dashboard from '../src/mainPages/Dashboard';
 import Trips from '../src/mainPages/Trips';
+import Payments from '../src/mainPages/Payments';
 import FAQsPage from '../src/mainPages/FAQ';
 import Passengers from '../src/mainPages/Passengers';
 import LegalPages from '../src/mainPages/LegalPages';
@@ -36,6 +37,8 @@ export default function DashboardPage() {
         return <Schedules />;
       case 'trips':
         return <Trips />;
+      case 'payments':
+        return <Payments />;
       case 'analytics':
         return <Analytics />;
       case 'notifications':
