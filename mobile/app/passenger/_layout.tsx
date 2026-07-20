@@ -69,6 +69,20 @@ const PassengerShell = () => {
         />
 
         <Stack.Screen
+          name="screens/qr-scanner"
+          options={{
+            animation: 'default',
+          }}
+        />
+
+        <Stack.Screen
+          name="screens/qr-payment"
+          options={{
+            animation: 'default',
+          }}
+        />
+
+        <Stack.Screen
           name="screens/review"
           options={{
             animation: 'default',
@@ -77,6 +91,13 @@ const PassengerShell = () => {
 
         <Stack.Screen
           name="screens/profile-edit"
+          options={{
+            animation: 'default',
+          }}
+        />
+
+        <Stack.Screen
+          name="screens/payment-history"
           options={{
             animation: 'default',
           }}

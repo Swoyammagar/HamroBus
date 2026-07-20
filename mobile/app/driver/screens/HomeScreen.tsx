@@ -9,6 +9,7 @@ import StartTripModal from '../component/StartTripModal';
 import PassengerLogModal from '../component/PassengerLogModal';
 import NextTripSeatModal, { type SeatReservation } from '../component/NextTripSeatModal';
 import BookingQrScannerModal from '../component/BookingQrScannerModal';
+import BusQrModal from '../component/BusQrModal';
 import driverService from '../services/driverService';
 import socketService from '../services/socketService';
 import { pauseDriverTrackingForBreak, startDriverTrackingNow } from '../../services/driverTrackingControl';
@@ -49,6 +50,14 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
   const [seatMapTotalSeats, setSeatMapTotalSeats] = useState(45);
   const [seatMapReservations, setSeatMapReservations] = useState<SeatReservation[]>([]);
   const [showQrScanner, setShowQrScanner] = useState(false);
+  const [showBusQr, setShowBusQr] = useState(false);
+  const [busQrLoading, setBusQrLoading] = useState(false);
+  const [busQrError, setBusQrError] = useState<string | null>(null);
+  const [busQrData, setBusQrData] = useState<{
+    busNumber?: string;
+    qrCodeDataUrl?: string | null;
+  }>({});
+  const [todayIncome, setTodayIncome] = useState(0);
 
   const getScheduleId = (value: any): string => {
     if (!value) return '';
@@ -62,6 +71,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
 
   useEffect(() => {
     fetchCompletedTrips();
+    fetchTodayIncome();
   }, [currentTrip]);
 
   const fetchCompletedTrips = async () => {
@@ -82,6 +92,7 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     setRefreshing(true);
     try {
       await refreshAll();
+      await fetchTodayIncome();
     } catch (error) {
       console.error('Error during refresh:', error);
     } finally {
@@ -364,6 +375,40 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
     await loadSeatMap(schedule, serviceDate);
   };
 
+  const loadBusQr = async () => {
+    setBusQrLoading(true);
+    setBusQrError(null);
+
+    try {
+      const data = await driverService.getAssignedBusQr();
+      setBusQrData({
+        busNumber: data?.bus?.busNumber,
+        qrCodeDataUrl: data?.qrCodeDataUrl || null,
+      });
+    } catch (error: any) {
+      setBusQrError(error?.response?.data?.message || error?.message || 'Failed to load bus QR');
+      setBusQrData({});
+    } finally {
+      setBusQrLoading(false);
+    }
+  };
+
+  const fetchTodayIncome = async () => {
+    try {
+      const data = await driverService.getTodayIncome();
+      setTodayIncome(Number(data?.totalIncome || 0));
+    } catch (error) {
+      console.error("Error fetching today's income:", error);
+    }
+  };
+
+  const handleOpenBusQr = async () => {
+    setShowBusQr(true);
+    if (!busQrData.qrCodeDataUrl) {
+      await loadBusQr();
+    }
+  };
+
   const handleScanPassengerQr = async (qrData: string) => {
     try {
       const result = await driverService.scanBookingQr(qrData);
@@ -439,9 +484,9 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       color: '#2563EB'
     },
     {
-      label: 'Active Hours',
-      value: currentTrip ? '6.5h' : '0h',
-      icon: 'clock',
+      label: "Today's Income",
+      value: `Rs. ${todayIncome.toFixed(0)}`,
+      icon: 'credit-card',
       color: '#22C55E'
     },
     {
@@ -688,6 +733,17 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
       </View>
 
       <Pressable
+        style={[styles.panel, shadow.card]}
+        onPress={handleOpenBusQr}
+      >
+        <View style={styles.panelHeader}>
+          <Text style={styles.panelTitle}>Bus Payment QR</Text>
+          <Feather name="grid" size={18} color={palette.primary} />
+        </View>
+        <Text style={styles.panelSub}>Show the permanent QR for your assigned bus</Text>
+      </Pressable>
+
+      <Pressable
         style={[styles.panel, shadow.card, !seatMapTargetSchedule && { opacity: 0.6 }]}
         onPress={handleOpenNextTripSeatMap}
         disabled={!seatMapTargetSchedule}
@@ -758,6 +814,16 @@ export default function HomeScreen({ onSOSPress, isOnline }: Props) {
         visible={showQrScanner}
         onClose={() => setShowQrScanner(false)}
         onScanned={handleScanPassengerQr}
+      />
+
+      <BusQrModal
+        visible={showBusQr}
+        onClose={() => setShowBusQr(false)}
+        loading={busQrLoading}
+        error={busQrError}
+        busNumber={busQrData.busNumber}
+        qrCodeDataUrl={busQrData.qrCodeDataUrl}
+        onRetry={loadBusQr}
       />
     </ScrollView>
   );

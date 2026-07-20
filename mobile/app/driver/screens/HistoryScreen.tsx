@@ -314,6 +314,10 @@ export default function HistoryScreen() {
                     <Text style={styles.metaText}>Break Time</Text>
                     <Text style={styles.routeText}>{trip.totalBreakTime || 0} min</Text>
                   </View>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.metaText}>Income</Text>
+                    <Text style={styles.routeText}>Rs. {Number(trip.incomePerTrip || 0).toFixed(0)}</Text>
+                  </View>
                 </View>
               </View>
             )}

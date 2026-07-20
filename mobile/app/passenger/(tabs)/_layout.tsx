@@ -47,6 +47,17 @@ const TabLayout = () => {
       />
 
       <Tabs.Screen
+        name="scan"
+        options={{
+          title: 'Scan',
+          href: '../screens/qr-scanner',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="qr-code-outline" size={size} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="bookings"
         options={{
           title: 'My Bookings',

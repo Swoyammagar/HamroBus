@@ -78,6 +78,7 @@ const Profile = () => {
   const handleEditProfile    = () => router.push('../screens/profile-edit');
   const handleResetPassword  = () => router.push('../screens/password-reset');
   const handleTravelHistory  = () => router.push('../(tabs)/bookings');
+  const handlePaymentHistory = () => router.push('../screens/payment-history');
   const handleHelpSupport    = () => router.push('../screens/faq');
   const handleMyReviews      = () => router.push('../screens/myReviews');
   const handleTerms          = () => router.push('/legal/terms' as any);
@@ -255,6 +256,17 @@ const Profile = () => {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
           </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={handlePaymentHistory}>
+            <View style={styles.menuItemLeft}>
+              <Ionicons name="receipt-outline" size={20} color="#3b82f6" />
+              <View style={styles.menuItemContent}>
+                <Text style={styles.menuItemLabel}>Payment History</Text>
+                <Text style={styles.menuItemSubtitle}>View fares and payment status</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -307,7 +319,7 @@ const Profile = () => {
 
         <TouchableOpacity style={styles.section} onPress={handleMyReviews} activeOpacity={0.7}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Your Reviews</Text>
+            <Text style={styles.reviewTitle}>Your Reviews</Text>
             <Ionicons name="chevron-forward" size={20} color="#3b82f6" />
           </View>
 
@@ -795,14 +807,23 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#6b7280',
     textTransform: 'uppercase',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    color: '#6b7280',
     backgroundColor: '#f9fafb',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
+  reviewTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    color: '#6b7280',
+  },
+
   menuItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1170,6 +1191,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    color: '#6b7280',
+    backgroundColor: '#f9fafb',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb'
   },
   reviewsQuickView: {
     flexDirection: 'row',

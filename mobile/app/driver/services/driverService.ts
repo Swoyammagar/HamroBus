@@ -65,6 +65,7 @@ export interface TripSession {
     }>;
     totalBreakTime: number;
     passengerCount: number;
+    incomePerTrip?: number;
     completedStops: Array<{
         stopId: string;
         completionTime: Date;
@@ -115,6 +116,17 @@ export interface SosAlertPayload {
     details?: string;
     latitude?: number;
     longitude?: number;
+}
+
+export interface DriverBusQrResponse {
+    bus: {
+        _id: string;
+        busNumber: string;
+        model?: string;
+        capacity?: number;
+    };
+    qrPayload: string;
+    qrCodeDataUrl: string;
 }
 
 export interface DriverScheduleSeatMap {
@@ -215,6 +227,11 @@ const driverService = {
         return response.data;
     },
 
+    getTodayIncome: async (): Promise<{ totalIncome: number; completedTrips: number }> => {
+        const response = await apiClient.get('/driver/income/today');
+        return response.data;
+    },
+
     getScheduleSeatMap: async (scheduleId: string, serviceDate: string): Promise<DriverScheduleSeatMap> => {
         const response = await apiClient.get('/trips/schedule-seat-map', {
             params: { scheduleId, serviceDate }
@@ -224,6 +241,11 @@ const driverService = {
 
     scanBookingQr: async (qrData: string): Promise<ScanBookingQrResponse> => {
         const response = await apiClient.post('/trips/scan-booking-qr', { qrData });
+        return response.data;
+    },
+
+    getAssignedBusQr: async (): Promise<DriverBusQrResponse> => {
+        const response = await apiClient.get('/qr-payments/driver/bus-qr');
         return response.data;
     },
 

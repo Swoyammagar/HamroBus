@@ -833,8 +833,6 @@ const BusBooking = () => {
             </View>
           </View>
         </View>
-      </ScrollView>
-
       <View style={styles.bookingFooter}>
         <TouchableOpacity
           style={[styles.bookingButton, loading && styles.bookingButtonDisabled]}
@@ -866,6 +864,8 @@ const BusBooking = () => {
           )}
         </TouchableOpacity>
       </View>
+      </ScrollView>
+
 
       <StopSelectionModal
         visible={boardingModalOpen}

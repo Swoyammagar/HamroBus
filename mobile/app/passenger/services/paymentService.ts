@@ -26,6 +26,20 @@ export interface KhaltiVerifyResponse {
   };
 }
 
+export interface PassengerPaymentRecord {
+  paymentId: string;
+  bookingId: string | null;
+  bookingCode?: string | null;
+  tripId: string | null;
+  totalFare: number;
+  paymentType: 'Cash' | 'Online' | 'Wallet' | string;
+  paymentStatus: 'pending' | 'paid' | 'failed' | string;
+  paymentDate: string;
+  pickupLocation: string;
+  dropoffLocation: string;
+  driverName?: string | null;
+}
+
 export const paymentService = {
   initiateKhaltiPayment: async (
     bookingId: string,
@@ -43,6 +57,23 @@ export const paymentService = {
     const response = await apiClient.post('/passenger/payments/verify-khalti', {
       bookingId,
       pidx,
+    });
+    return response.data;
+  },
+
+  getPaymentHistory: async (page: number = 1, limit: number = 10): Promise<{
+    data: PassengerPaymentRecord[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
+  }> => {
+    const response = await apiClient.get('/passenger/payments/history', {
+      params: { page, limit },
     });
     return response.data;
   },
