@@ -204,6 +204,7 @@ const initiateKhaltiPayment = async (req, res) => {
         };
         booking.paymentStatus = true;
         await booking.save();
+
         await mirrorBookingPayment({ booking, khaltiData: lookupData }).catch((error) => {
           console.error('Failed to mirror booking payment:', error);
         });
@@ -217,25 +218,21 @@ const initiateKhaltiPayment = async (req, res) => {
         });
       }
 
-      if (lookupResponse.ok && isKhaltiFailedStatus(khaltiStatus)) {
-        booking.payment = {
-          ...(booking.payment || {}),
-          status: 'failed',
-          khaltiIdx: String(booking.payment?.khaltiIdx || ''),
-          paidAt: booking.payment?.paidAt,
-        };
-        booking.paymentStatus = false;
-        await booking.save();
-      } else {
-        return res.status(200).json({
-          success: true,
-          message: 'Existing Khalti payment is still processing. Please continue with the same payment session.',
-          bookingId: booking._id,
-          paymentStatus: false,
-          pidx: booking.payment.khaltiIdx,
-          paymentUrl: booking.payment?.paymentUrl,
-        });
-      }
+      // Anything that is NOT completed is treated as a failed/abandoned payment.
+      // This allows the passenger to start a fresh payment session.
+      booking.payment = {
+        ...(booking.payment || {}),
+        status: 'failed',
+        khaltiIdx: '',
+        paymentUrl: '',
+        paidAt: booking.payment?.paidAt,
+      };
+
+      booking.paymentStatus = false;
+      await booking.save();
+
+      // Do NOT return here.
+      // Execution continues below and creates a brand-new Khalti payment.
     }
 
     const chargeAmount = Number(booking.finalFare || booking.totalFare || 0);
